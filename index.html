@@ -101,6 +101,9 @@
 
   .controls{display:flex; gap:10px; margin-top:6px;}
   .controls .btn{flex:1;}
+  .year-fix{display:flex; align-items:center; justify-content:center; gap:8px; margin:10px 0 0;}
+  .year-fix .muted{font-size:12px; letter-spacing:.12em; text-transform:uppercase;}
+  .year-fix input.rev-yr{width:92px; height:46px; font-size:20px;}
 
   .rev-list{display:flex; flex-direction:column; gap:8px;}
   .rev-row{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
@@ -554,6 +557,13 @@ function renderGame(){
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
       <h2>${live?'Mystery track is playing':'…'}</h2>
       <p>Listen, then drop it into your timeline where it belongs.</p>
+      ${live ? `
+        <div class="year-fix">
+          <span class="muted">fix year</span>
+          <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
+            onchange="saveYear('${S.current.id}', this.value)" />
+        </div>
+      ` : ''}
     </div>
 
     <div class="controls">
