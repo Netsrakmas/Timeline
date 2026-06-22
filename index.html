@@ -227,7 +227,16 @@ async function exchangeCode(code){
   const r = await fetch("https://accounts.spotify.com/api/token", {
     method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body
   });
-  if(!r.ok){ toast("Login failed — check the Client ID and redirect URI."); return false; }
+  if(!r.ok){
+    let detail = "Login failed — check the Client ID and redirect URI.";
+    try{
+      const d = await r.json();
+      if(d && d.error_description) detail = d.error_description;
+      else if(d && d.error) detail = d.error;
+    }catch(e){}
+    toast(detail);
+    return false;
+  }
   const d = await r.json();
   saveToken(d);
   return true;
@@ -793,7 +802,8 @@ async function boot(){
     if(ok){ await getMe(); await refreshDevices(); }
   } else if(params.get("error")){
     history.replaceState({}, "", REDIRECT_URI);
-    toast("Spotify login was cancelled.");
+    const detail = params.get("error_description") || params.get("error") || "Spotify login was cancelled.";
+    toast(detail);
   } else if(await ensureToken()){
     await getMe(); await refreshDevices();
   }
