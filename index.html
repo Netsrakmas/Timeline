@@ -9,20 +9,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --ink:#05060A; --surface:#11131C; --surface-2:#181B2A; --line:#2B2F47;
-    --amber:#F5C94A; --pink:#FF4FA3; --cyan:#3DE0FF; --violet:#9B5CFF;
-    --text:#F7F3FF; --muted:#A8ADC5; --good:#41F0A6; --bad:#FF5B7A;
-    --glow:rgba(245,201,74,.18);
+    --ink:#02040A; --surface:#101426; --surface-2:#131A35; --line:#2A3054;
+    --amber:#F7C94F; --pink:#FF2F9E; --cyan:#8CEBFF; --violet:#B36BFF;
+    --text:#F9F2FF; --muted:#A6ABD1; --good:#49F1A0; --bad:#FF5E8A;
+    --glow-pink:rgba(255,47,158,.18);
+    --glow-cyan:rgba(140,235,255,.12);
     --r:14px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; height:100%;}
   body{
     background:
-      radial-gradient(900px 420px at 50% -5%, rgba(245,201,74,.12), transparent 58%),
-      radial-gradient(700px 380px at 50% 110%, rgba(155,92,255,.08), transparent 52%),
-      radial-gradient(500px 300px at 10% 15%, rgba(255,79,163,.08), transparent 35%),
-      linear-gradient(180deg, #0A0C14 0%, #11131D 55%, #080A10 100%);
+      radial-gradient(900px 420px at 50% -8%, var(--glow-pink), transparent 58%),
+      radial-gradient(800px 380px at 50% 115%, var(--glow-cyan), transparent 50%),
+      radial-gradient(520px 260px at 12% 18%, rgba(255,47,158,.09), transparent 36%),
+      linear-gradient(180deg, #03050D 0%, #0B1020 52%, #02040A 100%);
     color:var(--text);
     font-family:"Space Grotesk",system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;
@@ -35,8 +36,8 @@
   h1.brand{font-family:"Anton"; font-size:clamp(40px,13vw,64px); margin:6px 0 2px; letter-spacing:1px;
     background:linear-gradient(180deg,#fff, #cdd2dd); -webkit-background-clip:text; background-clip:text; color:transparent;}
   .tag{color:var(--muted); font-size:14px; margin-bottom:22px; line-height:1.5;}
-  .card{background:linear-gradient(180deg, #161A2A, #10141E); border:1px solid var(--line); border-radius:var(--r); padding:18px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.24);}
+  .card{background:linear-gradient(180deg, #13182E, #0D1121); border:1px solid var(--line); border-radius:var(--r); padding:18px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.35);}
   .card + .card{margin-top:14px;}
   label.fld{display:block; font-size:13px; color:var(--muted); margin:0 0 7px; letter-spacing:.02em;}
   input[type=text]{
@@ -49,12 +50,12 @@
   button{font:inherit; cursor:pointer; border:none; border-radius:11px; font-weight:700; letter-spacing:.01em;}
   .btn{padding:14px 16px; background:var(--surface-2); color:var(--text); border:1px solid var(--line); width:100%;}
   .btn:active{transform:translateY(1px);}
-  .btn.primary{background:linear-gradient(180deg,#FFE27D,var(--amber)); color:#211805; border:none;
-    box-shadow:0 8px 18px rgba(245,201,74,.24);}
-  .btn.pink{background:linear-gradient(180deg,#FF82BC,var(--pink)); color:#2c0021; border:none;
-    box-shadow:0 8px 18px rgba(255,79,163,.22);}
+  .btn.primary{background:linear-gradient(180deg,#FF92D5,var(--pink)); color:#250019; border:none;
+    box-shadow:0 10px 22px rgba(255,47,158,.24);}
+  .btn.pink{background:linear-gradient(180deg,#A9F1FF,var(--cyan)); color:#002A38; border:none;
+    box-shadow:0 10px 22px rgba(140,235,255,.18);}
   .btn.ghost{background:transparent;}
-  .btn:hover{filter:brightness(1.03);}
+  .btn:hover{filter:brightness(1.04);}
   .btn.sm{padding:10px 12px; font-size:13px; width:auto;}
   .btn:disabled{opacity:.45; cursor:not-allowed;}
   .hint{font-size:12.5px; color:var(--muted); margin-top:9px; line-height:1.55;}
