@@ -390,7 +390,7 @@ async function nextTurn(){
 function sortedTimeline(p){ return [...p.timeline].sort((a,b)=>a.year-b.year); }
 
 function slotCorrect(p, idx){
-  const tl = sortedTimeline(p);
+  const tl = sortedTimeline(p).filter(c => c.id !== S.current.id);
   const y = S.current.year;
   const left = idx>0 ? tl[idx-1].year : -Infinity;
   const right = idx<tl.length ? tl[idx].year : Infinity;
@@ -400,9 +400,10 @@ function slotCorrect(p, idx){
 async function chooseSlot(idx){
   if(!S.current) return;
   const p = S.players[S.turn];
+  S.pendingSlot = idx;
   const correct = slotCorrect(p, idx);
   await pausePlayback();
-  if(correct){
+  if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
   }
@@ -557,13 +558,6 @@ function renderGame(){
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
       <h2>${live?'Mystery track is playing':'…'}</h2>
       <p>Listen, then drop it into your timeline where it belongs.</p>
-      ${live ? `
-        <div class="year-fix">
-          <span class="muted">fix year</span>
-          <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
-            onchange="saveYear('${S.current.id}', this.value)" />
-        </div>
-      ` : ''}
     </div>
 
     <div class="controls">
@@ -578,6 +572,19 @@ function renderGame(){
   `;
 }
 
+function recheckOverlay(){
+  const p = S.players[S.turn];
+  if(!S.current || S.pendingSlot === null || !p) return;
+  const correct = slotCorrect(p, S.pendingSlot);
+  if(correct && !p.timeline.some(c => c.id === S.current.id)){
+    p.timeline.push(S.current);
+    p.timeline.sort((a,b)=>a.year-b.year);
+  } else if(!correct && p.timeline.some(c => c.id === S.current.id)){
+    p.timeline = p.timeline.filter(c => c.id !== S.current.id);
+  }
+  overlayReveal(correct, p);
+}
+
 function overlayReveal(correct, p){
   const c = S.current;
   const sheet = document.getElementById("sheet");
@@ -587,6 +594,12 @@ function overlayReveal(correct, p){
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
+    <div class="year-fix" style="margin:14px 0 12px; justify-content:center;">
+      <span class="muted">fix year</span>
+      <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
+        onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
+    </div>
+    <button class="btn ghost" style="margin-bottom:8px" onclick="recheckOverlay()">Re-check</button>
     <button class="btn primary" onclick="advance()">Next turn →</button>
   `;
   document.getElementById("overlay").classList.add("show");
