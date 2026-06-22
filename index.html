@@ -34,7 +34,9 @@
   .eyebrow{font-size:12px; letter-spacing:.28em; text-transform:uppercase; color:var(--pink); font-weight:700;}
   .muted{color:var(--muted);}
   h1.brand{font-family:"Anton"; font-size:clamp(40px,13vw,64px); margin:6px 0 2px; letter-spacing:1px;
-    background:linear-gradient(180deg,#fff, #cdd2dd); -webkit-background-clip:text; background-clip:text; color:transparent;}
+    background:linear-gradient(180deg,#ffffff 0%, #f8b7e9 52%, var(--cyan) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 18px rgba(255,47,158,.08);}
   .tag{color:var(--muted); font-size:14px; margin-bottom:22px; line-height:1.5;}
   .card{background:linear-gradient(180deg, #13182E, #0D1121); border:1px solid var(--line); border-radius:var(--r); padding:18px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.35);}
@@ -565,6 +567,13 @@ function renderGame(){
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
       <h2>${live?'Mystery track is playing':'…'}</h2>
       <p>Listen, then drop it into your timeline where it belongs.</p>
+      ${live ? `
+        <div class="year-fix" style="margin-top:12px; justify-content:center;">
+          <span class="muted">verify year</span>
+          <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
+            onchange="saveYear('${S.current.id}', this.value)" />
+        </div>
+      ` : ''}
     </div>
 
     <div class="controls">
