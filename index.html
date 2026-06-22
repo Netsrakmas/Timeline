@@ -188,6 +188,7 @@ const S = {
   current: null,     // hidden card in play
   pendingSlot: null,
   playing: false,
+  showVerifyInput: false,
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
   revealYears: false,
   autoFilled: new Set(),
@@ -388,6 +389,7 @@ function startGame(){
 
 async function nextTurn(){
   S.pendingSlot = null;
+  S.showVerifyInput = false;
   const c = drawCard();
   if(!c){ overlayGameOver(true); return; }
   S.current = c;
@@ -569,9 +571,13 @@ function renderGame(){
       <p>Listen, then drop it into your timeline where it belongs.</p>
       ${live ? `
         <div class="year-fix" style="margin-top:12px; justify-content:center;">
-          <span class="muted">verify year</span>
-          <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
-            onchange="saveYear('${S.current.id}', this.value)" />
+          ${S.showVerifyInput ? `
+            <span class="muted">verify year</span>
+            <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
+              onchange="saveYear('${S.current.id}', this.value)" />
+          ` : `
+            <button class="btn ghost sm" onclick="toggleVerifyInput()">Verify year</button>
+          `}
         </div>
       ` : ''}
     </div>
@@ -586,6 +592,11 @@ function renderGame(){
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Older ◄———————————————► Newer</div>
   `;
+}
+
+function toggleVerifyInput(){
+  S.showVerifyInput = !S.showVerifyInput;
+  renderGame();
 }
 
 function recheckOverlay(){
