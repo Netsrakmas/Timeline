@@ -416,14 +416,8 @@ function slotCorrect(p, idx){
 function showCheckingState(message="Checking track…"){
   S.checkingTrack = true;
   S.checkMessage = message;
+  closeOverlay();
   renderGame();
-  const sheet = document.getElementById("sheet");
-  sheet.innerHTML = `
-    <div class="verdict" style="color:var(--cyan); font-size:28px;">Checking…</div>
-    <div class="muted" style="font-size:14px; margin-top:6px">${esc(message)}</div>
-    <div class="eq" style="margin-top:14px"><span></span><span></span><span></span><span></span><span></span></div>
-  `;
-  document.getElementById("overlay").classList.add("show");
 }
 
 async function chooseSlot(idx){
@@ -432,7 +426,7 @@ async function chooseSlot(idx){
   S.pendingSlot = idx;
   showCheckingState("Checking where this track belongs…");
   await pausePlayback();
-  await new Promise(resolve => setTimeout(resolve, 240));
+  await new Promise(resolve => setTimeout(resolve, 260));
   const correct = slotCorrect(p, idx);
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
@@ -626,7 +620,7 @@ async function recheckOverlay(){
   const p = S.players[S.turn];
   if(!S.current || S.pendingSlot === null || !p) return;
   showCheckingState("Re-checking this track…");
-  await new Promise(resolve => setTimeout(resolve, 240));
+  await new Promise(resolve => setTimeout(resolve, 260));
   const correct = slotCorrect(p, S.pendingSlot);
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
