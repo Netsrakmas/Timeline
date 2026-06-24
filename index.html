@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#03050D" />
+<link rel="manifest" href="./manifest.json" />
 <title>Timeline — music timeline game</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -162,6 +164,12 @@
 
 <script>
 "use strict";
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
 
 /* ---------- tiny storage (degrades gracefully in sandboxes) ---------- */
 const store = {

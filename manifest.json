@@ -1,0 +1,16 @@
+{
+  "name": "Timeline",
+  "short_name": "Timeline",
+  "description": "A music timeline guessing game powered by Spotify",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#03050D",
+  "theme_color": "#03050D",
+  "icons": [
+    {
+      "src": "data:image/png;base64,",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
