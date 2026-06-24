@@ -113,6 +113,7 @@
   .year-fix{display:flex; align-items:center; justify-content:center; gap:8px; margin:10px 0 0;}
   .year-fix .muted{font-size:12px; letter-spacing:.12em; text-transform:uppercase;}
   .year-fix input.rev-yr{width:92px; height:46px; font-size:20px;}
+  .verify-state{margin-top:10px; font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--cyan);}
 
   .rev-list{display:flex; flex-direction:column; gap:8px;}
   .rev-row{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
@@ -189,6 +190,8 @@ const S = {
   pendingSlot: null,
   playing: false,
   showVerifyInput: false,
+  checkingTrack: false,
+  checkMessage: "",
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
   revealYears: false,
   autoFilled: new Set(),
@@ -390,6 +393,8 @@ function startGame(){
 async function nextTurn(){
   S.pendingSlot = null;
   S.showVerifyInput = false;
+  S.checkingTrack = false;
+  S.checkMessage = "";
   const c = drawCard();
   if(!c){ overlayGameOver(true); return; }
   S.current = c;
@@ -408,17 +413,34 @@ function slotCorrect(p, idx){
   return y >= left && y <= right;
 }
 
+function showCheckingState(message="Checking track…"){
+  S.checkingTrack = true;
+  S.checkMessage = message;
+  renderGame();
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="verdict" style="color:var(--cyan); font-size:28px;">Checking…</div>
+    <div class="muted" style="font-size:14px; margin-top:6px">${esc(message)}</div>
+    <div class="eq" style="margin-top:14px"><span></span><span></span><span></span><span></span><span></span></div>
+  `;
+  document.getElementById("overlay").classList.add("show");
+}
+
 async function chooseSlot(idx){
   if(!S.current) return;
   const p = S.players[S.turn];
   S.pendingSlot = idx;
-  const correct = slotCorrect(p, idx);
+  showCheckingState("Checking where this track belongs…");
   await pausePlayback();
+  await new Promise(resolve => setTimeout(resolve, 240));
+  const correct = slotCorrect(p, idx);
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
   }
   S.used.add(S.current.id);
+  S.checkingTrack = false;
+  S.checkMessage = "";
   overlayReveal(correct, p);
 }
 
@@ -567,8 +589,9 @@ function renderGame(){
 
     <div class="stage" style="margin-top:14px">
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
-      <h2>${live?'Mystery track is playing':'…'}</h2>
-      <p>Listen, then drop it into your timeline where it belongs.</p>
+      <h2>${S.checkingTrack ? 'Checking track…' : (live ? 'Mystery track is playing' : '…')}</h2>
+      <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.') : 'Listen, then drop it into your timeline where it belongs.'}</p>
+      ${S.checkingTrack ? `<div class="verify-state">still checking</div>` : ''}
       ${live ? `
         <div class="year-fix" style="margin-top:12px; justify-content:center;">
           ${S.showVerifyInput ? `
@@ -599,9 +622,11 @@ function toggleVerifyInput(){
   renderGame();
 }
 
-function recheckOverlay(){
+async function recheckOverlay(){
   const p = S.players[S.turn];
   if(!S.current || S.pendingSlot === null || !p) return;
+  showCheckingState("Re-checking this track…");
+  await new Promise(resolve => setTimeout(resolve, 240));
   const correct = slotCorrect(p, S.pendingSlot);
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
@@ -609,12 +634,16 @@ function recheckOverlay(){
   } else if(!correct && p.timeline.some(c => c.id === S.current.id)){
     p.timeline = p.timeline.filter(c => c.id !== S.current.id);
   }
+  S.checkingTrack = false;
+  S.checkMessage = "";
   overlayReveal(correct, p);
 }
 
 function overlayReveal(correct, p){
   const c = S.current;
   const sheet = document.getElementById("sheet");
+  S.checkingTrack = false;
+  S.checkMessage = "";
   sheet.innerHTML = `
     <div class="verdict ${correct?'good':'bad'}">${correct?'NICE!':'NOPE'}</div>
     <div class="muted" style="font-size:13px">${correct?'Card goes to '+esc(p.name):'Card is discarded'}</div>
