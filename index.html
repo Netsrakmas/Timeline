@@ -192,6 +192,7 @@ const S = {
   deviceId: null,
   sdkDeviceId: null, // in-browser Web Playback SDK device id
   sdkReady: false,
+  sdkError: "",      // "auth" | "premium" | "init" — why the in-app player isn't ready
   deck: [],          // {id,uri,name,artist,year}
   used: new Set(),
   players: [],       // {name, timeline:[card]}
@@ -224,7 +225,7 @@ async function challengeFrom(verifier){
 }
 
 async function login(){
-  const clientId = (val("clientId")||"").trim();
+  const clientId = (val("clientId")||"").trim() || store.get("hs_client") || "";
   if(!clientId){ toast("Paste your Spotify Client ID first."); return; }
   store.set("hs_client", clientId);
   const verifier = randString(48);
@@ -377,14 +378,15 @@ function initWebPlayer(){
   webPlayer.addListener("ready", ({ device_id }) => {
     S.sdkDeviceId = device_id;
     S.deviceId = device_id;        // default to in-app playback → title stays hidden
+    S.sdkError = "";
     maskMediaSession();
     renderSetup();
   });
   webPlayer.addListener("not_ready", ({ device_id }) => { console.warn("[WebPlayback] device offline", device_id); });
   webPlayer.addListener("player_state_changed", state => { if(state) maskMediaSession(); });
-  webPlayer.addListener("initialization_error", ({ message }) => console.warn("[WebPlayback] init:", message));
-  webPlayer.addListener("authentication_error", ({ message }) => { console.warn("[WebPlayback] auth:", message); toast("In-app player auth failed — try reconnecting Spotify."); });
-  webPlayer.addListener("account_error", () => toast("The in-app player needs Spotify Premium."));
+  webPlayer.addListener("initialization_error", ({ message }) => { console.warn("[WebPlayback] init:", message); S.sdkError = "init"; renderSetup(); });
+  webPlayer.addListener("authentication_error", ({ message }) => { console.warn("[WebPlayback] auth:", message); S.sdkError = "auth"; renderSetup(); });
+  webPlayer.addListener("account_error", ({ message }) => { console.warn("[WebPlayback] account:", message); S.sdkError = "premium"; renderSetup(); });
   webPlayer.connect();
 }
 
@@ -558,6 +560,7 @@ function renderSetup(){
           <div class="pill"><span class="dot on"></span> ${esc(S.me.display_name||"Connected")}</div>
           <span class="pill" style="${premium?'':'color:var(--bad);border-color:var(--bad)'}">${premium?'Connected ✓':'Free account?'}</span>
         </div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="login()">↻ Reconnect / refresh Spotify permissions</button>
       ` : `
         <label class="fld" for="clientId">Spotify Client ID</label>
         <input id="clientId" type="text" placeholder="paste from developer dashboard" value="${esc(store.get('hs_client')||'')}" />
@@ -576,7 +579,7 @@ function renderSetup(){
         <button class="btn sm ghost" onclick="refreshDevices()">↻ Refresh</button>
       </div>
       <div id="deviceList" style="margin-top:10px"></div>
-      <div class="hint"><b>Play in this app</b> plays the song right here and hides the title — best for single-phone games (needs Spotify Premium). Other devices play fine but their Spotify app will show the title.</div>
+      <div class="hint"><b>Play in this app</b> plays the song right here and hides the title — best when one phone is both screen and speaker (needs Spotify Premium). A speaker/soundbar has no screen so it won't show the title either; only a <b>phone or computer running the Spotify app</b> will.</div>
     </div>
 
     <div class="card">
@@ -610,15 +613,24 @@ function renderSetup(){
 
 function renderDevices(){
   const box = document.getElementById("deviceList"); if(!box) return;
-  // in-app player first — the only option that hides the title
-  const inApp = (S.sdkReady && S.sdkDeviceId) ? `
-    <button class="btn ${S.deviceId===S.sdkDeviceId?'primary':''}" style="margin-bottom:8px; text-align:left" onclick="pickDevice('${S.sdkDeviceId}')">
+  // in-app player first — the only option that hides the title on the phone itself
+  let inApp;
+  if(S.sdkReady && S.sdkDeviceId){
+    inApp = `<button class="btn ${S.deviceId===S.sdkDeviceId?'primary':''}" style="margin-bottom:8px; text-align:left" onclick="pickDevice('${S.sdkDeviceId}')">
       ${S.deviceId===S.sdkDeviceId?'● ':''}🎵 Play in this app <span class="muted" style="font-weight:400">· title hidden</span>
-    </button>` : `
-    <button class="btn" style="margin-bottom:8px; text-align:left; opacity:.6" disabled>🎵 Starting in-app player…</button>`;
+    </button>`;
+  } else if(S.sdkError==='auth'){
+    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; border-color:var(--cyan); color:var(--cyan)" onclick="login()">⟳ Reconnect Spotify to enable in-app play</button>`;
+  } else if(S.sdkError==='premium'){
+    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.7" disabled>🎵 In-app play needs Spotify Premium</button>`;
+  } else if(S.sdkError==='init'){
+    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.7" disabled>🎵 In-app player not supported on this browser</button>`;
+  } else {
+    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.6" disabled>🎵 Starting in-app player…</button>`;
+  }
   const others = S.devices.filter(d => d.id !== S.sdkDeviceId).map(d=>`
     <button class="btn ${S.deviceId===d.id?'primary':''}" style="margin-bottom:8px; text-align:left" onclick="pickDevice('${d.id}')">
-      ${S.deviceId===d.id?'● ':''}${esc(d.name)} <span class="muted" style="font-weight:400">· ${esc(d.type)} · shows title</span>
+      ${S.deviceId===d.id?'● ':''}${esc(d.name)} <span class="muted" style="font-weight:400">· ${esc(d.type)}</span>
     </button>`).join("");
   box.innerHTML = inApp + others;
 }
