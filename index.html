@@ -564,6 +564,15 @@ function showError(msg){
   console.error("[Timeline]", msg);
 }
 
+function renderLoading(msg){
+  app().innerHTML = `
+    <div class="stage" style="margin-top:64px">
+      <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
+      <h2>${esc(msg||"Loading…")}</h2>
+      <p>Reading your playlist from Spotify…</p>
+    </div>`;
+}
+
 function renderSetup(){
   const connected = !!S.me;
   const premium = !S.me || S.me.product !== "free";  // product field removed Feb 2026; only flag explicit "free"
@@ -798,9 +807,9 @@ async function onStart(){
   await activateWebPlayer();   // unlock mobile playback within this tap
   const plInput = val("plUrl");
   store.set("hs_pl", plInput);
-  toast("Loading deck…");
+  renderLoading("Loading deck…");   // persistent state — survives the few-second fetch
   const ok = await loadPlaylist(plInput);
-  if(!ok){ return; }
+  if(!ok){ renderSetup(); return; }
   beginGame();   // straight into play — no years shown
 }
 
