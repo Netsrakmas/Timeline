@@ -217,7 +217,6 @@ const S = {
   current: null,     // hidden card in play
   pendingSlot: null,
   playing: false,
-  showVerifyInput: false,
   checkingTrack: false,
   checkMessage: "",
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
@@ -491,7 +490,6 @@ function startGame(){
 
 async function nextTurn(){
   S.pendingSlot = null;
-  S.showVerifyInput = false;
   S.checkingTrack = false;
   S.checkMessage = "";
   const c = drawCard();
@@ -551,10 +549,12 @@ function val(id){ const el=document.getElementById(id); return el?el.value:""; }
 function esc(s){ return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
 
 let toastTimer;
-function toast(msg){
+function toast(msg, sticky){
   const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), 3400);
+  clearTimeout(toastTimer);
+  if(!sticky) toastTimer=setTimeout(()=>t.classList.remove("show"), 3400);
 }
+function hideToast(){ clearTimeout(toastTimer); const t=document.getElementById("toast"); if(t) t.classList.remove("show"); }
 function closeOverlay(){ document.getElementById("overlay").classList.remove("show"); }
 function showError(msg){
   const e=document.getElementById("errbar");
@@ -562,15 +562,6 @@ function showError(msg){
   e.style.display="block";
   window.scrollTo(0,0);
   console.error("[Timeline]", msg);
-}
-
-function renderLoading(msg){
-  app().innerHTML = `
-    <div class="stage" style="margin-top:64px">
-      <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
-      <h2>${esc(msg||"Loading…")}</h2>
-      <p>Reading your playlist from Spotify…</p>
-    </div>`;
 }
 
 function renderSetup(){
@@ -710,17 +701,6 @@ function renderGame(){
       <h2>${S.checkingTrack ? 'Checking track…' : (live ? 'Mystery track is playing' : '…')}</h2>
       <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.') : 'Listen, then drop it into your timeline where it belongs.'}</p>
       ${S.checkingTrack ? `<div class="verify-state">still checking</div>` : ''}
-      ${live ? `
-        <div class="year-fix" style="margin-top:12px; justify-content:center;">
-          ${S.showVerifyInput ? `
-            <span class="muted">verify year</span>
-            <input class="rev-yr" type="number" inputmode="numeric" value="${S.current.year}"
-              onchange="saveYear('${S.current.id}', this.value)" />
-          ` : `
-            <button class="btn ghost sm" onclick="toggleVerifyInput()">Verify year</button>
-          `}
-        </div>
-      ` : ''}
     </div>
 
     <div class="controls">
@@ -733,11 +713,6 @@ function renderGame(){
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Older ◄———————————————► Newer</div>
   `;
-}
-
-function toggleVerifyInput(){
-  S.showVerifyInput = !S.showVerifyInput;
-  renderGame();
 }
 
 async function recheckOverlay(){
@@ -807,9 +782,10 @@ async function onStart(){
   await activateWebPlayer();   // unlock mobile playback within this tap
   const plInput = val("plUrl");
   store.set("hs_pl", plInput);
-  renderLoading("Loading deck…");   // persistent state — survives the few-second fetch
+  toast("Loading deck…", true);   // sticky — stays up through the few-second fetch
   const ok = await loadPlaylist(plInput);
-  if(!ok){ renderSetup(); return; }
+  hideToast();
+  if(!ok){ return; }
   beginGame();   // straight into play — no years shown
 }
 
