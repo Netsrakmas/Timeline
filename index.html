@@ -665,10 +665,10 @@ function renderDevices(){
 
 function renderPlayers(){
   const box = document.getElementById("players"); if(!box) return;
-  if(S.players.length===0) S.players=[{name:"Player 1",timeline:[]}];
+  if(S.players.length===0) S.players=[{name:"",timeline:[]}];
   box.innerHTML = S.players.map((p,i)=>`
     <div class="row">
-      <input type="text" value="${esc(p.name)}" oninput="renamePlayer(${i}, this.value)" />
+      <input type="text" placeholder="Player ${i+1}" value="${esc(p.name)}" onfocus="this.select()" oninput="renamePlayer(${i}, this.value)" />
       ${S.players.length>1?`<button class="btn iconbtn ghost" onclick="removePlayer(${i})">✕</button>`:``}
     </div>`).join("");
 }
@@ -691,21 +691,21 @@ function renderGame(){
     }
   }
 
-  // leaderboard rows — sorted by score, current player highlighted
+  // leaderboard rows — sorted by score; ties share a rank/medal
   const medals = ["🥇","🥈","🥉"];
-  const lbHTML = S.players
-    .map((pp,i)=>({pp,i}))
-    .sort((a,b)=> b.pp.timeline.length - a.pp.timeline.length)
-    .map((e,rank)=>{
-      const score = e.pp.timeline.length;
-      const pct = S.target ? Math.min(100, Math.round(score/S.target*100)) : 0;
-      return `<div class="lb2-row ${e.i===S.turn?'me':''}">
-        <span class="lb2-rank">${medals[rank]||(rank+1)}</span>
-        <span class="lb2-nm">${esc(e.pp.name)}</span>
-        <span class="lb2-bar"><span class="lb2-fill" style="width:${pct}%"></span></span>
-        <span class="lb2-sc">${score}/${S.target}</span>
-      </div>`;
-    }).join("");
+  const ranked = S.players.map((pp,i)=>({pp,i}))
+    .sort((a,b)=> b.pp.timeline.length - a.pp.timeline.length);
+  const lbHTML = ranked.map((e)=>{
+    const score = e.pp.timeline.length;
+    const rank = ranked.filter(x => x.pp.timeline.length > score).length;  // competition rank: equal scores tie
+    const pct = S.target ? Math.min(100, Math.round(score/S.target*100)) : 0;
+    return `<div class="lb2-row ${e.i===S.turn?'me':''}">
+      <span class="lb2-rank">${medals[rank]||(rank+1)}</span>
+      <span class="lb2-nm">${esc(e.pp.name)}</span>
+      <span class="lb2-bar"><span class="lb2-fill" style="width:${pct}%"></span></span>
+      <span class="lb2-sc">${score}/${S.target}</span>
+    </div>`;
+  }).join("");
 
   app().innerHTML = `
     <div class="topbar">
@@ -793,7 +793,7 @@ function overlayGameOver(deckEmpty, winner){
 /* ---------- UI actions ---------- */
 async function refreshDevices(){ await getDevices(); if(!S.deviceId && S.devices[0]) S.deviceId=S.devices[0].id; renderSetup(); }
 function pickDevice(id){ S.deviceId=id; if(id===S.sdkDeviceId) activateWebPlayer(); transferTo(id); renderSetup(); }
-function addPlayer(){ S.players.push({name:"Player "+(S.players.length+1),timeline:[]}); renderPlayers(); }
+function addPlayer(){ S.players.push({name:"",timeline:[]}); renderPlayers(); }
 function removePlayer(i){ S.players.splice(i,1); renderPlayers(); }
 function renamePlayer(i,v){ S.players[i].name=v; }
 function setTarget(n){ S.target=n; renderSetup(); }
@@ -824,6 +824,7 @@ function saveYear(id, value){
 }
 
 function beginGame(){
+  S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });  // fill any blanks
   if(S.deck.length < S.players.length * S.target){
     toast("Heads up: small deck for "+S.target+"-card games.");
   }
