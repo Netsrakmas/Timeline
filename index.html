@@ -180,7 +180,7 @@ const store = {
 
 /* ---------- config ---------- */
 const SCOPES = "user-read-private user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative";
-const REDIRECT_URI = window.location.origin + window.location.pathname;
+const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/index\.html$/, "");
 
 /* ---------- app state ---------- */
 const S = {
