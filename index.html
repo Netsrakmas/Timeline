@@ -325,7 +325,7 @@ async function playTrack(uri){
   if(r.status===404){ toast("Device went idle. Open Spotify, then tap Replay."); return false; }
   if(r.status===403){ toast("Playback control needs Spotify Premium."); return false; }
   S.playing = true;
-  if(S.deviceId===S.sdkDeviceId) remaskBurst();   // hide the title the SDK just set
+  if(S.deviceId===S.sdkDeviceId){ startMaskLoop(); remaskBurst(); }   // hide the title the SDK sets
   return true;
 }
 async function pausePlayback(){
@@ -359,9 +359,16 @@ function maskMediaSession(){
     });
   }catch(e){}
 }
-// the SDK rewrites the metadata to the real track when a new song loads, so
-// stamp our decoy back over it a few times across the first second of playback
-function remaskBurst(){ [0,120,300,600,1000].forEach(t => setTimeout(maskMediaSession, t)); }
+// the SDK rewrites the metadata to the real track when a new song loads, so we
+// (a) stamp our decoy back densely over the first second and (b) keep a low-rate
+// loop running so even the very first track can't leak past ~0.7s
+function remaskBurst(){ [0,80,160,300,500,800].forEach(t => setTimeout(maskMediaSession, t)); }
+let maskTimer = null;
+function startMaskLoop(){
+  maskMediaSession();
+  if(maskTimer) return;
+  maskTimer = setInterval(maskMediaSession, 700);
+}
 
 window.onSpotifyWebPlaybackSDKReady = () => { S.sdkReady = true; initWebPlayer(); };
 if(window.Spotify){ S.sdkReady = true; }   // SDK already finished loading before this script ran
@@ -393,9 +400,9 @@ function initWebPlayer(){
 // activateElement() must be called inside a user gesture on mobile, or playback
 // is paused right after the transfer (mobile autoplay restriction)
 async function activateWebPlayer(){
-  if(webPlayer && webPlayer.activateElement){
-    try{ await webPlayer.activateElement(); }catch(e){}
-  }
+  if(!webPlayer) return;
+  try{ if(webPlayer.activateElement) await webPlayer.activateElement(); }catch(e){}
+  try{ if(webPlayer.setVolume) await webPlayer.setVolume(1.0); }catch(e){}
 }
 
 function parsePlaylistId(input){
@@ -766,7 +773,7 @@ function overlayGameOver(deckEmpty, winner){
 
 /* ---------- UI actions ---------- */
 async function refreshDevices(){ await getDevices(); if(!S.deviceId && S.devices[0]) S.deviceId=S.devices[0].id; renderSetup(); }
-function pickDevice(id){ S.deviceId=id; transferTo(id); renderSetup(); }
+function pickDevice(id){ S.deviceId=id; if(id===S.sdkDeviceId) activateWebPlayer(); transferTo(id); renderSetup(); }
 function addPlayer(){ S.players.push({name:"Player "+(S.players.length+1),timeline:[]}); renderPlayers(); }
 function removePlayer(i){ S.players.splice(i,1); renderPlayers(); }
 function renamePlayer(i,v){ S.players[i].name=v; }
@@ -949,7 +956,7 @@ function renderReview(){
   `;
 }
 
-function replay(){ if(S.current) playTrack(S.current.uri).then(()=>renderGame()); }
+function replay(){ if(!S.current) return; activateWebPlayer(); playTrack(S.current.uri).then(()=>renderGame()); }
 function confirmQuit(){ if(confirm("Quit this game and return to setup?")) backToSetup(); }
 function playAgain(){
   closeOverlay();
