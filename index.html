@@ -76,6 +76,15 @@
   .seg{display:flex; gap:8px;}
   .seg button{flex:1; padding:11px; background:var(--surface-2); border:1px solid var(--line); color:var(--muted);}
   .seg button.sel{background:var(--pink); color:#250019; border-color:transparent;}
+  .diffs{display:flex; flex-direction:column; gap:8px;}
+  .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:13px 15px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line);
+    color:var(--text); width:100%; text-align:left; font:inherit; font-weight:700;}
+  .diff .dname{font-size:15px;}
+  .diff .dcards{flex:0 0 auto; font-size:12px; color:var(--muted); letter-spacing:.04em; font-weight:500;}
+  .diff.sel{background:linear-gradient(180deg,#FF72C8,var(--pink)); color:#250019; border-color:transparent;
+    box-shadow:0 8px 20px rgba(255,47,158,.22);}
+  .diff.sel .dcards{color:#250019; opacity:.85;}
 
   /* GAME */
   .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
@@ -182,6 +191,13 @@ const store = {
 /* ---------- config ---------- */
 const SCOPES = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative";
 const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/index\.html$/, "");
+/* difficulty tiers — DOOM ladder, easy → hardest */
+const DIFFICULTIES = [
+  { n:10, name:"I'm Too Young to Die" },
+  { n:15, name:"Hurt Me Plenty" },
+  { n:20, name:"Ultra-Violence" },
+  { n:25, name:"Nightmare!" },
+];
 
 /* ---------- app state ---------- */
 const S = {
@@ -601,10 +617,11 @@ function renderSetup(){
       <div class="players-list" id="players"></div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="addPlayer()">+ Add player</button>
       <div style="height:16px"></div>
-      <label class="fld">Cards needed to win</label>
-      <div class="seg" id="targetSeg">
-        ${[6,8,10].map(n=>`<button class="${S.target===n?'sel':''}" onclick="setTarget(${n})">${n}</button>`).join("")}
+      <label class="fld">Difficulty · cards to win</label>
+      <div class="diffs" id="diffSel">
+        ${DIFFICULTIES.map(d=>`<button class="diff ${S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">${d.n} cards</span></button>`).join("")}
       </div>
+      <div class="hint">Harder modes need a bigger playlist — aim for about <b>${(S.players.length||1)*S.target}</b>+ songs for this mode &amp; player count.</div>
     </div>
 
     <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">▶ Start game</button>
