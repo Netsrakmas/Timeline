@@ -120,6 +120,7 @@
   .slot.active:active{background:rgba(77,212,255,.18);}
   .slot .ins{font-size:18px;}
   .slot .rng{font-size:10px; line-height:1.2; text-align:center;}
+  .tie{flex:0 0 auto; align-self:center; color:var(--muted); font-size:15px; font-weight:700; opacity:.55; padding:0 2px;}
   .placed{flex:0 0 auto; width:104px; min-height:96px; border-radius:12px; background:var(--surface-2);
     border:1px solid var(--line); padding:10px 9px; display:flex; flex-direction:column; justify-content:space-between;}
   .placed .yr{font-family:"Anton"; font-size:30px; color:var(--pink); line-height:.9;}
@@ -187,6 +188,14 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   });
 }
+
+// Surface crashes instead of white-screening; the game is auto-saved each turn.
+window.addEventListener("error", e => {
+  try{ showError("Something glitched: "+((e&&e.message)||"unknown error")+"\nYour game is auto-saved — reload and tap Resume."); }catch(_){}
+});
+window.addEventListener("unhandledrejection", e => {
+  try{ const r=e&&e.reason; showError("Something glitched: "+((r&&r.message)||r||"unknown error")+"\nYour game is auto-saved — reload and tap Resume."); }catch(_){}
+});
 
 /* ---------- tiny storage (degrades gracefully in sandboxes) ---------- */
 const store = {
@@ -483,6 +492,42 @@ function drawCard(){
 }
 function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id===id)); }
 
+/* ---------- save / resume (survives crashes & reloads) ---------- */
+function saveGame(){
+  try{
+    if(!S.players || !S.players.length) return;
+    store.set("hs_game", JSON.stringify({
+      v:1, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
+      current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline}))
+    }));
+  }catch(e){}
+}
+function clearGame(){ store.del("hs_game"); }
+function loadSaved(){ try{ return JSON.parse(store.get("hs_game")||"null"); }catch(e){ return null; } }
+function hasSavedGame(){
+  const d = loadSaved();
+  return !!(d && d.players && d.players.length && (d.current || d.players.some(p=>(p.timeline||[]).length>1)));
+}
+function savedSummary(){
+  const d = loadSaved(); if(!d) return "in progress";
+  const lead = [...(d.players||[])].sort((a,b)=>(b.timeline||[]).length-(a.timeline||[]).length)[0];
+  return lead ? esc(lead.name)+" leading ("+(lead.timeline||[]).length+"/"+(d.target||"?")+")" : "in progress";
+}
+function discardSaved(){ clearGame(); renderSetup(); }
+function resumeSaved(){
+  const d = loadSaved();
+  if(!d){ toast("No saved game to resume."); return; }
+  S.target = d.target||S.target;
+  S.turn = d.turn||0;
+  S.deck = d.deck||[];
+  S.used = new Set(d.used||[]);
+  S.current = d.current||null;
+  S.players = (d.players||[]).map(p=>({name:p.name||"Player", timeline:p.timeline||[]}));
+  activateWebPlayer();          // this is a user tap → unlocks mobile audio
+  renderGame();
+  if(S.current) playTrack(S.current.uri);
+}
+
 function startGame(){
   shuffle(S.deck);
   // seed each player with one freebie card so the first placement has a reference point
@@ -493,6 +538,7 @@ function startGame(){
   S.turn = 0;
   nextTurn();
   renderGame();
+  saveGame();
 }
 
 async function nextTurn(){
@@ -502,6 +548,7 @@ async function nextTurn(){
   const c = drawCard();
   if(!c){ overlayGameOver(true); return; }
   S.current = c;
+  saveGame();
   renderGame();
   await playTrack(c.uri);
   renderGame();
@@ -529,8 +576,7 @@ async function chooseSlot(idx){
   const p = S.players[S.turn];
   S.pendingSlot = idx;
   showCheckingState("Checking where this track belongs…");
-  await pausePlayback();
-  await new Promise(resolve => setTimeout(resolve, 260));
+  await new Promise(resolve => setTimeout(resolve, 260));   // music keeps playing through the reveal
   const correct = slotCorrect(p, idx);
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
@@ -539,6 +585,7 @@ async function chooseSlot(idx){
   S.used.add(S.current.id);
   S.checkingTrack = false;
   S.checkMessage = "";
+  saveGame();
   overlayReveal(correct, p);
 }
 
@@ -599,6 +646,14 @@ function renderSetup(){
     </div>
 
     ${connected ? `
+    ${hasSavedGame() ? `
+    <div class="card" style="border-color:var(--cyan)">
+      <div class="eyebrow" style="color:var(--cyan)">resume</div>
+      <div style="height:8px"></div>
+      <div class="muted" style="font-size:13px; margin-bottom:10px">You have a game in progress — ${savedSummary()}.</div>
+      <button class="btn primary" onclick="resumeSaved()">▶ Resume game</button>
+      <button class="btn ghost sm" style="margin-top:8px" onclick="discardSaved()">Discard &amp; start fresh</button>
+    </div>` : ``}
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">step 2 · playback device</div>
       <div style="height:10px"></div>
@@ -682,9 +737,14 @@ function renderGame(){
   for(let i=0;i<=tl.length;i++){
     const left = i>0 ? tl[i-1].year : null;
     const right = i<tl.length ? tl[i].year : null;
-    const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : `${left}–${right}`;
-    slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
+    if(left!==null && right!==null && left===right){
+      // two cards share a year — there is no "between" to place into
+      slotsHTML += `<div class="tie" title="same year">=</div>`;
+    } else {
+      const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : `${left}–${right}`;
+      slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
         <span class="ins">+</span><span class="rng">${rng}</span></button>`;
+    }
     if(i<tl.length){
       slotsHTML += `<div class="placed"><div class="yr">${tl[i].year}</div>
         <div><div class="ti">${esc(tl[i].name)}</div><div class="ar">${esc(tl[i].artist)}</div></div></div>`;
@@ -776,6 +836,7 @@ function overlayReveal(correct, p){
 }
 
 function overlayGameOver(deckEmpty, winner){
+  clearGame();   // finished — nothing to resume
   let w = winner;
   if(!w){ w = [...S.players].sort((a,b)=>b.timeline.length-a.timeline.length)[0]; }
   const sheet = document.getElementById("sheet");
@@ -840,7 +901,7 @@ function playAgain(){
   S.used=new Set(); S.current=null;
   startGame();
 }
-function backToSetup(){ closeOverlay(); S.current=null; renderSetup(); }
+function backToSetup(){ clearGame(); closeOverlay(); S.current=null; renderSetup(); }
 
 /* ---------- boot ---------- */
 async function boot(){
