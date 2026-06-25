@@ -89,9 +89,16 @@
   /* GAME */
   .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
   .turn-name{font-family:"Anton"; font-size:30px; line-height:1;}
-  .scorebar{display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;}
-  .score-chip{font-size:11.5px; padding:4px 9px; border-radius:99px; border:1px solid var(--line); color:var(--muted);}
-  .score-chip.active{border-color:var(--pink); color:var(--pink);}
+  .lb2{display:flex; flex-direction:column; gap:6px; margin-top:6px;}
+  .lb2-row{display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:10px;
+    border:1px solid var(--line); background:var(--surface);}
+  .lb2-row.me{border-color:var(--pink); background:rgba(255,47,158,.07);}
+  .lb2-rank{font-size:15px; width:20px; text-align:center; flex:0 0 auto; color:var(--muted); font-weight:700;}
+  .lb2-nm{font-weight:700; font-size:13px; flex:0 0 auto; width:72px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .lb2-bar{flex:1; height:7px; border-radius:99px; background:var(--ink); overflow:hidden;}
+  .lb2-fill{display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--pink)); border-radius:99px; transition:width .3s;}
+  .lb2-sc{font-size:12px; color:var(--muted); flex:0 0 auto; min-width:42px; text-align:right;}
+  .lb2-row.me .lb2-nm{color:var(--pink);}
 
   .stage{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:22px 18px; text-align:center; margin-bottom:16px;}
   .eq{display:inline-flex; gap:4px; align-items:flex-end; height:34px; margin-bottom:10px;}
@@ -684,6 +691,22 @@ function renderGame(){
     }
   }
 
+  // leaderboard rows — sorted by score, current player highlighted
+  const medals = ["🥇","🥈","🥉"];
+  const lbHTML = S.players
+    .map((pp,i)=>({pp,i}))
+    .sort((a,b)=> b.pp.timeline.length - a.pp.timeline.length)
+    .map((e,rank)=>{
+      const score = e.pp.timeline.length;
+      const pct = S.target ? Math.min(100, Math.round(score/S.target*100)) : 0;
+      return `<div class="lb2-row ${e.i===S.turn?'me':''}">
+        <span class="lb2-rank">${medals[rank]||(rank+1)}</span>
+        <span class="lb2-nm">${esc(e.pp.name)}</span>
+        <span class="lb2-bar"><span class="lb2-fill" style="width:${pct}%"></span></span>
+        <span class="lb2-sc">${score}/${S.target}</span>
+      </div>`;
+    }).join("");
+
   app().innerHTML = `
     <div class="topbar">
       <div>
@@ -692,9 +715,7 @@ function renderGame(){
       </div>
       <button class="btn sm ghost" onclick="confirmQuit()">Quit</button>
     </div>
-    <div class="scorebar">
-      ${S.players.map((pp,i)=>`<span class="score-chip ${i===S.turn?'active':''}">${esc(pp.name)} · ${pp.timeline.length}/${S.target}</span>`).join("")}
-    </div>
+    <div class="lb2">${lbHTML}</div>
 
     <div class="stage" style="margin-top:14px">
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
