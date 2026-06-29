@@ -1,4 +1,4 @@
-const CACHE_NAME = 'timeline-pwa-v12';
+const CACHE_NAME = 'timeline-pwa-previews-v1';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', event => {
