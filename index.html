@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <meta name="theme-color" content="#03050D" />
 <link rel="manifest" href="./manifest.json" />
-<script src="https://sdk.scdn.co/spotify-player.js"></script>
 <title>Timeline — music timeline game</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -45,11 +44,11 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.35);}
   .card + .card{margin-top:14px;}
   label.fld{display:block; font-size:13px; color:var(--muted); margin:0 0 7px; letter-spacing:.02em;}
-  input[type=text]{
+  input[type=text], input[type=number]{
     width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
     border-radius:10px; padding:13px 14px; font:inherit; font-size:15px; outline:none;
   }
-  input[type=text]:focus{border-color:var(--pink);}
+  input[type=text]:focus, input[type=number]:focus{border-color:var(--pink);}
   .row{display:flex; gap:10px; align-items:center;}
   .row.wrap{flex-wrap:wrap;}
   button{font:inherit; cursor:pointer; border:none; border-radius:11px; font-weight:700; letter-spacing:.01em;}
@@ -64,8 +63,6 @@
   .btn.sm{padding:10px 12px; font-size:13px; width:auto;}
   .btn:disabled{opacity:.45; cursor:not-allowed;}
   .hint{font-size:12.5px; color:var(--muted); margin-top:9px; line-height:1.55;}
-  .codebox{font-family:ui-monospace,Menlo,monospace; font-size:12px; background:var(--ink); border:1px dashed var(--line);
-    border-radius:8px; padding:9px 11px; color:var(--cyan); word-break:break-all; margin-top:7px;}
   .pill{display:inline-flex; align-items:center; gap:7px; font-size:12px; padding:6px 11px; border-radius:99px;
     border:1px solid var(--line); background:var(--surface);}
   .dot{width:8px; height:8px; border-radius:99px; background:var(--muted);}
@@ -73,9 +70,6 @@
   .players-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
   .players-list .row input{flex:1;}
   .iconbtn{width:44px; height:44px; flex:0 0 auto; display:grid; place-items:center; font-size:18px;}
-  .seg{display:flex; gap:8px;}
-  .seg button{flex:1; padding:11px; background:var(--surface-2); border:1px solid var(--line); color:var(--muted);}
-  .seg button.sel{background:var(--pink); color:#250019; border-color:transparent;}
   .diffs{display:flex; flex-direction:column; gap:8px;}
   .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:13px 15px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line);
@@ -85,6 +79,33 @@
   .diff.sel{background:linear-gradient(180deg,#FF72C8,var(--pink)); color:#250019; border-color:transparent;
     box-shadow:0 8px 20px rgba(255,47,158,.22);}
   .diff.sel .dcards{color:#250019; opacity:.85;}
+
+  /* DECK PICKER */
+  .deck-list{display:flex; flex-direction:column; gap:8px;}
+  .deck{display:flex; align-items:center; gap:12px; padding:13px 15px; border-radius:12px;
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text); width:100%; text-align:left; font:inherit;}
+  .deck .demoji{font-size:22px; flex:0 0 auto;}
+  .deck .dmeta{flex:1; min-width:0;}
+  .deck .dt{font-size:15px; font-weight:700;}
+  .deck .dd{font-size:12px; color:var(--muted); font-weight:500; margin-top:1px;}
+  .deck .dn{flex:0 0 auto; font-size:12px; color:var(--muted); font-weight:500;}
+  .deck.sel{background:linear-gradient(180deg,#FF72C8,var(--pink)); color:#250019; border-color:transparent;
+    box-shadow:0 8px 20px rgba(255,47,158,.22);}
+  .deck.sel .dd, .deck.sel .dn{color:#250019; opacity:.85;}
+
+  /* DECK BUILDER */
+  .res-list{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
+  .res-row{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px;}
+  .res-meta{flex:1; min-width:0;}
+  .res-ti{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .res-ar{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .res-yr{flex:0 0 auto; font-family:"Anton"; font-size:18px; color:var(--cyan); width:54px; text-align:center;}
+  .song-row{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px;}
+  .song-row input.yr{width:74px; flex:0 0 auto; text-align:center; font-family:"Anton"; font-size:18px;
+    color:var(--pink); padding:8px 6px; -moz-appearance:textfield;}
+  .song-row input.yr::-webkit-outer-spin-button, .song-row input.yr::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
 
   /* GAME */
   .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
@@ -130,25 +151,12 @@
 
   .controls{display:flex; gap:10px; margin-top:6px;}
   .controls .btn{flex:1;}
-  .year-fix{display:flex; align-items:center; justify-content:center; gap:8px; margin:10px 0 0;}
-  .year-fix .muted{font-size:12px; letter-spacing:.12em; text-transform:uppercase;}
-  .year-fix input.rev-yr{width:92px; height:46px; font-size:20px;}
   .verify-state{margin-top:10px; font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--cyan);}
 
-  .rev-list{display:flex; flex-direction:column; gap:8px;}
-  .rev-row{display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line);
-    border-radius:12px; padding:11px 13px;}
-  .rev-meta{flex:1; min-width:0;}
-  .rev-ti{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .rev-ar{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .rev-yr{flex:0 0 auto; width:78px; text-align:center; font-family:"Anton"; font-size:22px; color:var(--pink);
-    background:var(--ink); border:1px solid var(--line); border-radius:9px; padding:8px 6px; outline:none;
-    -moz-appearance:textfield;}
-  .rev-yr::-webkit-outer-spin-button, .rev-yr::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
-  .rev-yr:focus{border-color:var(--pink);}
-  .rev-yr.edited{border-color:var(--cyan); color:var(--cyan);}
-  .rev-yr.masked{display:flex; align-items:center; justify-content:center; color:var(--muted); letter-spacing:1px;}
-  .rev-yr.masked.edited{color:var(--good); border-color:var(--good);}
+  /* loading */
+  .loadwrap{text-align:center; padding:60px 18px;}
+  .loadbar{height:8px; border-radius:99px; background:var(--ink); overflow:hidden; margin:18px auto 0; max-width:280px; border:1px solid var(--line);}
+  .loadfill{display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--pink)); border-radius:99px; transition:width .2s;}
 
   /* overlay */
   .overlay{position:fixed; inset:0; background:rgba(8,9,12,.72); backdrop-filter:blur(6px); display:none;
@@ -162,6 +170,10 @@
   .reveal-yr{font-family:"Anton"; font-size:72px; line-height:.9; margin:10px 0 2px;}
   .reveal-ti{font-size:17px; font-weight:700;}
   .reveal-ar{color:var(--muted); margin:2px 0 18px;}
+  .year-fix{display:flex; align-items:center; justify-content:center; gap:8px;}
+  .year-fix .muted{font-size:12px; letter-spacing:.12em; text-transform:uppercase;}
+  .year-fix input.rev-yr{width:92px; height:46px; font-size:20px; text-align:center; -moz-appearance:textfield;}
+  .year-fix input.rev-yr::-webkit-outer-spin-button, .year-fix input.rev-yr::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   .winner-emoji{font-size:54px;}
   .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--bad); color:#fff;
     padding:11px 16px; border-radius:11px; font-size:13.5px; max-width:90%; text-align:center; z-index:60;
@@ -176,6 +188,7 @@
 </head>
 <body>
 <div id="app"></div>
+<audio id="aud" loop playsinline preload="auto"></audio>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
 <div id="errbar" onclick="this.style.display='none'"></div>
@@ -205,8 +218,6 @@ const store = {
 };
 
 /* ---------- config ---------- */
-const SCOPES = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state playlist-read-private playlist-read-collaborative";
-const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/index\.html$/, "");
 /* difficulty tiers — easy → hardest */
 const DIFFICULTIES = [
   { n:10, name:"Easy Listening" },
@@ -215,17 +226,77 @@ const DIFFICULTIES = [
   { n:25, name:"Musical Genius" },
 ];
 
+/* ---------- built-in decks ----------
+   Songs are matched to a playable 30-second preview via the iTunes Search API
+   at deck-load time; the audio always streams live from Apple, never bundled here.
+   Years are EDITORIAL (original-release year) — verify before shipping a deck. */
+const DECKS = [
+  { id:"decades", name:"Through the Decades", emoji:"🎚️", desc:"Big hits, 1965–2019", songs:[
+    {year:1965, artist:"The Rolling Stones", title:"(I Can't Get No) Satisfaction"},
+    {year:1966, artist:"The Beach Boys", title:"Good Vibrations"},
+    {year:1967, artist:"Aretha Franklin", title:"Respect"},
+    {year:1968, artist:"The Beatles", title:"Hey Jude"},
+    {year:1971, artist:"Led Zeppelin", title:"Stairway to Heaven"},
+    {year:1973, artist:"Elton John", title:"Goodbye Yellow Brick Road"},
+    {year:1975, artist:"Queen", title:"Bohemian Rhapsody"},
+    {year:1976, artist:"ABBA", title:"Dancing Queen"},
+    {year:1977, artist:"Fleetwood Mac", title:"Go Your Own Way"},
+    {year:1978, artist:"Bee Gees", title:"Stayin' Alive"},
+    {year:1981, artist:"Journey", title:"Don't Stop Believin'"},
+    {year:1982, artist:"Toto", title:"Africa"},
+    {year:1983, artist:"Michael Jackson", title:"Billie Jean"},
+    {year:1984, artist:"Madonna", title:"Like a Virgin"},
+    {year:1985, artist:"a-ha", title:"Take On Me"},
+    {year:1986, artist:"Bon Jovi", title:"Livin' on a Prayer"},
+    {year:1987, artist:"Guns N' Roses", title:"Sweet Child O' Mine"},
+    {year:1988, artist:"Tracy Chapman", title:"Fast Car"},
+    {year:1991, artist:"Nirvana", title:"Smells Like Teen Spirit"},
+    {year:1992, artist:"Whitney Houston", title:"I Will Always Love You"},
+    {year:1995, artist:"Oasis", title:"Wonderwall"},
+    {year:1996, artist:"Spice Girls", title:"Wannabe"},
+    {year:1998, artist:"Britney Spears", title:"...Baby One More Time"},
+    {year:1999, artist:"Backstreet Boys", title:"I Want It That Way"},
+    {year:2002, artist:"Eminem", title:"Lose Yourself"},
+    {year:2003, artist:"OutKast", title:"Hey Ya!"},
+    {year:2006, artist:"Gnarls Barkley", title:"Crazy"},
+    {year:2007, artist:"Rihanna", title:"Umbrella"},
+    {year:2008, artist:"Lady Gaga", title:"Poker Face"},
+    {year:2010, artist:"Katy Perry", title:"Firework"},
+    {year:2011, artist:"Adele", title:"Rolling in the Deep"},
+    {year:2013, artist:"Daft Punk", title:"Get Lucky"},
+    {year:2014, artist:"Mark Ronson", title:"Uptown Funk"},
+    {year:2016, artist:"Drake", title:"One Dance"},
+    {year:2017, artist:"Ed Sheeran", title:"Shape of You"},
+    {year:2019, artist:"Billie Eilish", title:"bad guy"},
+  ]},
+  { id:"rock", name:"Rock Anthems", emoji:"🎸", desc:"Guitars & stadium singalongs", songs:[
+    {year:1965, artist:"The Rolling Stones", title:"(I Can't Get No) Satisfaction"},
+    {year:1971, artist:"Led Zeppelin", title:"Stairway to Heaven"},
+    {year:1975, artist:"Queen", title:"Bohemian Rhapsody"},
+    {year:1977, artist:"Fleetwood Mac", title:"Go Your Own Way"},
+    {year:1979, artist:"AC/DC", title:"Highway to Hell"},
+    {year:1981, artist:"Journey", title:"Don't Stop Believin'"},
+    {year:1982, artist:"Survivor", title:"Eye of the Tiger"},
+    {year:1983, artist:"The Police", title:"Every Breath You Take"},
+    {year:1986, artist:"Bon Jovi", title:"Livin' on a Prayer"},
+    {year:1987, artist:"Guns N' Roses", title:"Sweet Child O' Mine"},
+    {year:1987, artist:"U2", title:"With or Without You"},
+    {year:1991, artist:"Nirvana", title:"Smells Like Teen Spirit"},
+    {year:1991, artist:"R.E.M.", title:"Losing My Religion"},
+    {year:1994, artist:"Green Day", title:"Basket Case"},
+    {year:1997, artist:"Foo Fighters", title:"Everlong"},
+    {year:2001, artist:"The Strokes", title:"Last Nite"},
+    {year:2003, artist:"The White Stripes", title:"Seven Nation Army"},
+    {year:2006, artist:"Red Hot Chili Peppers", title:"Dani California"},
+  ]},
+];
+
 /* ---------- app state ---------- */
 const S = {
-  token: null,
-  expiresAt: 0,
-  me: null,
-  devices: [],
-  deviceId: null,
-  sdkDeviceId: null, // in-browser Web Playback SDK device id
-  sdkReady: false,
-  sdkError: "",      // "auth" | "premium" | "init" — why the in-app player isn't ready
-  deck: [],          // {id,uri,name,artist,year}
+  deck: [],          // resolved playable cards {id,name,artist,year,previewUrl}
+  deckId: null,      // selected deck id (built-in or custom)
+  customDecks: [],   // user-built decks, persisted locally
+  builder: null,     // {id?, name, songs:[{title,artist,year}], results:[]} while building
   used: new Set(),
   players: [],       // {name, timeline:[card]}
   turn: 0,
@@ -238,253 +309,106 @@ const S = {
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
 };
 
-/* ---------- PKCE helpers ---------- */
-function randString(n){
-  const a = new Uint8Array(n); crypto.getRandomValues(a);
-  return Array.from(a, b => ("0"+(b&0xff).toString(16)).slice(-2)).join("");
-}
-function b64url(buf){
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-}
-async function challengeFrom(verifier){
-  const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return b64url(digest);
-}
-
-async function login(){
-  const clientId = (val("clientId")||"").trim() || store.get("hs_client") || "";
-  if(!clientId){ toast("Paste your Spotify Client ID first."); return; }
-  store.set("hs_client", clientId);
-  const verifier = randString(48);
-  store.set("hs_verifier", verifier);
-  const challenge = await challengeFrom(verifier);
-  const params = new URLSearchParams({
-    client_id: clientId,
-    response_type: "code",
-    redirect_uri: REDIRECT_URI,
-    scope: SCOPES,
-    code_challenge_method: "S256",
-    code_challenge: challenge,
+/* ---------- iTunes Search (JSONP — no key, no CORS hassle) ---------- */
+let _jsonpN = 0;
+function itunesSearch(term, limit){
+  limit = limit || 8;
+  return new Promise(resolve => {
+    const cb = "itc_" + (++_jsonpN);
+    const s = document.createElement("script");
+    let done = false;
+    const finish = (results) => { if(done) return; done = true; try{ delete window[cb]; }catch(e){ window[cb]=undefined; } s.remove(); clearTimeout(to); resolve(results||[]); };
+    const to = setTimeout(()=> finish([]), 9000);
+    window[cb] = data => finish((data && data.results) || []);
+    s.onerror = () => finish([]);
+    s.src = "https://itunes.apple.com/search?media=music&entity=song&limit="+limit
+          +"&term="+encodeURIComponent(term)+"&callback="+cb;
+    document.head.appendChild(s);
   });
-  window.location = "https://accounts.spotify.com/authorize?" + params.toString();
 }
-
-async function exchangeCode(code){
-  const clientId = store.get("hs_client");
-  const verifier = store.get("hs_verifier");
-  const body = new URLSearchParams({
-    client_id: clientId,
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: REDIRECT_URI,
-    code_verifier: verifier,
-  });
-  const r = await fetch("https://accounts.spotify.com/api/token", {
-    method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body
-  });
-  if(!r.ok){
-    let detail = "Login failed — check the Client ID and redirect URI.";
-    try{
-      const d = await r.json();
-      if(d && d.error_description) detail = d.error_description;
-      else if(d && d.error) detail = d.error;
-    }catch(e){}
-    toast(detail);
-    return false;
+function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim(); }
+function yearOf(releaseDate){ const y = parseInt(String(releaseDate||"").slice(0,4),10); return y||null; }
+// pick the result that best matches the curated title/artist and has a playable preview
+function pickBest(results, song){
+  const wantT = norm(song.title), wantA = norm(song.artist);
+  let best=null, bestScore=-1;
+  for(const r of results){
+    if(!r.previewUrl) continue;
+    const t = norm(r.trackName), a = norm(r.artistName);
+    let score = 0;
+    if(t===wantT) score += 3; else if(t.includes(wantT)||wantT.includes(t)) score += 1;
+    if(a===wantA) score += 2; else if(a.includes(wantA)||wantA.includes(a)) score += 1;
+    if(score>bestScore){ bestScore=score; best=r; }
   }
-  const d = await r.json();
-  saveToken(d);
-  return true;
+  return best;
 }
 
-async function refresh(){
-  const clientId = store.get("hs_client");
-  const rt = store.get("hs_refresh");
-  if(!rt) return false;
-  const body = new URLSearchParams({ client_id:clientId, grant_type:"refresh_token", refresh_token:rt });
-  const r = await fetch("https://accounts.spotify.com/api/token",{
-    method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body
-  });
-  if(!r.ok){ return false; }
-  saveToken(await r.json());
-  return true;
+/* ---------- deck resolution ---------- */
+function selectedDeck(){
+  return DECKS.concat(S.customDecks).find(d => d.id===S.deckId) || null;
+}
+// resolve a curated song list into playable cards; onProgress(done,total)
+async function buildDeckCards(songs, onProgress){
+  const cards = [];
+  const seen = new Set();
+  const total = songs.length;
+  let done = 0;
+  // small concurrency so a ~40-song deck loads in a few seconds without hammering
+  const BATCH = 6;
+  for(let i=0;i<songs.length;i+=BATCH){
+    const slice = songs.slice(i, i+BATCH);
+    const hits = await Promise.all(slice.map(async sg => {
+      const res = await itunesSearch(sg.artist+" "+sg.title, 6);
+      return { sg, hit: pickBest(res, sg) };
+    }));
+    for(const {sg,hit} of hits){
+      done++;
+      if(hit && hit.previewUrl && !seen.has(hit.trackId)){
+        seen.add(hit.trackId);
+        cards.push({ id:"it"+hit.trackId, name:sg.title, artist:sg.artist, year:sg.year, previewUrl:hit.previewUrl });
+      }
+    }
+    if(onProgress) onProgress(done, total);
+  }
+  cards.forEach(c => { if(S.yearOverrides[c.id]) c.year = S.yearOverrides[c.id]; });
+  return cards;
 }
 
-function saveToken(d){
-  S.token = d.access_token;
-  S.expiresAt = Date.now() + (d.expires_in-60)*1000;
-  store.set("hs_token", d.access_token);
-  store.set("hs_exp", String(S.expiresAt));
-  if(d.refresh_token) store.set("hs_refresh", d.refresh_token);
+/* ---------- audio (30s preview clips) ---------- */
+const aud = () => document.getElementById("aud");
+// iOS unlocks an <audio> element only after play() is called inside a user gesture.
+// Call this from the Start / Resume / Replay taps so the element is primed.
+function unlockAudio(){
+  const a = aud(); if(!a) return;
+  try{
+    a.muted = true;
+    const p = a.play();
+    if(p && p.then) p.then(()=>{ a.pause(); a.currentTime=0; a.muted=false; }).catch(()=>{ a.muted=false; });
+    else { a.pause(); a.muted=false; }
+  }catch(e){ a.muted=false; }
 }
-
-async function ensureToken(){
-  if(S.token && Date.now() < S.expiresAt) return true;
-  const cached = store.get("hs_token"), exp = parseInt(store.get("hs_exp")||"0",10);
-  if(cached && Date.now() < exp){ S.token = cached; S.expiresAt = exp; return true; }
-  return await refresh();
-}
-
-/* ---------- Spotify API ---------- */
-async function api(path, opts={}){
-  await ensureToken();
-  const r = await fetch("https://api.spotify.com/v1"+path, {
-    ...opts,
-    headers:{ "Authorization":"Bearer "+S.token, "Content-Type":"application/json", ...(opts.headers||{}) }
-  });
-  if(r.status===401){ if(await refresh()){ return api(path,opts); } }
-  return r;
-}
-async function getMe(){ const r = await api("/me"); if(r.ok) S.me = await r.json(); return S.me; }
-async function getDevices(){
-  const r = await api("/me/player/devices");
-  if(r.ok){ const d = await r.json(); S.devices = d.devices||[]; }
-  return S.devices;
-}
-async function transferTo(id){
-  await api("/me/player",{ method:"PUT", body: JSON.stringify({ device_ids:[id], play:false }) });
-}
-async function playTrack(uri){
-  if(!S.deviceId){ toast("No Spotify device — open Spotify and play/pause once."); return false; }
-  const r = await api("/me/player/play?device_id="+S.deviceId, {
-    method:"PUT", body: JSON.stringify({ uris:[uri] })
-  });
-  if(r.status===404){ toast("Device went idle. Open Spotify, then tap Replay."); return false; }
-  if(r.status===403){ toast("Playback control needs Spotify Premium."); return false; }
-  S.playing = true;
-  if(S.deviceId===S.sdkDeviceId){ startMaskLoop(); remaskBurst(); }   // hide the title the SDK sets
-  return true;
-}
-async function pausePlayback(){
-  await api("/me/player/pause"+(S.deviceId?("?device_id="+S.deviceId):""), { method:"PUT" });
-  S.playing = false;
-}
-
-/* ---------- in-browser player (Spotify Web Playback SDK) ---------- */
-let webPlayer = null;
-
-// branded 512x512 cover so the real album art never appears on the lock screen
-let BLANK_ART = "";
-try{
-  const _c = document.createElement("canvas"); _c.width = _c.height = 512;
-  const _x = _c.getContext("2d");
-  _x.fillStyle = "#03050D"; _x.fillRect(0,0,512,512);
-  _x.font = "300px serif"; _x.textAlign = "center"; _x.textBaseline = "middle";
-  _x.fillText("🎵", 256, 280);
-  BLANK_ART = _c.toDataURL("image/png");
-}catch(e){}
-
-// Replace the OS media-notification / lock-screen metadata with a decoy so the
-// real song title never shows. (Chrome falls back to the page title if left empty,
-// so we set an explicit placeholder rather than clearing the fields.)
 function maskMediaSession(){
   if(!("mediaSession" in navigator)) return;
   try{
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: "🎵 Timeline", artist: "guess the year", album: "",
-      artwork: BLANK_ART ? [{ src: BLANK_ART, sizes: "512x512", type: "image/png" }] : []
-    });
+    navigator.mediaSession.metadata = new MediaMetadata({ title:"🎵 Timeline", artist:"guess the year", album:"" });
   }catch(e){}
 }
-// the SDK rewrites the metadata to the real track when a new song loads, so we
-// (a) stamp our decoy back densely over the first second and (b) keep a low-rate
-// loop running so even the very first track can't leak past ~0.7s
-function remaskBurst(){ [0,80,160,300,500,800].forEach(t => setTimeout(maskMediaSession, t)); }
-let maskTimer = null;
-function startMaskLoop(){
-  maskMediaSession();
-  if(maskTimer) return;
-  maskTimer = setInterval(maskMediaSession, 700);
-}
-
-window.onSpotifyWebPlaybackSDKReady = () => { S.sdkReady = true; initWebPlayer(); };
-if(window.Spotify){ S.sdkReady = true; }   // SDK already finished loading before this script ran
-
-function initWebPlayer(){
-  if(webPlayer) return;
-  if(!window.Spotify || !S.sdkReady) return;
-  if(!store.get("hs_client")) return;   // not connected yet — wait for login
-  webPlayer = new Spotify.Player({
-    name: "Timeline (in-app)",
-    getOAuthToken: cb => { ensureToken().then(()=> cb(S.token)); },
-    volume: 1.0
-  });
-  webPlayer.addListener("ready", ({ device_id }) => {
-    S.sdkDeviceId = device_id;
-    S.deviceId = device_id;        // default to in-app playback → title stays hidden
-    S.sdkError = "";
+function playClip(card){
+  const a = aud(); if(!a || !card) return;
+  try{
+    if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
+    a.currentTime = 0;
+    const p = a.play();
+    if(p && p.catch) p.catch(()=>{ /* gesture needed — Replay button will start it */ });
+    S.playing = true;
     maskMediaSession();
-    renderSetup();
-  });
-  webPlayer.addListener("not_ready", ({ device_id }) => { console.warn("[WebPlayback] device offline", device_id); });
-  webPlayer.addListener("player_state_changed", state => { if(state) maskMediaSession(); });
-  webPlayer.addListener("initialization_error", ({ message }) => { console.warn("[WebPlayback] init:", message); S.sdkError = "init"; renderSetup(); });
-  webPlayer.addListener("authentication_error", ({ message }) => { console.warn("[WebPlayback] auth:", message); S.sdkError = "auth"; renderSetup(); });
-  webPlayer.addListener("account_error", ({ message }) => { console.warn("[WebPlayback] account:", message); S.sdkError = "premium"; renderSetup(); });
-  webPlayer.connect();
+  }catch(e){ S.playing = false; }
 }
-
-// activateElement() must be called inside a user gesture on mobile, or playback
-// is paused right after the transfer (mobile autoplay restriction)
-async function activateWebPlayer(){
-  if(!webPlayer) return;
-  try{ if(webPlayer.activateElement) await webPlayer.activateElement(); }catch(e){}
-  try{ if(webPlayer.setVolume) await webPlayer.setVolume(1.0); }catch(e){}
-}
-
-function parsePlaylistId(input){
-  const s = (input||"").trim();
-  let m = s.match(/playlist[/:]([A-Za-z0-9]+)/);
-  if(m) return m[1];
-  if(/^[A-Za-z0-9]{18,}$/.test(s)) return s;
-  return null;
-}
-async function loadPlaylist(input){
-  const id = parsePlaylistId(input);
-  if(!id){ showError("That doesn't look like a playlist link or ID."); return false; }
-  const cards = [];
-  // Feb 2026 Spotify API: /tracks renamed to /items; each entry's track is now .item
-  let url = "/playlists/"+id+"/items?limit=100";
-  let guard = 0, rawCount = 0, noYear = 0;
-  while(url && guard++ < 20){
-    const r = await api(url);
-    if(!r.ok){
-      let body=""; try{ body = await r.text(); }catch(e){}
-      showError("Spotify returned "+r.status+" reading the playlist.\n"+body.slice(0,200)
-        +(r.status===403 ? "\n\n403 now usually means it isn't a playlist you own — only your own playlists work." : ""));
-      return false;
-    }
-    const d = await r.json();
-    const items = d.items||[];
-    rawCount += items.length;
-    for(const it of items){
-      const t = it.item || it.track;   // .item is the new (Feb 2026) field name
-      if(!t || !t.id) continue;
-      if(t.type && t.type!=="track"){ continue; }   // skip podcast episodes
-      const rd = t.album && t.album.release_date;
-      if(!rd){ noYear++; continue; }
-      const year = parseInt(String(rd).slice(0,4),10);
-      if(!year){ noYear++; continue; }
-      cards.push({ id:t.id, uri:t.uri, name:t.name||"Unknown",
-        artist:(t.artists||[]).map(a=>a.name).join(", "), year, albumYear:year });
-    }
-    url = d.next ? d.next.replace("https://api.spotify.com/v1","") : null;
-  }
-  const seen = new Set(); S.deck = cards.filter(c => !seen.has(c.id) && seen.add(c.id));
-  S.deck.forEach(c => { if(S.yearOverrides[c.id]) c.year = S.yearOverrides[c.id]; });
-  if(S.deck.length===0){
-    showError("Read "+rawCount+" item(s) from the playlist but kept 0 "
-      +"("+noYear+" had no usable release year; local files are skipped). "
-      +(rawCount===0 ? "0 items means it isn't a playlist you own/collaborate on — make your own deck." : ""));
-  }
-  return S.deck.length > 0;
-}
+function replay(){ if(!S.current) return; unlockAudio(); playClip(S.current); renderGame(); }
+function pausePlayback(){ const a=aud(); if(a) a.pause(); S.playing=false; renderGame(); }
 
 /* ---------- game logic ---------- */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-
 function drawCard(){
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id));
   if(avail.length===0) return null;
@@ -496,14 +420,14 @@ function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id
 function saveGame(){
   try{
     if(!S.players || !S.players.length) return;
-    store.set("hs_game", JSON.stringify({
+    store.set("tl_game", JSON.stringify({
       v:1, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
       current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline}))
     }));
   }catch(e){}
 }
-function clearGame(){ store.del("hs_game"); }
-function loadSaved(){ try{ return JSON.parse(store.get("hs_game")||"null"); }catch(e){ return null; } }
+function clearGame(){ store.del("tl_game"); }
+function loadSaved(){ try{ return JSON.parse(store.get("tl_game")||"null"); }catch(e){ return null; } }
 function hasSavedGame(){
   const d = loadSaved();
   return !!(d && d.players && d.players.length && (d.current || d.players.some(p=>(p.timeline||[]).length>1)));
@@ -523,9 +447,9 @@ function resumeSaved(){
   S.used = new Set(d.used||[]);
   S.current = d.current||null;
   S.players = (d.players||[]).map(p=>({name:p.name||"Player", timeline:p.timeline||[]}));
-  activateWebPlayer();          // this is a user tap → unlocks mobile audio
+  unlockAudio();                 // this is a user tap → unlocks mobile audio
   renderGame();
-  if(S.current) playTrack(S.current.uri);
+  if(S.current) playClip(S.current);
 }
 
 function startGame(){
@@ -550,12 +474,11 @@ async function nextTurn(){
   S.current = c;
   saveGame();
   renderGame();
-  await playTrack(c.uri);
+  playClip(c);
   renderGame();
 }
 
 function sortedTimeline(p){ return [...p.timeline].sort((a,b)=>a.year-b.year); }
-
 function slotCorrect(p, idx){
   const tl = sortedTimeline(p).filter(c => c.id !== S.current.id);
   const y = S.current.year;
@@ -563,14 +486,12 @@ function slotCorrect(p, idx){
   const right = idx<tl.length ? tl[idx].year : Infinity;
   return y >= left && y <= right;
 }
-
-function showCheckingState(message="Checking track…"){
+function showCheckingState(message){
   S.checkingTrack = true;
-  S.checkMessage = message;
+  S.checkMessage = message || "Checking track…";
   closeOverlay();
   renderGame();
 }
-
 async function chooseSlot(idx){
   if(!S.current) return;
   const p = S.players[S.turn];
@@ -588,7 +509,6 @@ async function chooseSlot(idx){
   saveGame();
   overlayReveal(correct, p);
 }
-
 function advance(){
   closeOverlay();
   const p = S.players[S.turn];
@@ -618,34 +538,27 @@ function showError(msg){
   console.error("[Timeline]", msg);
 }
 
+function deckCardHTML(d, count){
+  const sel = S.deckId===d.id;
+  return `<button class="deck ${sel?'sel':''}" onclick="pickDeck('${d.id}')">
+    <span class="demoji">${d.emoji||'🎵'}</span>
+    <span class="dmeta"><span class="dt">${esc(d.name)}</span><span class="dd">${esc(d.desc||'')}</span></span>
+    <span class="dn">${count} songs</span>
+  </button>`;
+}
+
 function renderSetup(){
-  const connected = !!S.me;
-  const premium = !S.me || S.me.product !== "free";  // product field removed Feb 2026; only flag explicit "free"
-  const dev = S.deviceId ? S.devices.find(d=>d.id===S.deviceId) : null;
+  const builtIn = DECKS.map(d => deckCardHTML(d, d.songs.length)).join("");
+  const custom = S.customDecks.map(d =>
+    `<div class="row" style="align-items:stretch">
+       <div style="flex:1">${deckCardHTML(d, d.songs.length)}</div>
+       <button class="btn iconbtn ghost" title="Edit deck" onclick="editDeck('${d.id}')">✎</button>
+     </div>`).join("");
   app().innerHTML = `
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Timeline</h1>
-    <div class="tag">Hear a track, slot it into your timeline by release year. Build a run of ${S.target} and you win. Music plays through your own Spotify.</div>
+    <div class="tag">Hear a track, slot it into your timeline by release year. Build a run of ${S.target} and you win. No account needed — songs play as 30-second previews.</div>
 
-    <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 1 · connect</div>
-      <div style="height:10px"></div>
-      ${connected ? `
-        <div class="row" style="justify-content:space-between">
-          <div class="pill"><span class="dot on"></span> ${esc(S.me.display_name||"Connected")}</div>
-          <span class="pill" style="${premium?'':'color:var(--bad);border-color:var(--bad)'}">${premium?'Connected ✓':'Free account?'}</span>
-        </div>
-        <button class="btn ghost sm" style="margin-top:10px" onclick="login()">↻ Reconnect / refresh Spotify permissions</button>
-      ` : `
-        <label class="fld" for="clientId">Spotify Client ID</label>
-        <input id="clientId" type="text" placeholder="paste from developer dashboard" value="${esc(store.get('hs_client')||'')}" />
-        <button class="btn primary" style="margin-top:12px" onclick="login()">Connect Spotify</button>
-        <div class="hint">One-time setup: create an app at <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com</a>, copy its <b>Client ID</b>, and add this exact <b>Redirect URI</b>:</div>
-        <div class="codebox">${esc(REDIRECT_URI)}</div>
-      `}
-    </div>
-
-    ${connected ? `
     ${hasSavedGame() ? `
     <div class="card" style="border-color:var(--cyan)">
       <div class="eyebrow" style="color:var(--cyan)">resume</div>
@@ -654,27 +567,17 @@ function renderSetup(){
       <button class="btn primary" onclick="resumeSaved()">▶ Resume game</button>
       <button class="btn ghost sm" style="margin-top:8px" onclick="discardSaved()">Discard &amp; start fresh</button>
     </div>` : ``}
+
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 2 · playback device</div>
+      <div class="eyebrow" style="color:var(--cyan)">step 1 · pick a deck</div>
       <div style="height:10px"></div>
-      <div class="row" style="justify-content:space-between">
-        <div class="muted" style="font-size:13px">${dev?('Playing on <b style="color:var(--text)">'+esc(dev.name)+'</b>'):'Pick the phone running Spotify'}</div>
-        <button class="btn sm ghost" onclick="refreshDevices()">↻ Refresh</button>
-      </div>
-      <div id="deviceList" style="margin-top:10px"></div>
-      <div class="hint"><b>Play in this app</b> plays the song right here and hides the title — best when one phone is both screen and speaker (needs Spotify Premium). A speaker/soundbar has no screen so it won't show the title either; only a <b>phone or computer running the Spotify app</b> will.</div>
+      <div class="deck-list">${builtIn}</div>
+      ${custom ? `<div style="height:8px"></div><label class="fld">Your decks</label><div class="deck-list">${custom}</div>` : ``}
+      <button class="btn ghost sm" style="margin-top:10px" onclick="newDeck()">+ Build your own deck</button>
     </div>
 
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 3 · the deck</div>
-      <div style="height:10px"></div>
-      <label class="fld" for="plUrl">Spotify playlist link or ID</label>
-      <input id="plUrl" type="text" placeholder="https://open.spotify.com/playlist/..." value="${esc(store.get('hs_pl')||'')}" />
-      <div class="hint">Tip: use a playlist of <b>original releases</b> (not a “greatest hits”/remaster comp) — the year comes from the album date.</div>
-    </div>
-
-    <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 4 · players</div>
+      <div class="eyebrow" style="color:var(--cyan)">step 2 · players</div>
       <div style="height:10px"></div>
       <div class="players-list" id="players"></div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="addPlayer()">+ Add player</button>
@@ -683,39 +586,13 @@ function renderSetup(){
       <div class="diffs" id="diffSel">
         ${DIFFICULTIES.map(d=>`<button class="diff ${S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">${d.n} cards</span></button>`).join("")}
       </div>
-      <div class="hint">Harder modes need a bigger playlist — aim for about <b>${(S.players.length||1)*S.target}</b>+ songs for this mode &amp; player count.</div>
     </div>
 
     <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">▶ Start game</button>
-    ` : ``}
 
-    <div class="footnote">Self-hosted · plays in-app, title hidden · for personal use</div>
+    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use</div>
   `;
-  if(connected){ renderDevices(); renderPlayers(); }
-}
-
-function renderDevices(){
-  const box = document.getElementById("deviceList"); if(!box) return;
-  // in-app player first — the only option that hides the title on the phone itself
-  let inApp;
-  if(S.sdkReady && S.sdkDeviceId){
-    inApp = `<button class="btn ${S.deviceId===S.sdkDeviceId?'primary':''}" style="margin-bottom:8px; text-align:left" onclick="pickDevice('${S.sdkDeviceId}')">
-      ${S.deviceId===S.sdkDeviceId?'● ':''}🎵 Play in this app <span class="muted" style="font-weight:400">· title hidden</span>
-    </button>`;
-  } else if(S.sdkError==='auth'){
-    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; border-color:var(--cyan); color:var(--cyan)" onclick="login()">⟳ Reconnect Spotify to enable in-app play</button>`;
-  } else if(S.sdkError==='premium'){
-    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.7" disabled>🎵 In-app play needs Spotify Premium</button>`;
-  } else if(S.sdkError==='init'){
-    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.7" disabled>🎵 In-app player not supported on this browser</button>`;
-  } else {
-    inApp = `<button class="btn" style="margin-bottom:8px; text-align:left; opacity:.6" disabled>🎵 Starting in-app player…</button>`;
-  }
-  const others = S.devices.filter(d => d.id !== S.sdkDeviceId).map(d=>`
-    <button class="btn ${S.deviceId===d.id?'primary':''}" style="margin-bottom:8px; text-align:left" onclick="pickDevice('${d.id}')">
-      ${S.deviceId===d.id?'● ':''}${esc(d.name)} <span class="muted" style="font-weight:400">· ${esc(d.type)}</span>
-    </button>`).join("");
-  box.innerHTML = inApp + others;
+  renderPlayers();
 }
 
 function renderPlayers(){
@@ -728,17 +605,104 @@ function renderPlayers(){
     </div>`).join("");
 }
 
+/* ---------- deck builder ---------- */
+function newDeck(){ S.builder = { id:null, name:"", songs:[], results:[] }; renderBuilder(); }
+function editDeck(id){
+  const d = S.customDecks.find(x=>x.id===id); if(!d) return;
+  S.builder = { id:d.id, name:d.name, songs:d.songs.map(s=>({...s})), results:[] };
+  renderBuilder();
+}
+function renderBuilder(){
+  const b = S.builder;
+  const songs = b.songs.map((s,i)=>`
+    <div class="song-row">
+      <div class="res-meta"><div class="res-ti">${esc(s.title)}</div><div class="res-ar">${esc(s.artist)}</div></div>
+      <input class="yr" type="number" inputmode="numeric" value="${s.year||''}" onchange="setSongYear(${i}, this.value)" />
+      <button class="btn iconbtn ghost" onclick="removeSong(${i})">✕</button>
+    </div>`).join("");
+  const results = b.results.map((r,i)=>`
+    <div class="res-row">
+      <div class="res-meta"><div class="res-ti">${esc(r.trackName)}</div><div class="res-ar">${esc(r.artistName)}</div></div>
+      <div class="res-yr">${yearOf(r.releaseDate)||'?'}</div>
+      <button class="btn sm" style="flex:0 0 auto" onclick="addResult(${i})">+ Add</button>
+    </div>`).join("");
+  app().innerHTML = `
+    <div class="topbar">
+      <div class="turn-name" style="font-size:24px">${b.id?'Edit deck':'New deck'}</div>
+      <button class="btn sm ghost" onclick="cancelBuilder()">Cancel</button>
+    </div>
+    <div class="card">
+      <label class="fld" for="deckName">Deck name</label>
+      <input id="deckName" type="text" placeholder="My mixtape" value="${esc(b.name)}" oninput="S.builder.name=this.value" />
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="color:var(--cyan)">search &amp; add songs</div>
+      <div style="height:10px"></div>
+      <div class="row">
+        <input id="sq" type="text" placeholder="artist or song title" onkeydown="if(event.key==='Enter')runSearch()" />
+        <button class="btn sm" style="flex:0 0 auto" onclick="runSearch()">Search</button>
+      </div>
+      <div class="hint">The year is auto-filled from Apple's release date — <b>double-check it</b>, since remasters and comps often report the wrong year.</div>
+      ${results ? `<div class="res-list">${results}</div>` : ``}
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="color:var(--cyan)">deck · ${b.songs.length} songs</div>
+      <div style="height:10px"></div>
+      ${songs ? `<div class="res-list">${songs}</div>` : `<div class="empty-tl">No songs yet — search above and tap “Add”.</div>`}
+    </div>
+    <button class="btn pink" style="margin-top:16px; padding:16px" onclick="saveBuilder()">Save deck</button>
+  `;
+}
+async function runSearch(){
+  const q = val("sq").trim();
+  if(!q){ return; }
+  toast("Searching…", true);
+  S.builder.results = await itunesSearch(q, 12);
+  hideToast();
+  // keep only playable, de-duped results
+  const seen = new Set();
+  S.builder.results = S.builder.results.filter(r => r.previewUrl && !seen.has(r.trackId) && seen.add(r.trackId));
+  if(!S.builder.results.length) toast("No previewable songs found — try a different search.");
+  renderBuilder();
+}
+function addResult(i){
+  const r = S.builder.results[i]; if(!r) return;
+  if(S.builder.songs.some(s => norm(s.title)===norm(r.trackName) && norm(s.artist)===norm(r.artistName))){ toast("Already in the deck."); return; }
+  S.builder.songs.push({ title:r.trackName, artist:r.artistName, year:yearOf(r.releaseDate) });
+  renderBuilder();
+}
+function setSongYear(i, v){ const y=parseInt(v,10); if(S.builder.songs[i]) S.builder.songs[i].year = (y&&y>=1860&&y<=2100)?y:null; }
+function removeSong(i){ S.builder.songs.splice(i,1); renderBuilder(); }
+function cancelBuilder(){ S.builder=null; renderSetup(); }
+function saveDecks(){ store.set("tl_decks", JSON.stringify(S.customDecks)); }
+function saveBuilder(){
+  const b = S.builder;
+  const name = (b.name||"").trim();
+  if(!name){ toast("Give the deck a name."); return; }
+  if(b.songs.length < 2){ toast("Add at least 2 songs."); return; }
+  if(b.songs.some(s => !s.year)){ toast("Every song needs a year."); return; }
+  if(b.id){
+    const d = S.customDecks.find(x=>x.id===b.id);
+    if(d){ d.name=name; d.songs=b.songs.map(s=>({...s})); }
+  } else {
+    const id = "u"+Math.random().toString(36).slice(2,9);
+    S.customDecks.push({ id, name, emoji:"🎧", desc:"Your deck", songs:b.songs.map(s=>({...s})) });
+    S.deckId = id;
+  }
+  saveDecks();
+  S.builder = null;
+  renderSetup();
+}
+
 function renderGame(){
   const p = S.players[S.turn];
   const tl = sortedTimeline(p);
-  // build interleaved slots + cards
   let slotsHTML = "";
   const live = !!S.current;
   for(let i=0;i<=tl.length;i++){
     const left = i>0 ? tl[i-1].year : null;
     const right = i<tl.length ? tl[i].year : null;
     if(left!==null && right!==null && left===right){
-      // two cards share a year — there is no "between" to place into
       slotsHTML += `<div class="tie" title="same year">=</div>`;
     } else {
       const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : `${left}–${right}`;
@@ -751,13 +715,12 @@ function renderGame(){
     }
   }
 
-  // leaderboard rows — sorted by score; ties share a rank/medal
   const medals = ["🥇","🥈","🥉"];
   const ranked = S.players.map((pp,i)=>({pp,i}))
     .sort((a,b)=> b.pp.timeline.length - a.pp.timeline.length);
   const lbHTML = ranked.map((e)=>{
     const score = e.pp.timeline.length;
-    const rank = ranked.filter(x => x.pp.timeline.length > score).length;  // competition rank: equal scores tie
+    const rank = ranked.filter(x => x.pp.timeline.length > score).length;
     const pct = S.target ? Math.min(100, Math.round(score/S.target*100)) : 0;
     return `<div class="lb2-row ${e.i===S.turn?'me':''}">
       <span class="lb2-rank">${medals[rank]||(rank+1)}</span>
@@ -824,7 +787,7 @@ function overlayReveal(correct, p){
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
-    <div class="year-fix" style="margin:14px 0 12px; justify-content:center;">
+    <div class="year-fix" style="margin:14px 0 12px;">
       <span class="muted">fix year</span>
       <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
         onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
@@ -836,7 +799,7 @@ function overlayReveal(correct, p){
 }
 
 function overlayGameOver(deckEmpty, winner){
-  clearGame();   // finished — nothing to resume
+  clearGame();
   let w = winner;
   if(!w){ w = [...S.players].sort((a,b)=>b.timeline.length-a.timeline.length)[0]; }
   const sheet = document.getElementById("sheet");
@@ -852,23 +815,43 @@ function overlayGameOver(deckEmpty, winner){
 }
 
 /* ---------- UI actions ---------- */
-async function refreshDevices(){ await getDevices(); if(!S.deviceId && S.devices[0]) S.deviceId=S.devices[0].id; renderSetup(); }
-function pickDevice(id){ S.deviceId=id; if(id===S.sdkDeviceId) activateWebPlayer(); transferTo(id); renderSetup(); }
+function pickDeck(id){ S.deckId=id; renderSetup(); }
 function addPlayer(){ S.players.push({name:"",timeline:[]}); renderPlayers(); }
 function removePlayer(i){ S.players.splice(i,1); renderPlayers(); }
 function renamePlayer(i,v){ S.players[i].name=v; }
 function setTarget(n){ S.target=n; renderSetup(); }
 
+function renderLoading(done, total){
+  const pct = total ? Math.round(done/total*100) : 0;
+  app().innerHTML = `
+    <h1 class="brand">Timeline</h1>
+    <div class="loadwrap">
+      <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
+      <h2 class="display" style="font-size:22px; margin:14px 0 4px">Loading deck…</h2>
+      <p class="muted" style="font-size:13px">Finding previews · ${done}/${total}</p>
+      <div class="loadbar"><span class="loadfill" style="width:${pct}%"></span></div>
+    </div>`;
+}
+
 async function onStart(){
-  if(!S.deviceId){ toast("Pick a playback device first."); return; }
-  await activateWebPlayer();   // unlock mobile playback within this tap
-  const plInput = val("plUrl");
-  store.set("hs_pl", plInput);
-  toast("Loading deck…", true);   // sticky — stays up through the few-second fetch
-  const ok = await loadPlaylist(plInput);
-  hideToast();
-  if(!ok){ return; }
-  beginGame();   // straight into play — no years shown
+  const deck = selectedDeck();
+  if(!deck){ toast("Pick a deck first."); return; }
+  S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
+  unlockAudio();   // prime mobile audio within this tap
+  renderLoading(0, deck.songs.length);
+  const cards = await buildDeckCards(deck.songs, (d,t)=>renderLoading(d,t));
+  if(cards.length < 2){
+    showError("Couldn't load enough playable previews for this deck ("+cards.length+" found). "
+      +"Apple may not have previews for these tracks, or the network is blocked. Try another deck.");
+    renderSetup();
+    return;
+  }
+  S.deck = cards;
+  if(S.deck.length < S.players.length * S.target){
+    toast("Heads up: small deck for "+S.target+"-card games.");
+  }
+  S.used = new Set();
+  startGame();
 }
 
 function saveYear(id, value){
@@ -881,19 +864,9 @@ function saveYear(id, value){
   } else {
     delete S.yearOverrides[id];
   }
-  store.set("hs_years", JSON.stringify(S.yearOverrides));
+  store.set("tl_years", JSON.stringify(S.yearOverrides));
 }
 
-function beginGame(){
-  S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });  // fill any blanks
-  if(S.deck.length < S.players.length * S.target){
-    toast("Heads up: small deck for "+S.target+"-card games.");
-  }
-  S.used = new Set();
-  startGame();
-}
-
-function replay(){ if(!S.current) return; activateWebPlayer(); playTrack(S.current.uri).then(()=>renderGame()); }
 function confirmQuit(){ if(confirm("Quit this game and return to setup?")) backToSetup(); }
 function playAgain(){
   closeOverlay();
@@ -901,25 +874,14 @@ function playAgain(){
   S.used=new Set(); S.current=null;
   startGame();
 }
-function backToSetup(){ clearGame(); closeOverlay(); S.current=null; renderSetup(); }
+function backToSetup(){ clearGame(); closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
 
 /* ---------- boot ---------- */
-async function boot(){
-  try{ S.yearOverrides = JSON.parse(store.get("hs_years")||"{}"); }catch(e){ S.yearOverrides = {}; }
-  const params = new URLSearchParams(window.location.search);
-  if(params.get("code")){
-    const ok = await exchangeCode(params.get("code"));
-    history.replaceState({}, "", REDIRECT_URI); // clean the URL
-    if(ok){ await getMe(); await refreshDevices(); }
-  } else if(params.get("error")){
-    history.replaceState({}, "", REDIRECT_URI);
-    const detail = params.get("error_description") || params.get("error") || "Spotify login was cancelled.";
-    toast(detail);
-  } else if(await ensureToken()){
-    await getMe(); await refreshDevices();
-  }
+function boot(){
+  try{ S.yearOverrides = JSON.parse(store.get("tl_years")||"{}"); }catch(e){ S.yearOverrides = {}; }
+  try{ S.customDecks = JSON.parse(store.get("tl_decks")||"[]")||[]; }catch(e){ S.customDecks = []; }
+  S.deckId = DECKS[0] ? DECKS[0].id : null;
   renderSetup();
-  initWebPlayer();   // start the in-app player if the SDK has already loaded
 }
 boot();
 </script>
