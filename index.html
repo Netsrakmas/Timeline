@@ -952,6 +952,22 @@ const DECKS = [
   ]},
 ];
 
+/* One big standalone deck: every distinct song across the themed decks above,
+   built at runtime so the song data isn't duplicated. Sits first so it's the
+   default — large enough to carry a full game (any difficulty/player count) on
+   its own. A random subset is sampled per game (see onStart), so repeat plays
+   stay fresh and loads stay fast despite the deck's size. */
+(function buildMegaDeck(){
+  const seen = new Set(), all = [];
+  for(const d of DECKS){
+    for(const s of d.songs){
+      const k = (s.title+"|"+s.artist).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+      if(seen.has(k)) continue; seen.add(k); all.push(s);
+    }
+  }
+  DECKS.unshift({ id:"everything", name:"Every Era", emoji:"🌍", desc:all.length+" songs · all decades & genres", songs:all });
+})();
+
 /* ---------- app state ---------- */
 const S = {
   deck: [],          // resolved playable cards {id,name,artist,year,previewUrl}
@@ -1521,9 +1537,15 @@ function renderLoading(done, total){
 }
 
 async function onStart(){
-  const songs = selectedSongs();
+  let songs = selectedSongs();
   if(songs.length < 2){ toast("Pick at least one deck."); return; }
   S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
+  // Only resolve as many previews as a game can actually use (target + discards,
+  // with headroom), randomly sampled — so a 500-song deck loads in seconds and
+  // serves a different mix every game instead of fetching everything each time.
+  const need = (S.players.length||1) * S.target;
+  const cap = Math.max(80, Math.min(260, Math.round(need * 2.2)));
+  if(songs.length > cap){ songs = shuffle(songs.slice()).slice(0, cap); }
   unlockAudio();   // prime mobile audio within this tap
   renderLoading(0, songs.length);
   const cards = await buildDeckCards(songs, (d,t)=>renderLoading(d,t));
