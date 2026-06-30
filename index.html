@@ -150,9 +150,8 @@
   .stage p{margin:0; color:var(--muted); font-size:13.5px;}
 
   .tl-label{font-size:12px; color:var(--muted); letter-spacing:.16em; text-transform:uppercase; margin:0 0 8px;}
-  .timeline{display:flex; align-items:stretch; gap:0; overflow-x:auto; padding:4px 2px 12px; -webkit-overflow-scrolling:touch;}
-  .timeline::-webkit-scrollbar{height:6px;} .timeline::-webkit-scrollbar-thumb{background:var(--line); border-radius:9px;}
-  .slot{flex:0 0 auto; width:62px; align-self:stretch; min-height:96px; margin:0 3px; border-radius:12px;
+  .timeline{display:flex; flex-wrap:wrap; align-items:stretch; gap:6px; padding:4px 2px 12px;}
+  .slot{flex:0 0 auto; width:62px; align-self:stretch; min-height:96px; border-radius:12px;
     border:1.5px dashed var(--line); background:rgba(255,255,255,.015); color:var(--muted);
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px 4px; transition:.15s;}
   .slot.active{border-color:var(--cyan); color:var(--cyan); background:rgba(77,212,255,.07);}
@@ -3400,7 +3399,7 @@ function renderGame(){
     <div style="height:18px"></div>
     <p class="tl-label">${survival ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
-    <div class="footnote">Older ◄———————————————► Newer</div>
+    <div class="footnote">Oldest first · reads left → right, top → bottom</div>
   `;
 }
 
