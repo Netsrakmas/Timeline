@@ -3320,12 +3320,13 @@ async function recheckOverlay(){
 
 function overlayReveal(correct, p){
   const c = S.current;
+  const won = correct && p.timeline.length >= S.target;   // this card just won the game
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
   sheet.innerHTML = `
     <div class="verdict ${correct?'good':'bad'}">${correct?'NICE!':'NOPE'}</div>
-    <div class="muted" style="font-size:13px">${correct?'Card goes to '+esc(p.name):'Card is discarded'}</div>
+    <div class="muted" style="font-size:13px">${won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded')}</div>
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
@@ -3335,7 +3336,7 @@ function overlayReveal(correct, p){
         onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
     </div>
     <button class="btn ghost" style="margin-bottom:8px" onclick="recheckOverlay()">Re-check</button>
-    <button class="btn primary" onclick="advance()">Next turn →</button>
+    <button class="btn primary" onclick="advance()">${won ? '🏆 See results' : 'Next turn →'}</button>
   `;
   document.getElementById("overlay").classList.add("show");
 }
