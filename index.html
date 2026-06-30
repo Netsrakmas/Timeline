@@ -2796,7 +2796,15 @@ const S = {
   checkingTrack: false,
   checkMessage: "",
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
+  mode: "classic",   // "classic" (pass & play to a target) | "survival" (solo, 3 lives, endless)
+  lives: 0,          // survival: hearts remaining
+  score: 0,          // survival: cards placed correctly this run
+  streak: 0,         // survival: current correct streak
+  bestStreak: 0,     // survival: best streak this run
 };
+/* survival personal bests, persisted in localStorage */
+function loadBest(){ try{ return JSON.parse(store.get("tl_best")||"{}")||{}; }catch(e){ return {}; } }
+function saveBest(b){ store.set("tl_best", JSON.stringify(b)); }
 
 /* ---------- iTunes Search (JSONP — no key, no CORS hassle) ---------- */
 let _jsonpN = 0;
@@ -2943,8 +2951,9 @@ function saveGame(){
   try{
     if(!S.players || !S.players.length) return;
     store.set("tl_game", JSON.stringify({
-      v:1, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
-      current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline}))
+      v:2, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
+      current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline})),
+      mode:S.mode, lives:S.lives, score:S.score, streak:S.streak, bestStreak:S.bestStreak
     }));
   }catch(e){}
 }
@@ -2956,6 +2965,10 @@ function hasSavedGame(){
 }
 function savedSummary(){
   const d = loadSaved(); if(!d) return "in progress";
+  if(d.mode==="survival"){
+    const hearts = "❤️".repeat(Math.max(0, d.lives||0)) || "💀";
+    return "Survival — "+(d.score||0)+" placed · "+hearts;
+  }
   const lead = [...(d.players||[])].sort((a,b)=>(b.timeline||[]).length-(a.timeline||[]).length)[0];
   return lead ? esc(lead.name)+" leading ("+(lead.timeline||[]).length+"/"+(d.target||"?")+")" : "in progress";
 }
@@ -2969,6 +2982,9 @@ function resumeSaved(){
   S.used = new Set(d.used||[]);
   S.current = d.current||null;
   S.players = (d.players||[]).map(p=>({name:p.name||"Player", timeline:p.timeline||[]}));
+  S.mode = d.mode || "classic";
+  S.lives = (typeof d.lives==="number") ? d.lives : 0;
+  S.score = d.score||0; S.streak = d.streak||0; S.bestStreak = d.bestStreak||0;
   unlockAudio();                 // this is a user tap → unlocks mobile audio
   renderGame();
   if(S.current) playClip(S.current);
@@ -2983,6 +2999,7 @@ function startGame(){
     if(c){ S.used.add(c.id); p.timeline = [c]; }
   });
   S.turn = 0;
+  if(S.mode==="survival"){ S.lives = 3; S.score = 0; S.streak = 0; S.bestStreak = 0; }
   nextTurn();
   renderGame();
   saveGame();
@@ -3036,6 +3053,10 @@ async function chooseSlot(idx){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
   }
+  if(S.mode==="survival"){
+    if(correct){ S.score++; S.streak++; if(S.streak>S.bestStreak) S.bestStreak = S.streak; }
+    else { S.lives--; S.streak = 0; }
+  }
   S.used.add(S.current.id);
   S.checkingTrack = false;
   S.checkMessage = "";
@@ -3045,6 +3066,11 @@ async function chooseSlot(idx){
 function advance(){
   closeOverlay();
   const p = S.players[S.turn];
+  if(S.mode==="survival"){
+    if(S.lives <= 0){ overlayGameOver(false, p); return; }
+    nextTurn();   // same solo player keeps going — endless until out of lives
+    return;
+  }
   if(p.timeline.length >= S.target){ overlayGameOver(false, p); return; }
   S.turn = (S.turn+1) % S.players.length;
   nextTurn();
@@ -3081,14 +3107,18 @@ function deckCardHTML(d, count){
 }
 
 function renderSetup(){
+  if(!S.players.length) S.players=[{name:"",timeline:[]}];
+  const survival = S.mode==="survival";
   const builtIn = DECKS.map(d => deckCardHTML(d, d.songs.length)).join("");
   const combined = selectedSongs().length;
   const rec = (S.players.length||1) * S.target;
   const tally = !S.selectedIds.length
     ? `Pick one or more decks — tap several to combine them.`
-    : `<b style="color:var(--text)">${combined} songs</b> across ${S.selectedIds.length} deck${S.selectedIds.length>1?'s':''}`
-      + ` · recommended ~${rec}+ for ${S.players.length||1} player${(S.players.length||1)>1?'s':''} × ${S.target}`
-      + (combined < rec ? ` <span style="color:var(--bad)">— add another deck</span>` : ` <span style="color:var(--good)">✓</span>`);
+    : survival
+      ? `<b style="color:var(--text)">${combined} songs</b> in the pool — survival pulls a fresh random run each time.`
+      : `<b style="color:var(--text)">${combined} songs</b> across ${S.selectedIds.length} deck${S.selectedIds.length>1?'s':''}`
+        + ` · recommended ~${rec}+ for ${S.players.length||1} player${(S.players.length||1)>1?'s':''} × ${S.target}`
+        + (combined < rec ? ` <span style="color:var(--bad)">— add another deck</span>` : ` <span style="color:var(--good)">✓</span>`);
   const custom = S.customDecks.map(d =>
     `<div class="row" style="align-items:stretch">
        <div style="flex:1">${deckCardHTML(d, d.songs.length)}</div>
@@ -3097,7 +3127,16 @@ function renderSetup(){
   app().innerHTML = `
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Timeline</h1>
-    <div class="tag">Hear a track, slot it into your timeline by release year. Build a run of ${S.target} and you win. No account needed — songs play as 30-second previews.</div>
+    <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+
+    <div class="card">
+      <div class="eyebrow" style="color:var(--cyan)">mode</div>
+      <div style="height:10px"></div>
+      <div class="diffs">
+        <button class="diff ${!survival?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">2+ players · race to a target</span></button>
+        <button class="diff ${survival?'sel':''}" onclick="setMode('survival')"><span class="dname">🎯 Survival</span><span class="dcards">solo · 3 lives · endless</span></button>
+      </div>
+    </div>
 
     ${hasSavedGame() ? `
     <div class="card" style="border-color:var(--cyan)">
@@ -3117,6 +3156,19 @@ function renderSetup(){
       <div class="hint">${tally}</div>
     </div>
 
+    ${survival ? `
+    <div class="card">
+      <div class="eyebrow" style="color:var(--cyan)">step 2 · survival</div>
+      <div style="height:10px"></div>
+      <label class="fld" for="soloName">Your name (optional)</label>
+      <input id="soloName" type="text" placeholder="You" value="${esc((S.players[0]&&S.players[0].name)||'')}" oninput="renamePlayer(0, this.value)" />
+      <div class="hint">Place each track on your timeline. <b>3 lives</b> — a wrong guess costs one. The run never ends until you're out of lives; just go as long as you can. It gets harder on its own as the gaps tighten.</div>
+      <div style="height:12px"></div>
+      <div class="lb2"><div class="lb2-row" style="justify-content:space-around">
+        <span class="lb2-sc" style="min-width:auto">🎯 best run · <b style="color:var(--text)">${(loadBest().cards||0)}</b> placed</span>
+        <span class="lb2-sc" style="min-width:auto">🔥 best streak · <b style="color:var(--text)">${(loadBest().streak||0)}</b></span>
+      </div></div>
+    </div>` : `
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">step 2 · players</div>
       <div style="height:10px"></div>
@@ -3127,9 +3179,9 @@ function renderSetup(){
       <div class="diffs" id="diffSel">
         ${DIFFICULTIES.map(d=>`<button class="diff ${S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">${d.n} cards</span></button>`).join("")}
       </div>
-    </div>
+    </div>`}
 
-    <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">▶ Start game</button>
+    <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : '▶ Start game'}</button>
 
     <button class="btn ghost sm" style="margin-top:16px" onclick="startVerify()">🕵 Check deck years vs Apple</button>
     <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use</div>
@@ -3272,15 +3324,25 @@ function renderGame(){
     </div>`;
   }).join("");
 
+  const survival = S.mode==="survival";
+  const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
+  const hud = survival
+    ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
+         <span style="font-size:17px; letter-spacing:2px; flex:0 0 auto">${hearts}</span>
+         <span class="lb2-sc" style="min-width:auto; flex:1; text-align:center"><b style="color:var(--text); font-size:15px">${S.score}</b> placed · streak ${S.streak}</span>
+         <span class="lb2-sc" style="flex:0 0 auto">best ${(loadBest().cards||0)}</span>
+       </div></div>`
+    : `<div class="lb2">${lbHTML}</div>`;
+
   app().innerHTML = `
     <div class="topbar">
       <div>
-        <div class="eyebrow">now placing</div>
-        <div class="turn-name">${esc(p.name)}</div>
+        <div class="eyebrow">${survival ? 'survival · solo' : 'now placing'}</div>
+        <div class="turn-name">${survival ? 'Keep the run alive' : esc(p.name)}</div>
       </div>
       <button class="btn sm ghost" onclick="confirmQuit()">Quit</button>
     </div>
-    <div class="lb2">${lbHTML}</div>
+    ${hud}
 
     <div class="stage" style="margin-top:14px">
       <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
@@ -3295,7 +3357,7 @@ function renderGame(){
     </div>
 
     <div style="height:18px"></div>
-    <p class="tl-label">${esc(p.name)}’s timeline — tap a gap to place</p>
+    <p class="tl-label">${survival ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Older ◄———————————————► Newer</div>
   `;
@@ -3320,29 +3382,62 @@ async function recheckOverlay(){
 
 function overlayReveal(correct, p){
   const c = S.current;
-  const won = correct && p.timeline.length >= S.target;   // this card just won the game
+  const survival = S.mode==="survival";
+  const dead = survival && S.lives <= 0;
+  const won = !survival && correct && p.timeline.length >= S.target;   // this card just won the game
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
+  let sub, btn, extra;
+  if(survival){
+    const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
+    sub = correct ? `✅ ${S.score} placed · streak ${S.streak}` : (dead ? `💀 Out of lives` : `💔 Lost a life`);
+    btn = dead ? '💀 See results' : 'Next song →';
+    // hearts shown; NO year-fix / Re-check in a scored mode (it would let you flip the verdict)
+    extra = `<div style="font-size:22px; letter-spacing:3px; margin:14px 0 10px">${hearts}</div>`;
+  } else {
+    sub = won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded');
+    btn = won ? '🏆 See results' : 'Next turn →';
+    extra = `<div class="year-fix" style="margin:14px 0 12px;">
+        <span class="muted">fix year</span>
+        <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
+          onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
+      </div>
+      <button class="btn ghost" style="margin-bottom:8px" onclick="recheckOverlay()">Re-check</button>`;
+  }
   sheet.innerHTML = `
     <div class="verdict ${correct?'good':'bad'}">${correct?'NICE!':'NOPE'}</div>
-    <div class="muted" style="font-size:13px">${won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded')}</div>
+    <div class="muted" style="font-size:13px">${sub}</div>
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
-    <div class="year-fix" style="margin:14px 0 12px;">
-      <span class="muted">fix year</span>
-      <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
-        onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
-    </div>
-    <button class="btn ghost" style="margin-bottom:8px" onclick="recheckOverlay()">Re-check</button>
-    <button class="btn primary" onclick="advance()">${won ? '🏆 See results' : 'Next turn →'}</button>
+    ${extra}
+    <button class="btn primary" onclick="advance()">${btn}</button>
   `;
   document.getElementById("overlay").classList.add("show");
 }
 
 function overlayGameOver(deckEmpty, winner){
   clearGame();
+  if(S.mode==="survival"){
+    const best = loadBest();
+    const newBest = S.score > (best.cards||0) || S.bestStreak > (best.streak||0);
+    const nb = { cards: Math.max(S.score, best.cards||0), streak: Math.max(S.bestStreak, best.streak||0) };
+    saveBest(nb);
+    const sheet = document.getElementById("sheet");
+    sheet.innerHTML = `
+      <div class="winner-emoji">🎯</div>
+      <div class="verdict ${newBest?'good':'bad'}" style="margin-top:6px">RUN OVER</div>
+      <div style="font-size:14px; margin:10px 0 2px">You placed <b style="font-size:20px; color:var(--good)">${S.score}</b> song${S.score===1?'':'s'}${deckEmpty?' (deck ran dry)':''}</div>
+      <div class="muted" style="font-size:13px; margin-bottom:10px">Best streak this run: <b style="color:var(--text)">${S.bestStreak}</b></div>
+      ${newBest?`<div style="color:var(--good); font-weight:700; font-size:15px; margin:8px 0">🎉 New personal best!</div>`:``}
+      <div class="muted" style="font-size:12px; margin-bottom:16px">All-time best · ${nb.cards} placed · ${nb.streak} streak</div>
+      <button class="btn pink" onclick="playAgain()">Play again</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
+    `;
+    document.getElementById("overlay").classList.add("show");
+    return;
+  }
   let w = winner;
   if(!w){ w = [...S.players].sort((a,b)=>b.timeline.length-a.timeline.length)[0]; }
   const sheet = document.getElementById("sheet");
@@ -3367,6 +3462,7 @@ function addPlayer(){ S.players.push({name:"",timeline:[]}); renderPlayers(); }
 function removePlayer(i){ S.players.splice(i,1); renderPlayers(); }
 function renamePlayer(i,v){ S.players[i].name=v; }
 function setTarget(n){ S.target=n; renderSetup(); }
+function setMode(m){ S.mode=m; renderSetup(); }
 
 function renderLoading(done, total){
   const pct = total ? Math.round(done/total*100) : 0;
@@ -3383,14 +3479,15 @@ function renderLoading(done, total){
 async function onStart(){
   let songs = selectedSongs();
   if(songs.length < 2){ toast("Pick at least one deck."); return; }
+  if(S.mode==="survival"){
+    const nm = (S.players[0] && (S.players[0].name||"").trim()) || "You";
+    S.players = [{ name:nm, timeline:[] }];   // survival is always solo
+  }
   S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
-  // Only resolve as many previews as a game can actually use (target + discards,
-  // with headroom), randomly sampled — so a 500-song deck loads in seconds and
-  // serves a different mix every game instead of fetching everything each time.
   // Working set: plenty of headroom over what the game needs, randomly sampled
-  // (fresh mix each game). We don't resolve it all up front — see below.
-  const need = (S.players.length||1) * S.target;
-  const cap = Math.max(120, Math.min(400, need * 4));
+  // (fresh mix each game). We don't resolve it all up front — streamed in below.
+  const need = S.mode==="survival" ? 90 : (S.players.length||1) * S.target;
+  const cap = S.mode==="survival" ? Math.min(songs.length, 350) : Math.max(120, Math.min(400, need * 4));
   songs = shuffle(songs.slice());
   if(songs.length > cap){ songs = songs.slice(0, cap); }
   unlockAudio();   // prime mobile audio within this tap
