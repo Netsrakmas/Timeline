@@ -86,13 +86,25 @@
     background:var(--surface-2); border:1px solid var(--line); color:var(--text); width:100%; text-align:left; font:inherit;}
   .deck .demoji{font-size:22px; flex:0 0 auto;}
   .deck .dmeta{flex:1; min-width:0;}
-  .deck .dt{font-size:15px; font-weight:700;}
-  .deck .dt{line-height:1.25;}
-  .deck .dd{font-size:12px; color:var(--muted); font-weight:500; margin-top:4px; line-height:1.3;}
+  .deck .dt{display:block; font-size:15px; font-weight:700; line-height:1.25;}
+  .deck .dd{display:block; font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; line-height:1.3;}
   .deck .dn{flex:0 0 auto; font-size:12px; color:var(--muted); font-weight:500;}
   .deck.sel{background:linear-gradient(180deg,#FF72C8,var(--pink)); color:#250019; border-color:transparent;
     box-shadow:0 8px 20px rgba(255,47,158,.22);}
   .deck.sel .dd, .deck.sel .dn{color:#250019; opacity:.85;}
+  /* compact 2-column deck grid */
+  .deck-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .dchip{display:flex; align-items:center; gap:8px; padding:10px 11px; border-radius:12px;
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text); width:100%; text-align:left; font:inherit; min-width:0;}
+  .dchip:active{transform:translateY(1px);}
+  .dchip .de{font-size:17px; flex:0 0 auto;}
+  .dchip .dm{min-width:0; flex:1;}
+  .dchip .dn2{display:block; font-weight:700; font-size:13px; line-height:1.2;}
+  .dchip .dc2{display:block; font-size:10px; color:var(--muted); margin-top:3px; line-height:1.25;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .dchip.sel{background:linear-gradient(180deg,#FF72C8,var(--pink)); color:#250019; border-color:transparent;
+    box-shadow:0 6px 16px rgba(255,47,158,.22);}
+  .dchip.sel .dc2{color:#250019; opacity:.82;}
 
   /* DECK BUILDER */
   .res-list{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
@@ -2773,7 +2785,7 @@ const EXTRA_SONGS = [
   for(const s of EXTRA_SONGS) add(s);
   const bucket = (lo,hi) => pool.filter(s => s.year>=lo && s.year<=hi).slice(0,600);
   DECKS.unshift(
-    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:pool.length+" songs \u00B7 all eras", songs:pool },
+    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:"all decades & genres", songs:pool },
     { id:"classics", name:"The Classics", emoji:"\u{1F3DB}\uFE0F", desc:"Everything up to 1989", songs:bucket(0,1989) },
     { id:"thehits", name:"The Hits", emoji:"\u2728", desc:"1990\u20132009", songs:bucket(1990,2009) },
     { id:"now", name:"Now", emoji:"\u26A1", desc:"2010 to today", songs:bucket(2010,9999) },
@@ -3097,6 +3109,14 @@ function showError(msg){
   console.error("[Timeline]", msg);
 }
 
+function deckChipHTML(d){
+  const sel = isSelected(d.id);
+  const meta = d.songs.length + (d.desc ? " · " + d.desc : " songs");
+  return `<button class="dchip ${sel?'sel':''}" onclick="toggleDeck('${d.id}')">
+    <span class="de">${sel?'✓':(d.emoji||'🎵')}</span>
+    <span class="dm"><span class="dn2">${esc(d.name)}</span><span class="dc2">${esc(meta)}</span></span>
+  </button>`;
+}
 function deckCardHTML(d, count){
   const sel = isSelected(d.id);
   return `<button class="deck ${sel?'sel':''}" onclick="toggleDeck('${d.id}')">
@@ -3109,7 +3129,7 @@ function deckCardHTML(d, count){
 function renderSetup(){
   if(!S.players.length) S.players=[{name:"",timeline:[]}];
   const survival = S.mode==="survival";
-  const builtIn = DECKS.map(d => deckCardHTML(d, d.songs.length)).join("");
+  const builtIn = DECKS.map(d => deckChipHTML(d)).join("");
   const combined = selectedSongs().length;
   const rec = (S.players.length||1) * S.target;
   const tally = !S.selectedIds.length
@@ -3150,7 +3170,7 @@ function renderSetup(){
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">step 1 · pick decks · combine to taste</div>
       <div style="height:10px"></div>
-      <div class="deck-list">${builtIn}</div>
+      <div class="deck-grid">${builtIn}</div>
       ${custom ? `<div style="height:8px"></div><label class="fld">Your decks</label><div class="deck-list">${custom}</div>` : ``}
       <button class="btn ghost sm" style="margin-top:10px" onclick="newDeck()">+ Build your own deck</button>
       <div class="hint">${tally}</div>
