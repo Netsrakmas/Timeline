@@ -3540,11 +3540,13 @@ async function onStart(){
   songs = shuffle(songs.slice());
   if(songs.length > cap){ songs = songs.slice(0, cap); }
   unlockAudio();   // prime mobile audio within this tap
-  // Resolve a small first batch so play starts quickly; stream the rest after.
+  // Resolve only what's needed to start — one seed card per player + the first
+  // mystery track + a small cushion — then stream the rest in the background.
+  // (nextTurn waits for more if the cushion ever runs dry, so this can be small.)
   S.deck = [];
   S.deckSeen = new Set();
   S.loadingMore = false;
-  const FIRST = Math.min(songs.length, 12);
+  const FIRST = Math.min(songs.length, S.players.length + 4);
   renderLoading(0, FIRST);
   await resolveInitial(songs.slice(0, FIRST), (d,t)=>renderLoading(d,t));
   if(S.deck.length < 2){
