@@ -231,70 +231,395 @@ const DIFFICULTIES = [
    at deck-load time; the audio always streams live from Apple, never bundled here.
    Years are EDITORIAL (original-release year) — verify before shipping a deck. */
 const DECKS = [
-  { id:"decades", name:"Through the Decades", emoji:"🎚️", desc:"Big hits, 1965–2019", songs:[
+  { id:"decades", name:"Through the Decades", emoji:"🎚️", desc:"Iconic hits, 1962–2023", songs:[
     {year:1965, artist:"The Rolling Stones", title:"(I Can't Get No) Satisfaction"},
-    {year:1966, artist:"The Beach Boys", title:"Good Vibrations"},
     {year:1967, artist:"Aretha Franklin", title:"Respect"},
     {year:1968, artist:"The Beatles", title:"Hey Jude"},
+    {year:1969, artist:"Creedence Clearwater Revival", title:"Fortunate Son"},
+    {year:1964, artist:"The Beach Boys", title:"I Get Around"},
+    {year:1967, artist:"The Doors", title:"Light My Fire"},
+    {year:1966, artist:"The Beach Boys", title:"Good Vibrations"},
+    {year:1968, artist:"Marvin Gaye", title:"I Heard It Through the Grapevine"},
+    {year:1968, artist:"Otis Redding", title:"(Sittin' On) The Dock of the Bay"},
+    {year:1962, artist:"The Beatles", title:"Love Me Do"},
     {year:1971, artist:"Led Zeppelin", title:"Stairway to Heaven"},
-    {year:1973, artist:"Elton John", title:"Goodbye Yellow Brick Road"},
     {year:1975, artist:"Queen", title:"Bohemian Rhapsody"},
-    {year:1976, artist:"ABBA", title:"Dancing Queen"},
-    {year:1977, artist:"Fleetwood Mac", title:"Go Your Own Way"},
+    {year:1977, artist:"Fleetwood Mac", title:"Dreams"},
     {year:1978, artist:"Bee Gees", title:"Stayin' Alive"},
+    {year:1971, artist:"John Lennon", title:"Imagine"},
+    {year:1976, artist:"Eagles", title:"Hotel California"},
+    {year:1972, artist:"Stevie Wonder", title:"Superstition"},
+    {year:1979, artist:"The Sugarhill Gang", title:"Rapper's Delight"},
+    {year:1975, artist:"David Bowie", title:"Fame"},
+    {year:1973, artist:"Elton John", title:"Goodbye Yellow Brick Road"},
+    {year:1971, artist:"Marvin Gaye", title:"What's Going On"},
+    {year:1979, artist:"Michael Jackson", title:"Don't Stop 'Til You Get Enough"},
+    {year:1982, artist:"Michael Jackson", title:"Billie Jean"},
+    {year:1987, artist:"Whitney Houston", title:"I Wanna Dance with Somebody (Who Loves Me)"},
     {year:1981, artist:"Journey", title:"Don't Stop Believin'"},
-    {year:1982, artist:"Toto", title:"Africa"},
-    {year:1983, artist:"Michael Jackson", title:"Billie Jean"},
-    {year:1984, artist:"Madonna", title:"Like a Virgin"},
+    {year:1980, artist:"AC/DC", title:"Back in Black"},
+    {year:1984, artist:"Prince", title:"When Doves Cry"},
     {year:1985, artist:"a-ha", title:"Take On Me"},
-    {year:1986, artist:"Bon Jovi", title:"Livin' on a Prayer"},
+    {year:1983, artist:"The Police", title:"Every Breath You Take"},
     {year:1987, artist:"Guns N' Roses", title:"Sweet Child O' Mine"},
-    {year:1988, artist:"Tracy Chapman", title:"Fast Car"},
+    {year:1981, artist:"Queen", title:"Under Pressure"},
+    {year:1989, artist:"Madonna", title:"Like a Prayer"},
+    {year:1983, artist:"Cyndi Lauper", title:"Girls Just Want to Have Fun"},
     {year:1991, artist:"Nirvana", title:"Smells Like Teen Spirit"},
     {year:1992, artist:"Whitney Houston", title:"I Will Always Love You"},
-    {year:1995, artist:"Oasis", title:"Wonderwall"},
+    {year:1997, artist:"The Notorious B.I.G.", title:"Mo Money Mo Problems"},
+    {year:1995, artist:"Coolio", title:"Gangsta's Paradise"},
+    {year:1999, artist:"Britney Spears", title:"...Baby One More Time"},
+    {year:1994, artist:"Oasis", title:"Live Forever"},
+    {year:1998, artist:"Cher", title:"Believe"},
+    {year:1993, artist:"Dr. Dre", title:"Nuthin' but a 'G' Thang"},
     {year:1996, artist:"Spice Girls", title:"Wannabe"},
-    {year:1998, artist:"Britney Spears", title:"...Baby One More Time"},
-    {year:1999, artist:"Backstreet Boys", title:"I Want It That Way"},
+    {year:1992, artist:"Sir Mix-a-Lot", title:"Baby Got Back"},
+    {year:2000, artist:"OutKast", title:"Ms. Jackson"},
+    {year:2003, artist:"Beyoncé", title:"Crazy in Love"},
     {year:2002, artist:"Eminem", title:"Lose Yourself"},
-    {year:2003, artist:"OutKast", title:"Hey Ya!"},
+    {year:2009, artist:"Lady Gaga", title:"Poker Face"},
+    {year:2004, artist:"Usher", title:"Yeah!"},
     {year:2006, artist:"Gnarls Barkley", title:"Crazy"},
+    {year:2001, artist:"Alicia Keys", title:"Fallin'"},
+    {year:2008, artist:"Kings of Leon", title:"Sex on Fire"},
+    {year:2005, artist:"Gwen Stefani", title:"Hollaback Girl"},
     {year:2007, artist:"Rihanna", title:"Umbrella"},
-    {year:2008, artist:"Lady Gaga", title:"Poker Face"},
+    {year:2003, artist:"OutKast", title:"Hey Ya!"},
+    {year:2008, artist:"Lady Gaga", title:"Just Dance"},
     {year:2010, artist:"Katy Perry", title:"Firework"},
     {year:2011, artist:"Adele", title:"Rolling in the Deep"},
     {year:2013, artist:"Daft Punk", title:"Get Lucky"},
     {year:2014, artist:"Mark Ronson", title:"Uptown Funk"},
+    {year:2017, artist:"Luis Fonsi", title:"Despacito"},
+    {year:2012, artist:"Gotye", title:"Somebody That I Used to Know"},
     {year:2016, artist:"Drake", title:"One Dance"},
-    {year:2017, artist:"Ed Sheeran", title:"Shape of You"},
-    {year:2019, artist:"Billie Eilish", title:"bad guy"},
+    {year:2015, artist:"The Weeknd", title:"Can't Feel My Face"},
+    {year:2011, artist:"P!nk", title:"Raise Your Glass"},
+    {year:2019, artist:"Lil Nas X", title:"Old Town Road"},
+    {year:2013, artist:"Pharrell Williams", title:"Happy"},
+    {year:2020, artist:"The Weeknd", title:"Blinding Lights"},
+    {year:2021, artist:"Olivia Rodrigo", title:"good 4 u"},
+    {year:2022, artist:"Harry Styles", title:"As It Was"},
+    {year:2023, artist:"Miley Cyrus", title:"Flowers"},
+    {year:2020, artist:"Dua Lipa", title:"Levitating"},
   ]},
-  { id:"rock", name:"Rock Anthems", emoji:"🎸", desc:"Guitars & stadium singalongs", songs:[
-    {year:1965, artist:"The Rolling Stones", title:"(I Can't Get No) Satisfaction"},
-    {year:1971, artist:"Led Zeppelin", title:"Stairway to Heaven"},
-    {year:1975, artist:"Queen", title:"Bohemian Rhapsody"},
-    {year:1977, artist:"Fleetwood Mac", title:"Go Your Own Way"},
-    {year:1979, artist:"AC/DC", title:"Highway to Hell"},
+  { id:"eighties", name:"Totally 80s", emoji:"🕹️", desc:"Synths, spandex & big choruses", songs:[
+    {year:1980, artist:"Blondie", title:"Call Me"},
+    {year:1980, artist:"Queen", title:"Another One Bites the Dust"},
+    {year:1980, artist:"AC/DC", title:"You Shook Me All Night Long"},
+    {year:1980, artist:"Diana Ross", title:"Upside Down"},
+    {year:1980, artist:"David Bowie", title:"Ashes to Ashes"},
+    {year:1980, artist:"Kool & The Gang", title:"Celebration"},
+    {year:1981, artist:"The Police", title:"Every Little Thing She Does Is Magic"},
     {year:1981, artist:"Journey", title:"Don't Stop Believin'"},
+    {year:1981, artist:"Daryl Hall & John Oates", title:"Private Eyes"},
+    {year:1981, artist:"Rick James", title:"Super Freak"},
+    {year:1981, artist:"Soft Cell", title:"Tainted Love"},
+    {year:1981, artist:"Olivia Newton-John", title:"Physical"},
+    {year:1982, artist:"Michael Jackson", title:"Billie Jean"},
+    {year:1982, artist:"Survivor", title:"Eye of the Tiger"},
+    {year:1982, artist:"Toto", title:"Africa"},
+    {year:1982, artist:"Dexys Midnight Runners", title:"Come On Eileen"},
+    {year:1982, artist:"The Human League", title:"Don't You Want Me"},
+    {year:1982, artist:"Joan Jett & the Blackhearts", title:"I Love Rock 'N Roll"},
+    {year:1983, artist:"Michael Jackson", title:"Beat It"},
+    {year:1983, artist:"The Police", title:"Every Breath You Take"},
+    {year:1983, artist:"Eurythmics", title:"Sweet Dreams (Are Made of This)"},
+    {year:1983, artist:"David Bowie", title:"Let's Dance"},
+    {year:1983, artist:"Bonnie Tyler", title:"Total Eclipse of the Heart"},
+    {year:1983, artist:"Cyndi Lauper", title:"Girls Just Want to Have Fun"},
+    {year:1983, artist:"Irene Cara", title:"Flashdance... What a Feeling"},
+    {year:1984, artist:"Wham!", title:"Wake Me Up Before You Go-Go"},
+    {year:1984, artist:"Prince", title:"When Doves Cry"},
+    {year:1984, artist:"Tina Turner", title:"What's Love Got to Do with It"},
+    {year:1984, artist:"Cyndi Lauper", title:"Time After Time"},
+    {year:1984, artist:"Van Halen", title:"Jump"},
+    {year:1984, artist:"Frankie Goes to Hollywood", title:"Relax"},
+    {year:1984, artist:"Stevie Wonder", title:"I Just Called to Say I Love You"},
+    {year:1985, artist:"a-ha", title:"Take On Me"},
+    {year:1985, artist:"Tears for Fears", title:"Everybody Wants to Rule the World"},
+    {year:1985, artist:"Dire Straits", title:"Money for Nothing"},
+    {year:1985, artist:"Wham!", title:"Last Christmas"},
+    {year:1985, artist:"Whitney Houston", title:"How Will I Know"},
+    {year:1985, artist:"Simple Minds", title:"Don't You (Forget About Me)"},
+    {year:1985, artist:"Bruce Springsteen", title:"Dancing in the Dark"},
+    {year:1986, artist:"Bon Jovi", title:"Livin' on a Prayer"},
+    {year:1986, artist:"Europe", title:"The Final Countdown"},
+    {year:1986, artist:"Berlin", title:"Take My Breath Away"},
+    {year:1986, artist:"Robert Palmer", title:"Addicted to Love"},
+    {year:1986, artist:"Whitney Houston", title:"Greatest Love of All"},
+    {year:1986, artist:"Madonna", title:"Papa Don't Preach"},
+    {year:1987, artist:"Rick Astley", title:"Never Gonna Give You Up"},
+    {year:1987, artist:"Guns N' Roses", title:"Sweet Child O' Mine"},
+    {year:1987, artist:"Michael Jackson", title:"Bad"},
+    {year:1987, artist:"U2", title:"With or Without You"},
+    {year:1987, artist:"Whitney Houston", title:"I Wanna Dance with Somebody (Who Loves Me)"},
+    {year:1987, artist:"Los Lobos", title:"La Bamba"},
+    {year:1988, artist:"George Michael", title:"Faith"},
+    {year:1988, artist:"Bobby McFerrin", title:"Don't Worry, Be Happy"},
+    {year:1988, artist:"Guns N' Roses", title:"Paradise City"},
+    {year:1988, artist:"Bill Medley & Jennifer Warnes", title:"(I've Had) The Time of My Life"},
+    {year:1988, artist:"INXS", title:"Need You Tonight"},
+    {year:1989, artist:"Madonna", title:"Like a Prayer"},
+    {year:1989, artist:"Bobby Brown", title:"My Prerogative"},
+    {year:1989, artist:"Tom Petty", title:"Free Fallin'"},
+    {year:1989, artist:"The Bangles", title:"Eternal Flame"},
+  ]},
+  { id:"nineties", name:"90s Throwback", emoji:"📼", desc:"Pop, grunge, hip-hop & R&B", songs:[
+    {year:1991, artist:"Nirvana", title:"Smells Like Teen Spirit"},
+    {year:1991, artist:"Michael Jackson", title:"Black or White"},
+    {year:1990, artist:"MC Hammer", title:"U Can't Touch This"},
+    {year:1990, artist:"Madonna", title:"Vogue"},
+    {year:1990, artist:"Sinéad O'Connor", title:"Nothing Compares 2 U"},
+    {year:1990, artist:"Vanilla Ice", title:"Ice Ice Baby"},
+    {year:1990, artist:"Whitney Houston", title:"I'm Your Baby Tonight"},
+    {year:1991, artist:"R.E.M.", title:"Losing My Religion"},
+    {year:1991, artist:"U2", title:"One"},
+    {year:1991, artist:"Metallica", title:"Enter Sandman"},
+    {year:1991, artist:"Guns N' Roses", title:"November Rain"},
+    {year:1991, artist:"Prince", title:"Cream"},
+    {year:1992, artist:"Whitney Houston", title:"I Will Always Love You"},
+    {year:1992, artist:"Dr. Dre", title:"Nuthin' but a 'G' Thang"},
+    {year:1992, artist:"Sir Mix-A-Lot", title:"Baby Got Back"},
+    {year:1992, artist:"Red Hot Chili Peppers", title:"Under the Bridge"},
+    {year:1992, artist:"TLC", title:"Baby-Baby-Baby"},
+    {year:1992, artist:"House of Pain", title:"Jump Around"},
+    {year:1993, artist:"UB40", title:"Can't Help Falling in Love"},
+    {year:1993, artist:"Snoop Dogg", title:"Gin and Juice"},
+    {year:1993, artist:"Mariah Carey", title:"Dreamlover"},
+    {year:1993, artist:"Haddaway", title:"What Is Love"},
+    {year:1993, artist:"Ace of Base", title:"All That She Wants"},
+    {year:1993, artist:"The Cranberries", title:"Linger"},
+    {year:1994, artist:"Oasis", title:"Live Forever"},
+    {year:1994, artist:"Green Day", title:"Basket Case"},
+    {year:1994, artist:"Warren G", title:"Regulate"},
+    {year:1994, artist:"TLC", title:"Creep"},
+    {year:1994, artist:"Boyz II Men", title:"I'll Make Love to You"},
+    {year:1994, artist:"The Notorious B.I.G.", title:"Juicy"},
+    {year:1994, artist:"Beck", title:"Loser"},
+    {year:1995, artist:"Coolio", title:"Gangsta's Paradise"},
+    {year:1995, artist:"Oasis", title:"Wonderwall"},
+    {year:1995, artist:"TLC", title:"Waterfalls"},
+    {year:1995, artist:"Mariah Carey", title:"Fantasy"},
+    {year:1995, artist:"Alanis Morissette", title:"You Oughta Know"},
+    {year:1995, artist:"Radiohead", title:"Fake Plastic Trees"},
+    {year:1996, artist:"Los Del Río", title:"Macarena (Bayside Boys Mix)"},
+    {year:1996, artist:"Spice Girls", title:"Wannabe"},
+    {year:1996, artist:"2Pac", title:"California Love"},
+    {year:1996, artist:"Fugees", title:"Killing Me Softly"},
+    {year:1996, artist:"No Doubt", title:"Don't Speak"},
+    {year:1996, artist:"Tracy Chapman", title:"Give Me One Reason"},
+    {year:1997, artist:"Hanson", title:"MMMBop"},
+    {year:1997, artist:"The Notorious B.I.G.", title:"Mo Money Mo Problems"},
+    {year:1997, artist:"Backstreet Boys", title:"Everybody (Backstreet's Back)"},
+    {year:1997, artist:"Puff Daddy", title:"I'll Be Missing You"},
+    {year:1997, artist:"Chumbawamba", title:"Tubthumping"},
+    {year:1997, artist:"Sarah McLachlan", title:"Building a Mystery"},
+    {year:1998, artist:"Cher", title:"Believe"},
+    {year:1998, artist:"Madonna", title:"Ray of Light"},
+    {year:1998, artist:"Lauryn Hill", title:"Doo Wop (That Thing)"},
+    {year:1998, artist:"Goo Goo Dolls", title:"Iris"},
+    {year:1998, artist:"Aerosmith", title:"I Don't Want to Miss a Thing"},
+    {year:1998, artist:"Britney Spears", title:"...Baby One More Time"},
+    {year:1999, artist:"Backstreet Boys", title:"I Want It That Way"},
+    {year:1999, artist:"Ricky Martin", title:"Livin' la Vida Loca"},
+    {year:1999, artist:"Santana", title:"Smooth"},
+    {year:1999, artist:"Eminem", title:"My Name Is"},
+    {year:1999, artist:"Red Hot Chili Peppers", title:"Scar Tissue"},
+  ]},
+  { id:"y2k", name:"2000s Hits", emoji:"💿", desc:"The MTV & iPod era", songs:[
+    {year:2000, artist:"Eminem", title:"The Real Slim Shady"},
+    {year:2000, artist:"Destiny's Child", title:"Say My Name"},
+    {year:2000, artist:"OutKast", title:"Ms. Jackson"},
+    {year:2000, artist:"Britney Spears", title:"Oops!... I Did It Again"},
+    {year:2000, artist:"U2", title:"Beautiful Day"},
+    {year:2000, artist:"Madonna", title:"Music"},
+    {year:2001, artist:"Shakira", title:"Whenever, Wherever"},
+    {year:2001, artist:"Alicia Keys", title:"Fallin'"},
+    {year:2001, artist:"Gorillaz", title:"Clint Eastwood"},
+    {year:2001, artist:"Nelly Furtado", title:"I'm Like a Bird"},
+    {year:2001, artist:"Jennifer Lopez", title:"Ain't It Funny"},
+    {year:2001, artist:"Train", title:"Drops of Jupiter"},
+    {year:2002, artist:"Eminem", title:"Without Me"},
+    {year:2002, artist:"Nelly", title:"Hot in Herre"},
+    {year:2002, artist:"Avril Lavigne", title:"Complicated"},
+    {year:2002, artist:"Justin Timberlake", title:"Cry Me a River"},
+    {year:2002, artist:"Eminem", title:"Lose Yourself"},
+    {year:2002, artist:"Pink", title:"Just Like a Pill"},
+    {year:2003, artist:"OutKast", title:"Hey Ya!"},
+    {year:2003, artist:"50 Cent", title:"In Da Club"},
+    {year:2003, artist:"Beyoncé", title:"Crazy in Love"},
+    {year:2003, artist:"Coldplay", title:"Clocks"},
+    {year:2003, artist:"The Black Eyed Peas", title:"Where Is the Love?"},
+    {year:2003, artist:"Evanescence", title:"Bring Me to Life"},
+    {year:2004, artist:"Usher", title:"Yeah!"},
+    {year:2004, artist:"Kelly Clarkson", title:"Since U Been Gone"},
+    {year:2004, artist:"Maroon 5", title:"This Love"},
+    {year:2004, artist:"Green Day", title:"American Idiot"},
+    {year:2004, artist:"Snoop Dogg", title:"Drop It Like It's Hot"},
+    {year:2004, artist:"Gwen Stefani", title:"What You Waiting For?"},
+    {year:2005, artist:"Mariah Carey", title:"We Belong Together"},
+    {year:2005, artist:"Kanye West", title:"Gold Digger"},
+    {year:2005, artist:"Gwen Stefani", title:"Hollaback Girl"},
+    {year:2005, artist:"The Pussycat Dolls", title:"Don't Cha"},
+    {year:2005, artist:"Coldplay", title:"Speed of Sound"},
+    {year:2005, artist:"James Blunt", title:"You're Beautiful"},
+    {year:2006, artist:"Gnarls Barkley", title:"Crazy"},
+    {year:2006, artist:"Shakira", title:"Hips Don't Lie"},
+    {year:2006, artist:"Justin Timberlake", title:"SexyBack"},
+    {year:2006, artist:"Nelly Furtado", title:"Maneater"},
+    {year:2006, artist:"Beyoncé", title:"Irreplaceable"},
+    {year:2006, artist:"Fergie", title:"London Bridge"},
+    {year:2007, artist:"Rihanna", title:"Umbrella"},
+    {year:2007, artist:"Amy Winehouse", title:"Rehab"},
+    {year:2007, artist:"Soulja Boy", title:"Crank That (Soulja Boy)"},
+    {year:2007, artist:"Maroon 5", title:"Makes Me Wonder"},
+    {year:2007, artist:"Timbaland", title:"Apologize"},
+    {year:2007, artist:"Plain White T's", title:"Hey There Delilah"},
+    {year:2008, artist:"Katy Perry", title:"I Kissed a Girl"},
+    {year:2008, artist:"Coldplay", title:"Viva la Vida"},
+    {year:2008, artist:"Lady Gaga", title:"Just Dance"},
+    {year:2008, artist:"Rihanna", title:"Disturbia"},
+    {year:2008, artist:"Kings of Leon", title:"Sex on Fire"},
+    {year:2008, artist:"Pink", title:"So What"},
+    {year:2009, artist:"The Black Eyed Peas", title:"I Gotta Feeling"},
+    {year:2009, artist:"Lady Gaga", title:"Poker Face"},
+    {year:2009, artist:"Jay-Z", title:"Empire State of Mind"},
+    {year:2009, artist:"Beyoncé", title:"Single Ladies (Put a Ring on It)"},
+    {year:2009, artist:"Owl City", title:"Fireflies"},
+    {year:2009, artist:"Ke$ha", title:"Tik Tok"},
+  ]},
+  { id:"modern", name:"Modern Hits", emoji:"📱", desc:"2010 to today", songs:[
+    {year:2010, artist:"Katy Perry", title:"Firework"},
+    {year:2010, artist:"Eminem", title:"Love the Way You Lie"},
+    {year:2010, artist:"Bruno Mars", title:"Just the Way You Are"},
+    {year:2010, artist:"Rihanna", title:"Only Girl (In the World)"},
+    {year:2011, artist:"Adele", title:"Rolling in the Deep"},
+    {year:2011, artist:"LMFAO", title:"Party Rock Anthem"},
+    {year:2011, artist:"Maroon 5", title:"Moves Like Jagger"},
+    {year:2011, artist:"Foster the People", title:"Pumped Up Kicks"},
+    {year:2012, artist:"Gotye", title:"Somebody That I Used to Know"},
+    {year:2012, artist:"Carly Rae Jepsen", title:"Call Me Maybe"},
+    {year:2012, artist:"PSY", title:"Gangnam Style"},
+    {year:2012, artist:"fun.", title:"We Are Young"},
+    {year:2013, artist:"Daft Punk", title:"Get Lucky"},
+    {year:2013, artist:"Robin Thicke", title:"Blurred Lines"},
+    {year:2013, artist:"Lorde", title:"Royals"},
+    {year:2013, artist:"Avicii", title:"Wake Me Up"},
+    {year:2013, artist:"Katy Perry", title:"Roar"},
+    {year:2014, artist:"Mark Ronson", title:"Uptown Funk"},
+    {year:2014, artist:"Taylor Swift", title:"Shake It Off"},
+    {year:2014, artist:"Meghan Trainor", title:"All About That Bass"},
+    {year:2014, artist:"Pharrell Williams", title:"Happy"},
+    {year:2014, artist:"Hozier", title:"Take Me to Church"},
+    {year:2015, artist:"Adele", title:"Hello"},
+    {year:2015, artist:"The Weeknd", title:"Can't Feel My Face"},
+    {year:2015, artist:"Justin Bieber", title:"Sorry"},
+    {year:2015, artist:"Major Lazer", title:"Lean On"},
+    {year:2015, artist:"Wiz Khalifa", title:"See You Again"},
+    {year:2016, artist:"Drake", title:"One Dance"},
+    {year:2016, artist:"The Chainsmokers", title:"Closer"},
+    {year:2016, artist:"Sia", title:"Cheap Thrills"},
+    {year:2016, artist:"Twenty One Pilots", title:"Heathens"},
+    {year:2017, artist:"Luis Fonsi", title:"Despacito"},
+    {year:2017, artist:"Ed Sheeran", title:"Shape of You"},
+    {year:2017, artist:"Kendrick Lamar", title:"HUMBLE."},
+    {year:2017, artist:"Post Malone", title:"rockstar"},
+    {year:2017, artist:"Camila Cabello", title:"Havana"},
+    {year:2018, artist:"Drake", title:"In My Feelings"},
+    {year:2018, artist:"Maroon 5", title:"Girls Like You"},
+    {year:2018, artist:"Childish Gambino", title:"This Is America"},
+    {year:2018, artist:"Cardi B", title:"I Like It"},
+    {year:2019, artist:"Lil Nas X", title:"Old Town Road"},
+    {year:2019, artist:"Billie Eilish", title:"bad guy"},
+    {year:2019, artist:"Lizzo", title:"Truth Hurts"},
+    {year:2019, artist:"Lewis Capaldi", title:"Someone You Loved"},
+    {year:2019, artist:"Tones and I", title:"Dance Monkey"},
+    {year:2020, artist:"The Weeknd", title:"Blinding Lights"},
+    {year:2020, artist:"Dua Lipa", title:"Don't Start Now"},
+    {year:2020, artist:"Harry Styles", title:"Watermelon Sugar"},
+    {year:2020, artist:"Cardi B", title:"WAP"},
+    {year:2021, artist:"Olivia Rodrigo", title:"drivers license"},
+    {year:2021, artist:"Lil Nas X", title:"MONTERO (Call Me By Your Name)"},
+    {year:2021, artist:"Glass Animals", title:"Heat Waves"},
+    {year:2021, artist:"Adele", title:"Easy On Me"},
+    {year:2022, artist:"Harry Styles", title:"As It Was"},
+    {year:2022, artist:"Sam Smith", title:"Unholy"},
+    {year:2022, artist:"Steve Lacy", title:"Bad Habit"},
+    {year:2023, artist:"Miley Cyrus", title:"Flowers"},
+    {year:2023, artist:"SZA", title:"Kill Bill"},
+    {year:2023, artist:"Jung Kook", title:"Seven (feat. Latto)"},
+    {year:2024, artist:"Sabrina Carpenter", title:"Espresso"},
+  ]},
+  { id:"rock", name:"Rock Anthems", emoji:"🎸", desc:"Stadium singalongs, 60s–2010s", songs:[
+    {year:1965, artist:"The Rolling Stones", title:"(I Can't Get No) Satisfaction"},
+    {year:1967, artist:"The Doors", title:"Light My Fire"},
+    {year:1968, artist:"Steppenwolf", title:"Born to Be Wild"},
+    {year:1968, artist:"The Beatles", title:"Hey Jude"},
+    {year:1969, artist:"Creedence Clearwater Revival", title:"Fortunate Son"},
+    {year:1970, artist:"Black Sabbath", title:"Paranoid"},
+    {year:1971, artist:"Led Zeppelin", title:"Stairway to Heaven"},
+    {year:1971, artist:"The Who", title:"Baba O'Riley"},
+    {year:1972, artist:"Deep Purple", title:"Smoke on the Water"},
+    {year:1973, artist:"Lynyrd Skynyrd", title:"Free Bird"},
+    {year:1973, artist:"Pink Floyd", title:"Money"},
+    {year:1975, artist:"Queen", title:"Bohemian Rhapsody"},
+    {year:1975, artist:"Aerosmith", title:"Sweet Emotion"},
+    {year:1976, artist:"Boston", title:"More Than a Feeling"},
+    {year:1976, artist:"Eagles", title:"Hotel California"},
+    {year:1977, artist:"Fleetwood Mac", title:"Go Your Own Way"},
+    {year:1977, artist:"Sex Pistols", title:"Anarchy in the U.K."},
+    {year:1977, artist:"David Bowie", title:"Heroes"},
+    {year:1979, artist:"Pink Floyd", title:"Another Brick in the Wall, Pt. 2"},
+    {year:1979, artist:"The Clash", title:"London Calling"},
+    {year:1980, artist:"AC/DC", title:"Back in Black"},
+    {year:1980, artist:"Queen", title:"Another One Bites the Dust"},
+    {year:1981, artist:"Journey", title:"Don't Stop Believin'"},
+    {year:1981, artist:"AC/DC", title:"You Shook Me All Night Long"},
     {year:1982, artist:"Survivor", title:"Eye of the Tiger"},
     {year:1983, artist:"The Police", title:"Every Breath You Take"},
+    {year:1984, artist:"Van Halen", title:"Jump"},
     {year:1986, artist:"Bon Jovi", title:"Livin' on a Prayer"},
     {year:1987, artist:"Guns N' Roses", title:"Sweet Child O' Mine"},
     {year:1987, artist:"U2", title:"With or Without You"},
+    {year:1987, artist:"Guns N' Roses", title:"Welcome to the Jungle"},
+    {year:1988, artist:"Def Leppard", title:"Pour Some Sugar on Me"},
+    {year:1989, artist:"The Rolling Stones", title:"Mixed Emotions"},
     {year:1991, artist:"Nirvana", title:"Smells Like Teen Spirit"},
-    {year:1991, artist:"R.E.M.", title:"Losing My Religion"},
+    {year:1991, artist:"Metallica", title:"Enter Sandman"},
+    {year:1991, artist:"Red Hot Chili Peppers", title:"Under the Bridge"},
+    {year:1991, artist:"U2", title:"One"},
+    {year:1992, artist:"Rage Against the Machine", title:"Killing in the Name"},
+    {year:1992, artist:"Pearl Jam", title:"Jeremy"},
+    {year:1993, artist:"The Smashing Pumpkins", title:"Today"},
     {year:1994, artist:"Green Day", title:"Basket Case"},
-    {year:1997, artist:"Foo Fighters", title:"Everlong"},
+    {year:1994, artist:"Oasis", title:"Live Forever"},
+    {year:1994, artist:"Soundgarden", title:"Black Hole Sun"},
+    {year:1994, artist:"Weezer", title:"Buddy Holly"},
+    {year:1995, artist:"Oasis", title:"Wonderwall"},
+    {year:1995, artist:"Foo Fighters", title:"Big Me"},
+    {year:1995, artist:"Radiohead", title:"Fake Plastic Trees"},
+    {year:1997, artist:"The Verve", title:"Bitter Sweet Symphony"},
+    {year:1999, artist:"Red Hot Chili Peppers", title:"Scar Tissue"},
+    {year:2000, artist:"Foo Fighters", title:"Learn to Fly"},
     {year:2001, artist:"The Strokes", title:"Last Nite"},
+    {year:2002, artist:"Queens of the Stone Age", title:"No One Knows"},
     {year:2003, artist:"The White Stripes", title:"Seven Nation Army"},
-    {year:2006, artist:"Red Hot Chili Peppers", title:"Dani California"},
+    {year:2004, artist:"Green Day", title:"American Idiot"},
+    {year:2005, artist:"Coldplay", title:"Fix You"},
+    {year:2006, artist:"The Killers", title:"When You Were Young"},
+    {year:2006, artist:"Muse", title:"Knights of Cydonia"},
+    {year:2008, artist:"Kings of Leon", title:"Sex on Fire"},
+    {year:2009, artist:"Them Crooked Vultures", title:"New Fang"},
+    {year:2013, artist:"Arctic Monkeys", title:"Do I Wanna Know?"},
   ]},
 ];
 
 /* ---------- app state ---------- */
 const S = {
   deck: [],          // resolved playable cards {id,name,artist,year,previewUrl}
-  deckId: null,      // selected deck id (built-in or custom)
+  selectedIds: [],   // ids of decks chosen for play (combinable)
   customDecks: [],   // user-built decks, persisted locally
   builder: null,     // {id?, name, songs:[{title,artist,year}], results:[]} while building
   used: new Set(),
@@ -344,8 +669,21 @@ function pickBest(results, song){
 }
 
 /* ---------- deck resolution ---------- */
-function selectedDeck(){
-  return DECKS.concat(S.customDecks).find(d => d.id===S.deckId) || null;
+function allDecks(){ return DECKS.concat(S.customDecks); }
+function isSelected(id){ return S.selectedIds.indexOf(id) >= 0; }
+// merged, de-duplicated song list across every selected deck
+function selectedSongs(){
+  const out = [], seen = new Set();
+  for(const id of S.selectedIds){
+    const d = allDecks().find(x => x.id===id);
+    if(!d) continue;
+    for(const s of d.songs){
+      const k = norm(s.title)+"|"+norm(s.artist);
+      if(seen.has(k)) continue;
+      seen.add(k); out.push(s);
+    }
+  }
+  return out;
 }
 // resolve a curated song list into playable cards; onProgress(done,total)
 async function buildDeckCards(songs, onProgress){
@@ -539,9 +877,9 @@ function showError(msg){
 }
 
 function deckCardHTML(d, count){
-  const sel = S.deckId===d.id;
-  return `<button class="deck ${sel?'sel':''}" onclick="pickDeck('${d.id}')">
-    <span class="demoji">${d.emoji||'🎵'}</span>
+  const sel = isSelected(d.id);
+  return `<button class="deck ${sel?'sel':''}" onclick="toggleDeck('${d.id}')">
+    <span class="demoji">${sel?'✓':(d.emoji||'🎵')}</span>
     <span class="dmeta"><span class="dt">${esc(d.name)}</span><span class="dd">${esc(d.desc||'')}</span></span>
     <span class="dn">${count} songs</span>
   </button>`;
@@ -549,6 +887,13 @@ function deckCardHTML(d, count){
 
 function renderSetup(){
   const builtIn = DECKS.map(d => deckCardHTML(d, d.songs.length)).join("");
+  const combined = selectedSongs().length;
+  const rec = (S.players.length||1) * S.target;
+  const tally = !S.selectedIds.length
+    ? `Pick one or more decks — tap several to combine them.`
+    : `<b style="color:var(--text)">${combined} songs</b> across ${S.selectedIds.length} deck${S.selectedIds.length>1?'s':''}`
+      + ` · recommended ~${rec}+ for ${S.players.length||1} player${(S.players.length||1)>1?'s':''} × ${S.target}`
+      + (combined < rec ? ` <span style="color:var(--bad)">— add another deck</span>` : ` <span style="color:var(--good)">✓</span>`);
   const custom = S.customDecks.map(d =>
     `<div class="row" style="align-items:stretch">
        <div style="flex:1">${deckCardHTML(d, d.songs.length)}</div>
@@ -569,11 +914,12 @@ function renderSetup(){
     </div>` : ``}
 
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 1 · pick a deck</div>
+      <div class="eyebrow" style="color:var(--cyan)">step 1 · pick decks · combine to taste</div>
       <div style="height:10px"></div>
       <div class="deck-list">${builtIn}</div>
       ${custom ? `<div style="height:8px"></div><label class="fld">Your decks</label><div class="deck-list">${custom}</div>` : ``}
       <button class="btn ghost sm" style="margin-top:10px" onclick="newDeck()">+ Build your own deck</button>
+      <div class="hint">${tally}</div>
     </div>
 
     <div class="card">
@@ -687,7 +1033,7 @@ function saveBuilder(){
   } else {
     const id = "u"+Math.random().toString(36).slice(2,9);
     S.customDecks.push({ id, name, emoji:"🎧", desc:"Your deck", songs:b.songs.map(s=>({...s})) });
-    S.deckId = id;
+    if(S.selectedIds.indexOf(id)<0) S.selectedIds.push(id);
   }
   saveDecks();
   S.builder = null;
@@ -815,7 +1161,11 @@ function overlayGameOver(deckEmpty, winner){
 }
 
 /* ---------- UI actions ---------- */
-function pickDeck(id){ S.deckId=id; renderSetup(); }
+function toggleDeck(id){
+  const i = S.selectedIds.indexOf(id);
+  if(i>=0) S.selectedIds.splice(i,1); else S.selectedIds.push(id);
+  renderSetup();
+}
 function addPlayer(){ S.players.push({name:"",timeline:[]}); renderPlayers(); }
 function removePlayer(i){ S.players.splice(i,1); renderPlayers(); }
 function renamePlayer(i,v){ S.players[i].name=v; }
@@ -834,12 +1184,12 @@ function renderLoading(done, total){
 }
 
 async function onStart(){
-  const deck = selectedDeck();
-  if(!deck){ toast("Pick a deck first."); return; }
+  const songs = selectedSongs();
+  if(songs.length < 2){ toast("Pick at least one deck."); return; }
   S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
   unlockAudio();   // prime mobile audio within this tap
-  renderLoading(0, deck.songs.length);
-  const cards = await buildDeckCards(deck.songs, (d,t)=>renderLoading(d,t));
+  renderLoading(0, songs.length);
+  const cards = await buildDeckCards(songs, (d,t)=>renderLoading(d,t));
   if(cards.length < 2){
     showError("Couldn't load enough playable previews for this deck ("+cards.length+" found). "
       +"Apple may not have previews for these tracks, or the network is blocked. Try another deck.");
@@ -880,7 +1230,7 @@ function backToSetup(){ clearGame(); closeOverlay(); S.current=null; const a=aud
 function boot(){
   try{ S.yearOverrides = JSON.parse(store.get("tl_years")||"{}"); }catch(e){ S.yearOverrides = {}; }
   try{ S.customDecks = JSON.parse(store.get("tl_decks")||"[]")||[]; }catch(e){ S.customDecks = []; }
-  S.deckId = DECKS[0] ? DECKS[0].id : null;
+  S.selectedIds = DECKS[0] ? [DECKS[0].id] : [];
   renderSetup();
 }
 boot();
