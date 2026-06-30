@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#03050D" />
 <link rel="manifest" href="./manifest.json" />
 <title>Timeline — music timeline game</title>
@@ -187,6 +187,10 @@
   .reveal-yr{font-family:"Anton"; font-size:72px; line-height:.9; margin:10px 0 2px;}
   .reveal-ti{font-size:17px; font-weight:700;}
   .reveal-ar{color:var(--muted); margin:2px 0 18px;}
+  .report-yr{margin:12px 0 2px;}
+  .report-yr summary{font-size:12px; color:var(--muted); cursor:pointer; list-style:none; opacity:.75;}
+  .report-yr summary::-webkit-details-marker{display:none;}
+  .report-yr[open] summary{opacity:1; margin-bottom:2px;}
   .year-fix{display:flex; align-items:center; justify-content:center; gap:8px;}
   .year-fix .muted{font-size:12px; letter-spacing:.12em; text-transform:uppercase;}
   .year-fix input.rev-yr{width:92px; height:46px; font-size:20px; text-align:center; -moz-appearance:textfield;}
@@ -3050,7 +3054,20 @@ function slotCorrect(p, idx){
   const y = S.current.year;
   const left = idx>0 ? tl[idx-1].year : -Infinity;
   const right = idx<tl.length ? tl[idx].year : Infinity;
-  return y >= left && y <= right;
+  return y >= left && y <= right;   // inclusive — same-year is correct on either side
+}
+/* haptics — a non-visual feedback cue (good on mobile + for accessibility) */
+function buzz(pattern){ try{ if("vibrate" in navigator) navigator.vibrate(pattern); }catch(e){} }
+/* where the card actually belonged, for "you missed" feedback */
+function correctRange(p, c){
+  const yrs = sortedTimeline(p).filter(x => x.id !== c.id).map(x => x.year);
+  let left=null, right=null;
+  for(const y of yrs){ if(y < c.year) left = y; }                 // largest strictly-less
+  for(const y of yrs){ if(y > c.year){ right = y; break; } }      // smallest strictly-greater
+  if(left===null && right===null) return "";
+  if(left===null) return `before ${right}`;
+  if(right===null) return `after ${left}`;
+  return `between ${left} & ${right}`;
 }
 function showCheckingState(message){
   S.checkingTrack = true;
@@ -3058,13 +3075,12 @@ function showCheckingState(message){
   closeOverlay();
   renderGame();
 }
-async function chooseSlot(idx){
+function chooseSlot(idx){
   if(!S.current) return;
   const p = S.players[S.turn];
   S.pendingSlot = idx;
-  showCheckingState("Checking where this track belongs…");
-  await new Promise(resolve => setTimeout(resolve, 260));   // music keeps playing through the reveal
-  const correct = slotCorrect(p, idx);
+  buzz(8);                                  // confirm the tap landed
+  const correct = slotCorrect(p, idx);      // instant — no fake "checking" delay
   if(correct && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
@@ -3074,8 +3090,7 @@ async function chooseSlot(idx){
     else { S.lives--; S.streak = 0; }
   }
   S.used.add(S.current.id);
-  S.checkingTrack = false;
-  S.checkMessage = "";
+  buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
   overlayReveal(correct, p);
 }
@@ -3223,8 +3238,8 @@ function renderSetup(){
 
     <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : '▶ Start game'}</button>
 
-    <button class="btn ghost sm" style="margin-top:16px" onclick="startVerify()">🕵 Check deck years vs Apple</button>
-    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use</div>
+    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use<br>
+      <a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
   `;
   renderPlayers();
 }
@@ -3336,13 +3351,10 @@ function renderGame(){
   for(let i=0;i<=tl.length;i++){
     const left = i>0 ? tl[i-1].year : null;
     const right = i<tl.length ? tl[i].year : null;
-    if(left!==null && right!==null && left===right){
-      slotsHTML += `<div class="tie" title="same year">=</div>`;
-    } else {
-      const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : `${left}–${right}`;
-      slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
-        <span class="ins">+</span><span class="rng">${rng}</span></button>`;
-    }
+    // every gap is tappable — placing a same-year song before OR after its match both count
+    const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : (left===right ? `${left}` : `${left}–${right}`);
+    slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
+      <span class="ins">+</span><span class="rng">${rng}</span></button>`;
     if(i<tl.length){
       slotsHTML += `<div class="placed"><div class="yr">${tl[i].year}</div>
         <div><div class="ti">${esc(tl[i].name)}</div><div class="ar">${esc(tl[i].artist)}</div></div></div>`;
@@ -3428,31 +3440,32 @@ function overlayReveal(correct, p){
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
-  let sub, btn, extra;
+  const missHint = !correct ? correctRange(p, c) : "";
+  let sub, btn;
   if(survival){
     const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
-    sub = correct ? `✅ ${S.score} placed · streak ${S.streak}` : (dead ? `💀 Out of lives` : `💔 Lost a life`);
+    sub = correct ? `${S.score} placed · streak ${S.streak}` : (dead ? `Out of lives` : `Lost a life`);
     btn = dead ? '💀 See results' : 'Next song →';
-    // hearts shown; NO year-fix / Re-check in a scored mode (it would let you flip the verdict)
-    extra = `<div style="font-size:22px; letter-spacing:3px; margin:14px 0 10px">${hearts}</div>`;
+    var extra = `<div style="font-size:22px; letter-spacing:3px; margin:14px 0 4px">${hearts}</div>`;
   } else {
     sub = won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded');
     btn = won ? '🏆 See results' : 'Next turn →';
-    extra = `<div class="year-fix" style="margin:14px 0 12px;">
-        <span class="muted">fix year</span>
-        <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
-          onchange="saveYear('${c.id}', this.value); recheckOverlay();" />
-      </div>
-      <button class="btn ghost" style="margin-bottom:8px" onclick="recheckOverlay()">Re-check</button>`;
+    // data-correction is collapsed and saves for NEXT time only — it can't flip this result
+    var extra = `<details class="report-yr"><summary>🚩 Wrong year in our data?</summary>
+        <div class="year-fix" style="margin-top:8px;"><span class="muted" style="font-size:11px">correct year</span>
+          <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
+            onchange="saveYear('${c.id}', this.value); toast('Thanks — fixed for next time.')" /></div>
+      </details>`;
   }
   sheet.innerHTML = `
-    <div class="verdict ${correct?'good':'bad'}">${correct?'NICE!':'NOPE'}</div>
+    <div class="verdict ${correct?'good':'bad'}">${correct?'✓ NICE!':'✗ NOPE'}</div>
     <div class="muted" style="font-size:13px">${sub}</div>
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
+    ${missHint ? `<div style="font-size:12.5px; color:var(--cyan); margin-top:8px; font-weight:600">↳ belonged ${missHint}</div>` : ``}
     ${extra}
-    <button class="btn primary" onclick="advance()">${btn}</button>
+    <button class="btn primary" style="margin-top:14px" onclick="advance()">${btn}</button>
   `;
   document.getElementById("overlay").classList.add("show");
 }
@@ -3464,6 +3477,7 @@ function overlayGameOver(deckEmpty, winner){
     const newBest = S.score > (best.cards||0) || S.bestStreak > (best.streak||0);
     const nb = { cards: Math.max(S.score, best.cards||0), streak: Math.max(S.bestStreak, best.streak||0) };
     saveBest(nb);
+    buzz(newBest ? [0,30,40,30,40,90] : [0,25,40,25]);
     const sheet = document.getElementById("sheet");
     sheet.innerHTML = `
       <div class="winner-emoji">🎯</div>
@@ -3480,6 +3494,7 @@ function overlayGameOver(deckEmpty, winner){
   }
   let w = winner;
   if(!w){ w = [...S.players].sort((a,b)=>b.timeline.length-a.timeline.length)[0]; }
+  buzz([0,30,40,30,40,90]);
   const sheet = document.getElementById("sheet");
   sheet.innerHTML = `
     <div class="winner-emoji">🏆</div>
