@@ -91,16 +91,25 @@ songs the 600-capped era decks drop) — not obsolete.
   via 4 agents), unified 103 literals. Re-scan confirms 0 remaining conflicts.
   Rule: earliest commercial release; for remix-hits use the famous version's year
   (Cheerleader→2014, Another Night→1994, 3 A.M. Eternal→1991).
+- **Full year-accuracy sweep**: 12 agents audited all 2187 songs (WebSearch-
+  verified), flagged consistently-wrong years. Applied 75 corrections (113
+  literals) — mostly viral-old songs stored at their viral year (Another
+  Love 2022→2012, Take Me to Church 2014→2013, Macarena 1987→1996, TSwift
+  Cruel Summer 2023→2019, Beggin'/Måneskin 2021→2017). Rejected 2 rule-
+  violating flags (Cherish, All Summer Long — stored album-year was already
+  correct). Re-scan: 0 conflicts. App boots clean.
 
 ## TODO / open items
 - [ ] **Real-device test** (esp. iPhone/Safari): iTunes preview match rate, iOS
       autoplay behavior on first tap, haptics (`navigator.vibrate`), and whether
       the CORS visualizer engages or falls back. Consider a small in-app
       diagnostics view.
-- [ ] **Year-accuracy pass** on the decks — *conflicts fixed* (see above). Still
-      open: sweep all 2187 songs for **consistently-wrong** years (not caught by
-      the conflict check). Note iTunes/Apple dates are unreliable for old songs
-      (remaster dates), so verify against original-release year, not Apple.
+- [x] ~~**Year-accuracy pass**~~ — **done**: 78 conflicts resolved + full 2187-song
+      sweep (75 corrections). Residual minor items: (a) `Marshmello — "Wow."`
+      looks like Post Malone's "Wow." (2018) mislabeled to the wrong artist —
+      needs a human call, left as-is; (b) a few near-duplicate artist spellings
+      exist (e.g. "Bee Gees"/"The Bee Gees", "KLF"/"The KLF") — harmless but
+      could be normalized.
 - [ ] **Yearworm domain + trademark check** (note: an "Earworm" board game
       exists — worth confirming no conflict).
 - [ ] **Legal/launch posture:** iTunes previews are tolerated promotional use,
