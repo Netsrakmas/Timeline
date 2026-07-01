@@ -1,6 +1,6 @@
 {
-  "name": "Timeline",
-  "short_name": "Timeline",
+  "name": "Yearworm",
+  "short_name": "Yearworm",
   "description": "A music timeline guessing game using 30-second preview clips",
   "start_url": "./index.html",
   "display": "standalone",
