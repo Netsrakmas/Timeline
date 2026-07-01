@@ -3185,6 +3185,29 @@ function advance(){
   }
   if(p.timeline.length >= S.target){ overlayGameOver(false, p); return; }
   S.turn = (S.turn+1) % S.players.length;
+  if(S.players.length > 1){ overlayHandoff(); return; }   // pass-the-phone gate between players
+  nextTurn();
+}
+// "pass the phone to the next player" — prevents auto-playing the next clip into
+// the wrong person's hands and re-primes audio on the fresh tap.
+function overlayHandoff(){
+  const a = aud(); if(a) a.pause(); S.playing = false;   // silence between turns
+  S.current = null;
+  renderGame();                                          // behind the sheet: the next player's own board
+  const p = S.players[S.turn];
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div style="font-size:46px; margin-bottom:2px">🔄</div>
+    <div class="eyebrow" style="color:var(--cyan)">pass the phone</div>
+    <div class="turn-name" style="font-size:32px; margin:6px 0 6px">${esc(p.name)}</div>
+    <div class="muted" style="font-size:13px; margin-bottom:20px">Hand it to <b style="color:var(--text)">${esc(p.name)}</b> — the mystery track starts when they tap.</div>
+    <button class="btn primary" onclick="startTurn()">▶ I'm ${esc(p.name)} — start my turn</button>
+  `;
+  document.getElementById("overlay").classList.add("show");
+}
+function startTurn(){
+  closeOverlay();
+  unlockAudio();   // fresh user gesture → re-primes audio for this player
   nextTurn();
 }
 
