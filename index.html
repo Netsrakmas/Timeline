@@ -2846,11 +2846,14 @@ function itunesSearch(term, limit){
 function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim(); }
 function yearOf(releaseDate){ const y = parseInt(String(releaseDate||"").slice(0,4),10); return y||null; }
 // pick the result that best matches the curated title/artist and has a playable preview
+// karaoke / tribute / novelty versions often have wrong or silent previews
+const BADVER = /karaoke|tribute|made famous|originally performed|as made popular|8[\- ]?bit|lullaby|meditation|piano tribute/i;
 function pickBest(results, song){
   const wantT = norm(song.title), wantA = norm(song.artist);
   let best=null, bestScore=-1;
   for(const r of results){
     if(!r.previewUrl) continue;
+    if(BADVER.test(r.artistName||"") || BADVER.test(r.collectionName||"")) continue;
     const t = norm(r.trackName), a = norm(r.artistName);
     let score = 0;
     if(t===wantT) score += 3; else if(t.includes(wantT)||wantT.includes(t)) score += 1;
@@ -2945,6 +2948,7 @@ function maskMediaSession(){
 }
 function playClip(card){
   const a = aud(); if(!a || !card) return;
+  wireAudio();
   try{
     if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
     a.currentTime = 0;
@@ -2953,6 +2957,33 @@ function playClip(card){
     S.playing = true;
     maskMediaSession();
   }catch(e){ S.playing = false; }
+}
+// keep the equalizer honest without a full re-render
+function syncEq(){ const eq=document.querySelector('.eq'); if(eq) eq.classList.toggle('paused', !S.playing); }
+// some iTunes previews are broken/silent — detect the load failure and move on
+let autoSkips = 0;
+function wireAudio(){
+  const a = aud(); if(!a || a._wired) return; a._wired = true;
+  a.addEventListener('playing', ()=>{ autoSkips=0; S.playing=true; syncEq(); });
+  a.addEventListener('pause',   ()=>{ S.playing=false; syncEq(); });
+  a.addEventListener('error',   onAudioFail);
+}
+function onAudioFail(){
+  const a = aud();
+  if(!S.current || !S.players || !S.players.length) return;
+  if(!a || a.src !== S.current.previewUrl) return;   // ignore stale / silent-unlock errors
+  if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap Replay or Skip."); return; }
+  toast("Couldn't load that clip — skipping.");
+  skipTrack(true);
+}
+// skip the current mystery track (broken preview, or one you can't place) — same
+// player gets a fresh track; no score/life change.
+function skipTrack(auto){
+  if(!S.current) return;
+  buzz(6);
+  S.used.add(S.current.id);   // don't offer this one again
+  if(!auto) toast("Skipped");
+  nextTurn();
 }
 function replay(){ if(!S.current) return; unlockAudio(); playClip(S.current); renderGame(); }
 function pausePlayback(){ const a=aud(); if(a) a.pause(); S.playing=false; renderGame(); }
@@ -3406,6 +3437,7 @@ function renderGame(){
     <div class="controls">
       <button class="btn" onclick="replay()">↻ Replay</button>
       <button class="btn" onclick="pausePlayback()">❚❚ Pause</button>
+      <button class="btn" onclick="skipTrack(false)" title="Can't hear it? Skip">⤼ Skip</button>
     </div>
 
     <div style="height:18px"></div>
