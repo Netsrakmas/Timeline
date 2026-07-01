@@ -86,15 +86,21 @@ songs the 600-capped era decks drop) — not obsolete.
   screenshots; `viewport-fit=cover` + safe-area insets; apple/mobile PWA metas.
   Verified installable in headless Chromium. It's now installable on Android
   Chrome ("Add to Home screen").
+- **Year-conflict pass**: found 78 songs stored with two different years across
+  decks; resolved each to one canonical original-release year (WebSearch-verified
+  via 4 agents), unified 103 literals. Re-scan confirms 0 remaining conflicts.
+  Rule: earliest commercial release; for remix-hits use the famous version's year
+  (Cheerleader→2014, Another Night→1994, 3 A.M. Eternal→1991).
 
 ## TODO / open items
 - [ ] **Real-device test** (esp. iPhone/Safari): iTunes preview match rate, iOS
       autoplay behavior on first tap, haptics (`navigator.vibrate`), and whether
       the CORS visualizer engages or falls back. Consider a small in-app
       diagnostics view.
-- [ ] **Year-accuracy pass** on the decks — use the in-app "🕵 check deck years
-      vs Apple" tool; some of the newest Classics additions lean "very
-      well-known" rather than literally-universal.
+- [ ] **Year-accuracy pass** on the decks — *conflicts fixed* (see above). Still
+      open: sweep all 2187 songs for **consistently-wrong** years (not caught by
+      the conflict check). Note iTunes/Apple dates are unreliable for old songs
+      (remaster dates), so verify against original-release year, not Apple.
 - [ ] **Yearworm domain + trademark check** (note: an "Earworm" board game
       exists — worth confirming no conflict).
 - [ ] **Legal/launch posture:** iTunes previews are tolerated promotional use,
