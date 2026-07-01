@@ -100,24 +100,32 @@ songs the 600-capped era decks drop) — not obsolete.
   correct). Re-scan: 0 conflicts. App boots clean.
 
 ## TODO / open items
-- [ ] **Real-device test** (esp. iPhone/Safari): iTunes preview match rate, iOS
-      autoplay behavior on first tap, haptics (`navigator.vibrate`), and whether
-      the CORS visualizer engages or falls back. Consider a small in-app
-      diagnostics view.
+- [x] ~~**Real-device test**~~ — **done** (phone test passed: install + previews
+      play). iOS/Safari still untested but no longer launch-blocking.
 - [x] ~~**Year-accuracy pass**~~ — **done**: 78 conflicts resolved + full 2187-song
-      sweep (75 corrections). Residual minor items: (a) `Marshmello — "Wow."`
-      looks like Post Malone's "Wow." (2018) mislabeled to the wrong artist —
-      needs a human call, left as-is; (b) a few near-duplicate artist spellings
-      exist (e.g. "Bee Gees"/"The Bee Gees", "KLF"/"The KLF") — harmless but
-      could be normalized.
-- [ ] **Yearworm domain + trademark check** (note: an "Earworm" board game
-      exists — worth confirming no conflict).
+      sweep (75 corrections). Follow-up done too: normalized 28 artist-spelling
+      variants (62 literals), which collapsed 18 hidden duplicate songs
+      (pool 2187→2169) and surfaced+fixed one more conflict (Night Fever→1977).
+      Residual: `Marshmello — "Wow."` is probably Post Malone's song mislabeled;
+      owner said leave it.
+- [x] ~~**Yearworm domain + trademark check**~~ — **researched, looks clear**:
+      no product/app/game named "Yearworm" exists anywhere findable; the
+      "Earworm" board game (VStheUNIVERSE, Kickstarter/BGG) is a hum-the-song
+      party game — different name, different mechanic, and "earworm" is a
+      generic English word (weak mark). No active site at yearworm.com/.app;
+      registry lookup blocked from sandbox, so **final 30-second availability
+      check at a registrar is on the owner** before buying. Real comparable
+      remains Hitster (mechanic can't be trademarked; name/trade-dress already
+      avoided via rename + palette shift).
 - [ ] **Legal/launch posture:** iTunes previews are tolerated promotional use,
       not a license. Plan: launch free, add a takedown contact, do the accuracy
       + device test before ship. Worst case = takedown email / API cutoff
       (recoverable).
 - [x] ~~Decide whether to merge `previews-rewrite` → `main`~~ — **done**: `main`
-      now holds the iTunes build; `old` holds the Spotify version.
+      now holds the iTunes build (kept in sync by fast-forward); `old` holds the
+      Spotify version. Housekeeping: stray branch
+      `claude/yearworm-music-game-qe009n` should be deleted via the GitHub UI
+      (sandbox permission blocked remote deletion).
 - [ ] **Play Store (Android TWA)** — see `TWA.md` for the full recipe. Blocked on a
       decision + your accounts: (a) **hosting domain** (custom domain like
       `yearworm.app` = clean asset-links, vs the free `netsrakmas.github.io`
