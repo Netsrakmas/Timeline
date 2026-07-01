@@ -79,6 +79,13 @@ songs the 600-capped era decks drop) — not obsolete.
 - Deck chips lead with song count + year range.
 - Reskinned to teal + amber/gold; regenerated icon.
 - Bumped SW cache to `yearworm-v2`.
+- Promoted the iTunes rewrite to `main` (fast-forward); saved the old Spotify
+  version as branch `old`. (`previews-rewrite` still leads with newest work.)
+- **Android PWA hardening** (SW `yearworm-v3`): manifest `id`/`scope`/
+  `orientation:portrait`/`categories` + `any`/`maskable` icons + 2 install
+  screenshots; `viewport-fit=cover` + safe-area insets; apple/mobile PWA metas.
+  Verified installable in headless Chromium. It's now installable on Android
+  Chrome ("Add to Home screen").
 
 ## TODO / open items
 - [ ] **Real-device test** (esp. iPhone/Safari): iTunes preview match rate, iOS
@@ -94,7 +101,14 @@ songs the 600-capped era decks drop) — not obsolete.
       not a license. Plan: launch free, add a takedown contact, do the accuracy
       + device test before ship. Worst case = takedown email / API cutoff
       (recoverable).
-- [ ] Decide whether to merge `previews-rewrite` → `main` for the public deploy.
+- [x] ~~Decide whether to merge `previews-rewrite` → `main`~~ — **done**: `main`
+      now holds the iTunes build; `old` holds the Spotify version.
+- [ ] **Play Store (Android TWA)** — see `TWA.md` for the full recipe. Blocked on a
+      decision + your accounts: (a) **hosting domain** (custom domain like
+      `yearworm.app` = clean asset-links, vs the free `netsrakmas.github.io`
+      user-page route); (b) Play Console ($25) + signing keystore; (c) confirm
+      previews actually play on a real Android device. `.well-known/assetlinks.json`
+      is committed as a template (fill the SHA-256).
 - [ ] (Optional) Try the lime or coral palette to compare against the gold.
 
 ## Quick start for a new session
