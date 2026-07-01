@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yearworm-v1';
+const CACHE_NAME = 'yearworm-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
