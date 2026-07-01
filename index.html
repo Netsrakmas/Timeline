@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#03050D" />
 <link rel="manifest" href="./manifest.json" />
-<title>Timeline — music timeline game</title>
+<title>Yearworm — guess the year</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -2991,7 +2991,7 @@ function unlockAudio(){
 function maskMediaSession(){
   if(!("mediaSession" in navigator)) return;
   try{
-    navigator.mediaSession.metadata = new MediaMetadata({ title:"🎵 Timeline", artist:"guess the year", album:"" });
+    navigator.mediaSession.metadata = new MediaMetadata({ title:"🎵 Yearworm", artist:"guess the year", album:"" });
   }catch(e){}
 }
 function playClip(card){
@@ -3229,7 +3229,7 @@ function showError(msg){
   e.textContent = "⚠ "+msg+"\n\n(tap to dismiss)";
   e.style.display="block";
   window.scrollTo(0,0);
-  console.error("[Timeline]", msg);
+  console.error("[Yearworm]", msg);
 }
 
 function deckChipHTML(d){
@@ -3285,7 +3285,7 @@ function renderSetup(){
      </div>`).join("");
   app().innerHTML = `
     <div class="eyebrow">drop the needle · guess the year</div>
-    <h1 class="brand">Timeline</h1>
+    <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
 
     <div class="card">
@@ -3635,7 +3635,7 @@ function setMode(m){ S.mode=m; renderSetup(); }
 function renderLoading(done, total){
   const pct = total ? Math.round(done/total*100) : 0;
   app().innerHTML = `
-    <h1 class="brand">Timeline</h1>
+    <h1 class="brand">Yearworm</h1>
     <div class="loadwrap">
       <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
       <h2 class="display" style="font-size:22px; margin:14px 0 4px">Loading deck…</h2>
