@@ -146,6 +146,7 @@
   .eq span:nth-child(4){animation-delay:.45s} .eq span:nth-child(5){animation-delay:.6s}
   @keyframes eq{0%,100%{height:9px}50%{height:34px}}
   .eq.paused span{animation-play-state:paused; height:9px;}
+  .eq.viz span{animation:none !important;}   /* live audio drives the heights */
   .stage h2{font-family:"Anton"; font-weight:400; font-size:22px; margin:4px 0 2px; letter-spacing:.5px;}
   .stage p{margin:0; color:var(--muted); font-size:13.5px;}
 
@@ -2930,6 +2931,52 @@ const aud = () => document.getElementById("aud");
 // a 0.05s silent WAV — playing this inside the tap unlocks the element even
 // before the first real clip has loaded (the bug that muted the first game)
 const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+/* live audio visualizer — real frequency analysis of the playing preview.
+   Routing audio through Web Audio mutes cross-origin media unless the server
+   sends CORS headers, so we probe once and only enable if it's safe; otherwise
+   we keep the CSS-animated bars and playback is untouched. */
+let audioCtx=null, srcNode=null, analyser=null, freqData=null, vizRAF=0, vizEnabled=false, corsChecked=false;
+function initAudioCtx(){
+  if(audioCtx) return audioCtx;
+  try{ const AC = window.AudioContext||window.webkitAudioContext; if(AC) audioCtx = new AC(); }catch(e){}
+  return audioCtx;
+}
+async function maybeEnableViz(url){
+  if(vizEnabled || corsChecked || reducedMotion || !url) return;
+  corsChecked = true;
+  try{ await fetch(url, { mode:"cors" }); }catch(e){ return; }   // no CORS → keep CSS bars, never touch WebAudio
+  const a = aud(), ctx = initAudioCtx();
+  if(!a || !ctx || srcNode) return;
+  try{
+    a.crossOrigin = "anonymous";
+    analyser = ctx.createAnalyser(); analyser.fftSize = 64; analyser.smoothingTimeConstant = 0.75;
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+    srcNode = ctx.createMediaElementSource(a);   // one-way — only done after CORS is confirmed
+    srcNode.connect(analyser); analyser.connect(ctx.destination);
+    vizEnabled = true;
+    if(ctx.state==="suspended") ctx.resume();
+    a.load(); a.play().catch(()=>{});            // reload current clip CORS-clean so it keeps sound
+    if(S.playing) startViz();
+  }catch(e){ vizEnabled=false; }
+}
+function vizLoop(){
+  vizRAF = 0;
+  const eq = document.querySelector('.eq');
+  const bars = eq ? eq.querySelectorAll('span') : [];
+  if(!analyser || !bars.length || !S.playing) return;   // stop; restarts on next 'playing'
+  if(!eq.classList.contains('viz')) eq.classList.add('viz');   // ensure the CSS keyframes are off
+  analyser.getByteFrequencyData(freqData);
+  const bins = [1,3,5,8,12];
+  for(let i=0;i<bars.length;i++){
+    const v = freqData[bins[i]] || 0;
+    bars[i].style.height = (8 + (v/255)*26).toFixed(1) + "px";
+  }
+  vizRAF = requestAnimationFrame(vizLoop);
+}
+function startViz(){ if(!vizEnabled || reducedMotion || vizRAF) return; vizRAF = requestAnimationFrame(vizLoop); }
+function stopViz(){ if(vizRAF){ cancelAnimationFrame(vizRAF); vizRAF=0; } const eq=document.querySelector('.eq'); if(eq) eq.querySelectorAll('span').forEach(s=>s.style.height='9px'); }
+
 function unlockAudio(){
   const a = aud(); if(!a) return;
   try{
@@ -2939,6 +2986,7 @@ function unlockAudio(){
     if(p && p.then) p.then(()=>{ a.pause(); a.currentTime=0; a.muted=false; }).catch(()=>{ a.muted=false; });
     else { a.pause(); a.muted=false; }
   }catch(e){ a.muted=false; }
+  try{ const c=initAudioCtx(); if(c && c.state==="suspended") c.resume(); }catch(e){}   // must resume in a gesture
 }
 function maskMediaSession(){
   if(!("mediaSession" in navigator)) return;
@@ -2950,12 +2998,14 @@ function playClip(card){
   const a = aud(); if(!a || !card) return;
   wireAudio();
   try{
+    if(vizEnabled) a.crossOrigin = "anonymous";   // keep clips CORS-clean once routed through WebAudio
     if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
     a.currentTime = 0;
     const p = a.play();
     if(p && p.catch) p.catch(()=>{ /* gesture needed — Replay button will start it */ });
     S.playing = true;
     maskMediaSession();
+    maybeEnableViz(card.previewUrl);              // one-time: enable the live visualizer if CORS allows
   }catch(e){ S.playing = false; }
 }
 // keep the equalizer honest without a full re-render
@@ -2964,8 +3014,8 @@ function syncEq(){ const eq=document.querySelector('.eq'); if(eq) eq.classList.t
 let autoSkips = 0;
 function wireAudio(){
   const a = aud(); if(!a || a._wired) return; a._wired = true;
-  a.addEventListener('playing', ()=>{ autoSkips=0; S.playing=true; syncEq(); });
-  a.addEventListener('pause',   ()=>{ S.playing=false; syncEq(); });
+  a.addEventListener('playing', ()=>{ autoSkips=0; S.playing=true; syncEq(); startViz(); });
+  a.addEventListener('pause',   ()=>{ S.playing=false; syncEq(); stopViz(); });
   a.addEventListener('error',   onAudioFail);
 }
 function onAudioFail(){
@@ -3428,7 +3478,7 @@ function renderGame(){
     ${hud}
 
     <div class="stage" style="margin-top:14px">
-      <div class="eq ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="eq ${vizEnabled?'viz':''} ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
       <h2>${S.checkingTrack ? 'Checking track…' : (live ? 'Mystery track is playing' : '…')}</h2>
       <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.') : 'Listen, then drop it into your timeline where it belongs.'}</p>
       ${S.checkingTrack ? `<div class="verify-state">still checking</div>` : ''}
