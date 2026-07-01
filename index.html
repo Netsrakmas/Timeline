@@ -4017,11 +4017,11 @@ const PARTY_SONGS = [
   const pKeys = new Set(PARTY_SONGS.map(key));
   const bucket = (lo,hi) => pool.filter(s => s.year>=lo && s.year<=hi).slice(0,600);
   DECKS.unshift(
-    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:"all decades & genres", songs:pool },
-    { id:"classics", name:"The Classics", emoji:"\u{1F3DB}\uFE0F", desc:"Everything up to 1989", songs:bucket(0,1989) },
+    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:"all years & genres", songs:pool },
+    { id:"classics", name:"The Classics", emoji:"\u{1F3DB}\uFE0F", desc:"1950s\u20131989", songs:bucket(0,1989) },
     { id:"thehits", name:"The Hits", emoji:"\u2728", desc:"1990\u20132009", songs:bucket(1990,2009) },
-    { id:"now", name:"Now", emoji:"\u26A1", desc:"2010 to today", songs:bucket(2010,9999) },
-    { id:"party", name:"Party Anthems", emoji:"\u{1F389}", desc:"floor-fillers from every era", songs:pool.filter(s=>pKeys.has(key(s))).slice(0,600) },
+    { id:"now", name:"Now", emoji:"\u26A1", desc:"2010\u2013now", songs:bucket(2010,9999) },
+    { id:"party", name:"Party Anthems", emoji:"\u{1F389}", desc:"every era \u00B7 dance floor", songs:pool.filter(s=>pKeys.has(key(s))).slice(0,600) },
   );
   DECKS.splice(5);   // launch: show only these five decks; the themed songs remain in the pool above
 })();
@@ -4459,7 +4459,7 @@ function showError(msg){
 
 function deckChipHTML(d){
   const sel = isSelected(d.id);
-  const meta = d.songs.length + (d.desc ? " · " + d.desc : " songs");
+  const meta = d.songs.length + " songs" + (d.desc ? " · " + d.desc : "");
   return `<button class="dchip ${sel?'sel':''}" data-id="${d.id}" onclick="toggleDeck('${d.id}')">
     <span class="de">${sel?'✓':(d.emoji||'🎵')}</span>
     <span class="dm"><span class="dn2">${esc(d.name)}</span><span class="dc2">${esc(meta)}</span></span>
