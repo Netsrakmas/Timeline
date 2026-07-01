@@ -1,5 +1,5 @@
-const CACHE_NAME = 'timeline-pwa-previews-v1';
-const ASSETS = ['./', './index.html', './manifest.json'];
+const CACHE_NAME = 'yearworm-v1';
+const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
