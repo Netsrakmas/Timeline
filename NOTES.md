@@ -159,6 +159,18 @@ songs the 600-capped era decks drop) — not obsolete.
       selling raises takedown risk, so keep it modest. Tiny optional code hooks
       to pre-stage (not yet added): a `premium:true` deck flag + an `unlocked`
       set in localStorage (currently a no-op gate).
+- [ ] **v2 idea — multi-device / remote multiplayer (DEFERRED, big feature).**
+      Today's Pass & Play already covers *in-person* (one phone passed around);
+      the unique value of multi-device is **remote play** (players in different
+      locations). It's the biggest item on the roadmap: breaks the serverless-
+      static model (needs a realtime backend), plus a lobby/room system, a
+      networked source-of-truth state model, a game-loop refactor (`nextTurn`/
+      `chooseSlot`/`overlayReveal`/`advance` broadcast+receive instead of mutating
+      local `S`), and reconnection handling. Approach if pursued: a **managed
+      realtime service** (PartyKit / Cloudflare Durable Objects, or Firebase /
+      Supabase Realtime) — NOT hand-rolled WebRTC (signaling/STUN/TURN/NAT pain)
+      or a self-run server. Free tiers cover a small launch. Build only if players
+      ask for remote play; not needed for the free launch.
 - [x] ~~(Optional) lime or coral palette experiment~~ — **compared** (rendered A/B/C
       side-by-side); **keeping gold + cyan** (best hierarchy, no good/bad-color
       collision, no Spotify-green association, branding already built on it).
