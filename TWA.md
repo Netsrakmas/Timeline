@@ -111,6 +111,52 @@ Commit the filled file, push, confirm it serves at
 
 ---
 
+## Store listing kit (ready to paste)
+
+**Title** (≤30 chars): `Yearworm: Guess the Year`
+**Short description** (≤80): `Hear a song, guess its year, build your music timeline. Party & solo modes.`
+
+**Full description** (≤4000):
+```
+Drop the needle and guess the year!
+
+Yearworm is a music timeline party game. Hear a 30-second clip of a song, then
+slot it into your timeline by the year it was released. Build the longest run and
+win. No account, no sign-up — just tap and play.
+
+🎵 2,000+ songs across every era, from 50s classics to today's hits
+🎉 Pass & Play — pass one phone around, race your friends to the finish
+🎯 Survival — solo mode: 3 lives, endless, chase your personal best
+🎚️ Pick a deck (Classics, The Hits, Now, Party Anthems) or build your own
+📴 Installs like an app, works great on a phone
+
+Great for parties, road trips, and anyone who thinks they know their music.
+
+Song previews are provided by Apple. Yearworm collects no personal data —
+everything stays on your device.
+```
+
+**Graphics needed for the listing** (you supply/generate):
+- App icon 512×512 — already have `icon-512.png`.
+- Feature graphic 1024×500 — I can generate one on request (note: brand font Anton
+  can't load in this sandbox, so I'd use a fallback; better done with the real font).
+- 2–8 phone screenshots — `screenshot-1/2.png` exist; grab live gameplay shots from
+  your device for a stronger listing.
+
+## Play Console forms (answers for this app)
+
+- **Privacy policy URL:** `https://<domain>/privacy.html` (committed as `privacy.html`).
+- **Data safety:** *No data collected, no data shared.* No accounts, no analytics, no
+  ads, no trackers. Game state lives only in the device's local storage. (Requests to
+  Apple/Google Fonts get standard request metadata like IP, but the app collects
+  nothing — this is "no data collected" for the form.)
+- **Content rating (IARC questionnaire):** general-audience music game, no violence /
+  gambling / user-to-user chat. Answer honestly that streamed song titles/lyrics are
+  real commercial music (may include occasional mild language), which typically lands
+  at Everyone / PEGI 3 (possibly Everyone 10+). No in-app purchases at launch.
+- **Ads:** none.
+- **Category:** Games → Trivia (or Music).
+
 ## Gotchas
 - **No address bar = verification OK.** If you see a URL bar in the installed app,
   `assetlinks.json` is missing/wrong or has the wrong SHA-256.

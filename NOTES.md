@@ -135,6 +135,14 @@ songs the 600-capped era decks drop) — not obsolete.
       signing keystore; fill `.well-known/assetlinks.json` SHA-256.
       **Build-time note:** generate the TWA **with Play Billing capability
       enabled** even though launch is free — see monetization item below.
+      **Prepped & ready** (in repo / `TWA.md`): `privacy.html` (Play requires a
+      policy URL; app collects nothing → data-safety = "no data collected"),
+      full listing copy, content-rating/data-safety answers, assetlinks template.
+      **Still owner-only:** build the signed AAB on your machine (Bubblewrap),
+      $25 Play Console, signing keystore — can't be done from the sandbox.
+      **Asset-links needs a domain root**, so Play verification is gated on
+      either buying `yearworm.app` (recommended) or hosting assetlinks via a
+      `netsrakmas.github.io` user-pages repo.
 - [ ] **Monetization — DEFERRED (ship 100% free first).** Plan if/when wanted:
       sell **curated deck packs** (e.g. "90s Hip-Hop", "Christmas", "Movie
       Themes"). Curation/convenience is the real value — the free "build your own
