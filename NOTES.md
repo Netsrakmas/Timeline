@@ -126,13 +126,34 @@ songs the 600-capped era decks drop) — not obsolete.
       Spotify version. Housekeeping: stray branch
       `claude/yearworm-music-game-qe009n` should be deleted via the GitHub UI
       (sandbox permission blocked remote deletion).
-- [ ] **Play Store (Android TWA)** — see `TWA.md` for the full recipe. Blocked on a
-      decision + your accounts: (a) **hosting domain** (custom domain like
-      `yearworm.app` = clean asset-links, vs the free `netsrakmas.github.io`
-      user-page route); (b) Play Console ($25) + signing keystore; (c) confirm
-      previews actually play on a real Android device. `.well-known/assetlinks.json`
-      is committed as a template (fill the SHA-256).
-- [ ] (Optional) Try the lime or coral palette to compare against the gold.
+- [ ] **Play Store (Android TWA)** — see `TWA.md` for the full recipe. Domain
+      **decided: custom `yearworm.app`** (owner to buy via Porkbun or Cloudflare
+      — cheap ~$12–15/yr, free WHOIS privacy + free email forwarding; `.app` is
+      HTTPS-only, which Pages already satisfies). Then: (a) owner registers +
+      sets email forwarding `contact@yearworm.app` → personal Gmail; (b) I add
+      `CNAME` + DNS records + point Pages at the domain; (c) Play Console ($25) +
+      signing keystore; fill `.well-known/assetlinks.json` SHA-256.
+      **Build-time note:** generate the TWA **with Play Billing capability
+      enabled** even though launch is free — see monetization item below.
+- [ ] **Monetization — DEFERRED (ship 100% free first).** Plan if/when wanted:
+      sell **curated deck packs** (e.g. "90s Hip-Hop", "Christmas", "Movie
+      Themes"). Curation/convenience is the real value — the free "build your own
+      deck" feature doesn't cannibalize it (people are lazy). Delivery: **Google
+      Play Billing inside the Android app** (native one-tap, Google handles
+      payment/entitlement/restore; Play policy requires Play Billing for digital
+      goods — no Stripe in-app). Web PWA would need Stripe/Lemon Squeezy + a
+      license-key/import flow (clunkier, cross-device restore is the friction).
+      Adding this later is a normal update, NOT a rewrite: web/PWA changes ship
+      instantly via the SW; the TWA wraps the live site so most changes need no
+      Play resubmission — BUT enabling Play Billing is a build-time wrapper
+      capability, so **build the TWA with it on now** to avoid a later rebuild.
+      Licensing caveat: frame as selling *curation*, not the (unlicensed) audio;
+      selling raises takedown risk, so keep it modest. Tiny optional code hooks
+      to pre-stage (not yet added): a `premium:true` deck flag + an `unlocked`
+      set in localStorage (currently a no-op gate).
+- [x] ~~(Optional) lime or coral palette experiment~~ — **compared** (rendered A/B/C
+      side-by-side); **keeping gold + cyan** (best hierarchy, no good/bad-color
+      collision, no Spotify-green association, branding already built on it).
 
 ## Quick start for a new session
 > Continue on the Yearworm music game (`/home/user/Timeline`, branch
