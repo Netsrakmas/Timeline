@@ -224,6 +224,7 @@
 
 <script>
 "use strict";
+const BUILD = "v11";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
@@ -4134,13 +4135,15 @@ async function resolveBatch(slice){
   return added;
 }
 // the first batch — must be ready before play; gentle but not slow
-async function resolveInitial(list, onProgress){
+async function resolveInitial(list, onProgress, enough){
   const BATCH = 3;
   for(let i=0;i<list.length;i+=BATCH){
     await resolveBatch(list.slice(i, i+BATCH));
     if(onProgress) onProgress(Math.min(list.length, i+BATCH), list.length);
+    if(enough && enough()) return Math.min(list.length, i+BATCH);   // got the minimum — start now
     await new Promise(r => setTimeout(r, 350));
   }
+  return list.length;
 }
 // the rest — streamed in slowly while the game is played
 async function loadRest(list, myRun){
@@ -4555,7 +4558,7 @@ function renderSetup(){
 
     <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : '▶ Start game'}</button>
 
-    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use<br>
+    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use · ${BUILD}<br>
       Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a><br>
       <a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
   `;
@@ -4880,9 +4883,11 @@ async function onStart(){
   S.deck = [];
   S.deckSeen = new Set();
   S.loadingMore = false;
-  const FIRST = Math.min(songs.length, S.players.length + 4);
+  const FIRST = Math.min(songs.length, S.players.length + 4);   // headroom for failed lookups
+  const MIN = Math.min(songs.length, S.players.length + 1);     // seeds + the first mystery track
   renderLoading(0, FIRST);
-  await resolveInitial(songs.slice(0, FIRST), (d,t)=>renderLoading(d,t));
+  const got = await resolveInitial(songs.slice(0, FIRST), (d,t)=>renderLoading(d,t),
+    ()=> S.deck.length >= MIN);   // start as soon as the minimum is in — rest streams in below
   if(S.deck.length < 2){
     showError("Couldn't load playable previews (got "+S.deck.length+"). Apple may be rate-limiting "
       +"or the network is blocked — wait a few seconds and try again, or pick another deck.");
@@ -4891,7 +4896,7 @@ async function onStart(){
   }
   S.used = new Set();
   startGame();                       // bumps bgRun
-  loadRest(songs.slice(FIRST), bgRun);   // background; appends to S.deck as it goes
+  loadRest(songs.slice(got), bgRun);   // background; appends to S.deck as it goes
 }
 
 function saveYear(id, value){
