@@ -239,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v17";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v18";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4705,10 +4705,14 @@ function renderGame(){
   for(let i=0;i<=tl.length;i++){
     const left = i>0 ? tl[i-1].year : null;
     const right = i<tl.length ? tl[i].year : null;
-    // every gap is tappable — placing a same-year song before OR after its match both count
-    const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : (left===right ? `${left}` : `${left}–${right}`);
-    slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
-      <span class="ins">+</span><span class="rng">${rng}</span></button>`;
+    if(left!==null && right!==null && left===right){
+      // same year on both sides — the gap adds nothing (before/after score too), show a tie mark
+      slotsHTML += `<div class="tie" title="same year">=</div>`;
+    } else {
+      const rng = left===null ? `before ${right}` : right===null ? `after ${left}` : `${left}–${right}`;
+      slotsHTML += `<button class="slot ${live?'active':''}" ${live?`onclick="chooseSlot(${i})"`:'disabled'}>
+        <span class="ins">+</span><span class="rng">${rng}</span></button>`;
+    }
     if(i<tl.length){
       slotsHTML += `<div class="placed"><div class="yr">${tl[i].year}</div>
         <div><div class="ti">${esc(tl[i].name)}</div><div class="ar">${esc(tl[i].artist)}</div></div></div>`;
