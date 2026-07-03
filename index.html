@@ -90,6 +90,8 @@
      rounded rects align pixel-perfect instead of the 44px button floating */
   .row:has(> input) { align-items:stretch; }
   .row:has(> input) .iconbtn{ height:auto; }
+  /* a search result that's in the deck — instant feedback where you tapped */
+  .btn.added{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border:none; opacity:1; cursor:default;}
   .diffs{display:flex; flex-direction:column; gap:8px;}
   .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:13px 15px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line);
@@ -237,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v15";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v16";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4605,11 +4607,14 @@ function renderBuilder(){
       <input class="yr" type="number" inputmode="numeric" value="${s.year||''}" onchange="setSongYear(${i}, this.value)" />
       <button class="btn iconbtn ghost" onclick="removeSong(${i})" aria-label="Remove song">${XICON}</button>
     </div>`).join("");
+  const inDeck = r => b.songs.some(s => norm(s.title)===norm(r.trackName) && norm(s.artist)===norm(r.artistName));
   const results = b.results.map((r,i)=>`
     <div class="res-row">
       <div class="res-meta"><div class="res-ti">${esc(r.trackName)}</div><div class="res-ar">${esc(r.artistName)}</div></div>
       <div class="res-yr">${yearOf(r.releaseDate)||'?'}</div>
-      <button class="btn sm" style="flex:0 0 auto" onclick="addResult(${i})">+ Add</button>
+      ${inDeck(r)
+        ? `<button class="btn sm added" style="flex:0 0 auto" disabled>✓ Added</button>`
+        : `<button class="btn sm" style="flex:0 0 auto" onclick="addResult(${i})">+ Add</button>`}
     </div>`).join("");
   app().innerHTML = `
     <div class="topbar">
@@ -4631,7 +4636,7 @@ function renderBuilder(){
       ${results ? `<div class="res-list">${results}</div>` : ``}
     </div>
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">deck · ${b.songs.length} songs</div>
+      <div class="eyebrow" style="color:var(--cyan)">deck · ${b.songs.length} song${b.songs.length===1?"":"s"}</div>
       <div style="height:10px"></div>
       ${songs ? `<div class="res-list">${songs}</div>` : `<div class="empty-tl">No songs yet — search above and tap “Add”.</div>`}
     </div>
@@ -4654,6 +4659,7 @@ function addResult(i){
   const r = S.builder.results[i]; if(!r) return;
   if(S.builder.songs.some(s => norm(s.title)===norm(r.trackName) && norm(s.artist)===norm(r.artistName))){ toast("Already in the deck."); return; }
   S.builder.songs.push({ title:r.trackName, artist:r.artistName, year:yearOf(r.releaseDate) });
+  buzz(8);   // tactile confirm; the row's button re-renders as a gold "✓ Added"
   renderBuilder();
 }
 function setSongYear(i, v){ const y=parseInt(v,10); if(S.builder.songs[i]) S.builder.songs[i].year = (y&&y>=1860&&y<=2100)?y:null; }
