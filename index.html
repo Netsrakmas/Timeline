@@ -4207,16 +4207,21 @@ function vizLoop(){
 function startViz(){ if(!vizEnabled || reducedMotion || vizRAF) return; vizRAF = requestAnimationFrame(vizLoop); }
 function stopViz(){ if(vizRAF){ cancelAnimationFrame(vizRAF); vizRAF=0; } const eq=document.querySelector('.eq'); if(eq) eq.querySelectorAll('span').forEach(s=>s.style.height='9px'); }
 
+let audioUnlocked = false;   // once the element has really played, it stays unlocked for the session
 function unlockAudio(){
   const a = aud(); if(!a) return;
+  try{ const c=initAudioCtx(); if(c && c.state==="suspended") c.resume(); }catch(e){}   // must resume in a gesture
+  // Already unlocked (or actively playing)? Don't run the silent-WAV dance: its
+  // deferred pause() would race a playClip() issued in the same tap and silence
+  // the brand-new clip (bug: only the first track played after the handoff merge).
+  if(audioUnlocked || !a.paused) return;
   try{
     if(!a.src){ a.src = SILENT; }      // no real clip yet → unlock with silence
     a.muted = true;
     const p = a.play();
-    if(p && p.then) p.then(()=>{ a.pause(); a.currentTime=0; a.muted=false; }).catch(()=>{ a.muted=false; });
-    else { a.pause(); a.muted=false; }
+    if(p && p.then) p.then(()=>{ audioUnlocked = true; a.pause(); a.currentTime=0; a.muted=false; }).catch(()=>{ a.muted=false; });
+    else { audioUnlocked = true; a.pause(); a.muted=false; }
   }catch(e){ a.muted=false; }
-  try{ const c=initAudioCtx(); if(c && c.state==="suspended") c.resume(); }catch(e){}   // must resume in a gesture
 }
 function maskMediaSession(){
   if(!("mediaSession" in navigator)) return;
@@ -4244,7 +4249,7 @@ function syncEq(){ const eq=document.querySelector('.eq'); if(eq) eq.classList.t
 let autoSkips = 0;
 function wireAudio(){
   const a = aud(); if(!a || a._wired) return; a._wired = true;
-  a.addEventListener('playing', ()=>{ autoSkips=0; S.playing=true; syncEq(); startViz(); });
+  a.addEventListener('playing', ()=>{ audioUnlocked=true; autoSkips=0; S.playing=true; syncEq(); startViz(); });
   a.addEventListener('pause',   ()=>{ S.playing=false; syncEq(); stopViz(); });
   a.addEventListener('error',   onAudioFail);
 }
