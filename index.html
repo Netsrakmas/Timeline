@@ -239,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v16";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v17";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4641,7 +4641,19 @@ function renderBuilder(){
       ${songs ? `<div class="res-list">${songs}</div>` : `<div class="empty-tl">No songs yet — search above and tap “Add”.</div>`}
     </div>
     <button class="btn pink" style="margin-top:16px; padding:16px" onclick="saveBuilder()">Save deck</button>
+    ${b.id ? `<button class="btn ghost" style="margin-top:10px; color:var(--bad)" onclick="deleteDeck()">🗑 Delete this deck</button>` : ``}
   `;
+}
+function deleteDeck(){
+  const b = S.builder; if(!b || !b.id) return;
+  const nm = (b.name||"").trim() || "this deck";
+  if(!confirm('Delete "'+nm+'"? This can\'t be undone.')) return;
+  S.customDecks = S.customDecks.filter(d => d.id !== b.id);
+  S.selectedIds = S.selectedIds.filter(id => id !== b.id);
+  saveDecks();
+  S.builder = null;
+  toast("Deck deleted");
+  renderSetup();
 }
 async function runSearch(){
   const q = val("sq").trim();
