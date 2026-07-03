@@ -25,21 +25,26 @@
     --r:14px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  /* body must GROW with content (min-height, not height) — with a fixed height
-     the background gradient tiles per viewport, painting a stray gold glow band
-     wherever the tile boundary lands mid-page */
   html{height:100%;}
-  body{margin:0; min-height:100%;}
+  /* The decorative glows live on a fixed, viewport-sized layer ("stage lights").
+     On the body they were sized/positioned against the DOCUMENT height, so they
+     tiled on long pages and jumped whenever the content grew or shrank
+     (add/remove player, resume card). A fixed layer is anchored to the screen. */
   body{
+    margin:0; min-height:100%;
+    background:#03050D;
+    color:var(--text);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
     background:
       radial-gradient(900px 420px at 50% -8%, var(--glow-gold), transparent 58%),
       radial-gradient(800px 380px at 50% 115%, var(--glow-cyan), transparent 50%),
       radial-gradient(520px 260px at 12% 18%, rgba(255,194,75,.09), transparent 36%),
       linear-gradient(180deg, #03050D 0%, #0B1020 52%, #02040A 100%);
-    color:var(--text);
-    font-family:"Space Grotesk",system-ui,sans-serif;
-    -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
   }
   #app{max-width:560px; margin:0 auto; min-height:100%;
     padding:max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));}
@@ -81,6 +86,10 @@
   .players-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
   .players-list .row input{flex:1;}
   .iconbtn{width:44px; height:44px; flex:0 0 auto; display:grid; place-items:center; font-size:18px;}
+  /* in input rows the ✕ stretches to exactly the input's height, so the two
+     rounded rects align pixel-perfect instead of the 44px button floating */
+  .row:has(> input) { align-items:stretch; }
+  .row:has(> input) .iconbtn{ height:auto; }
   .diffs{display:flex; flex-direction:column; gap:8px;}
   .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:13px 15px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line);
@@ -228,7 +237,7 @@
 
 <script>
 "use strict";
-const BUILD = "v13";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v14";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
