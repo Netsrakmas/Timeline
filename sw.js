@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yearworm-v12';
+const CACHE_NAME = 'yearworm-v13';
 const ASSETS = ['./', './index.html', './manifest.json', './privacy.html', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
@@ -12,5 +12,11 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
+  // Navigations revalidate with the server (bypassing GitHub Pages' 10-minute
+  // max-age HTTP cache) so a new deploy shows up on the next open — a 304 when
+  // nothing changed keeps this fast. Everything else stays plain network-first.
+  const req = event.request.mode === 'navigate'
+    ? new Request(event.request, { cache: 'no-cache' })
+    : event.request;
+  event.respondWith(fetch(req).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
 });
