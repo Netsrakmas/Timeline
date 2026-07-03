@@ -85,7 +85,7 @@
   .dot.on{background:var(--good); box-shadow:0 0 10px var(--good);}
   .players-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
   .players-list .row input{flex:1;}
-  .iconbtn{width:44px; height:44px; flex:0 0 auto; display:grid; place-items:center; font-size:18px;}
+  .iconbtn{width:44px; height:44px; padding:0; flex:0 0 auto; display:grid; place-items:center; font-size:18px;}
   /* in input rows the ✕ stretches to exactly the input's height, so the two
      rounded rects align pixel-perfect instead of the 44px button floating */
   .row:has(> input) { align-items:stretch; }
@@ -237,7 +237,9 @@
 
 <script>
 "use strict";
-const BUILD = "v14";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v15";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+// geometric ✕ — a font glyph sits off-center in its em box on some devices
+const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
@@ -4584,7 +4586,7 @@ function renderPlayers(){
   box.innerHTML = S.players.map((p,i)=>`
     <div class="row">
       <input type="text" placeholder="Player ${i+1}" value="${esc(p.name)}" onfocus="this.select()" oninput="renamePlayer(${i}, this.value)" />
-      ${S.players.length>1?`<button class="btn iconbtn ghost" onclick="removePlayer(${i})">✕</button>`:``}
+      ${S.players.length>1?`<button class="btn iconbtn ghost" onclick="removePlayer(${i})" aria-label="Remove player">${XICON}</button>`:``}
     </div>`).join("");
 }
 
@@ -4601,7 +4603,7 @@ function renderBuilder(){
     <div class="song-row">
       <div class="res-meta"><div class="res-ti">${esc(s.title)}</div><div class="res-ar">${esc(s.artist)}</div></div>
       <input class="yr" type="number" inputmode="numeric" value="${s.year||''}" onchange="setSongYear(${i}, this.value)" />
-      <button class="btn iconbtn ghost" onclick="removeSong(${i})">✕</button>
+      <button class="btn iconbtn ghost" onclick="removeSong(${i})" aria-label="Remove song">${XICON}</button>
     </div>`).join("");
   const results = b.results.map((r,i)=>`
     <div class="res-row">
