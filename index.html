@@ -25,7 +25,11 @@
     --r:14px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; height:100%;}
+  /* body must GROW with content (min-height, not height) — with a fixed height
+     the background gradient tiles per viewport, painting a stray gold glow band
+     wherever the tile boundary lands mid-page */
+  html{height:100%;}
+  body{margin:0; min-height:100%;}
   body{
     background:
       radial-gradient(900px 420px at 50% -8%, var(--glow-gold), transparent 58%),
@@ -224,7 +228,7 @@
 
 <script>
 "use strict";
-const BUILD = "v11";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v12";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
