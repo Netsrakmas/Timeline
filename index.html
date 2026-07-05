@@ -239,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v18";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v19";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -581,7 +581,7 @@ const DECKS = [
     {year:1999, artist:"Destiny's Child", title:"Say My Name"},
     {year:2000, artist:"*NSYNC", title:"Bye Bye Bye"},
     {year:2000, artist:"Britney Spears", title:"Oops!... I Did It Again"},
-    {year:2000, artist:"Nelly", title:"Country Grammar (Hot Sh*t)"},
+    {year:2000, artist:"Nelly", title:"Country Grammar (Hot Shit)"},
     {year:2000, artist:"Coldplay", title:"Yellow"},
     {year:2000, artist:"Sisqó", title:"Thong Song"},
     {year:2000, artist:"Madonna", title:"Music"},
@@ -1828,7 +1828,7 @@ const EXTRA_SONGS = [
   {year:2000, artist:"OutKast", title:"Ms. Jackson"},
   {year:2000, artist:"Sisqó", title:"Thong Song"},
   {year:2000, artist:"U2", title:"Beautiful Day"},
-  {year:2000, artist:"Nelly", title:"Country Grammar (Hot Sh*t)"},
+  {year:2000, artist:"Nelly", title:"Country Grammar (Hot Shit)"},
   {year:2000, artist:"3 Doors Down", title:"Kryptonite"},
   {year:2000, artist:"Madonna", title:"Music"},
   {year:2000, artist:"Creed", title:"With Arms Wide Open"},
@@ -2654,7 +2654,7 @@ const EXTRA_SONGS = [
   {year:2004, artist:"Lloyd Banks", title:"On Fire"},
   {year:2004, artist:"Trillville", title:"Some Cut"},
   {year:2004, artist:"Velvet Revolver", title:"Slither"},
-  {year:2004, artist:"Eamon", title:"F**k It (I Don't Want You Back)"},
+  {year:2004, artist:"Eamon", title:"Fuck It (I Don't Want You Back)"},
   {year:2004, artist:"LL Cool J", title:"Headsprung"},
   {year:2004, artist:"Anthony Hamilton", title:"Charlene"},
   {year:2005, artist:"The Bravery", title:"An Honest Mistake"},
@@ -2741,7 +2741,7 @@ const EXTRA_SONGS = [
   {year:2013, artist:"Lorde", title:"Tennis Court"},
   {year:2013, artist:"A$AP Rocky", title:"F**kin' Problems (feat. Drake, 2 Chainz & Kendrick Lamar)"},
   {year:2014, artist:"George Ezra", title:"Budapest"},
-  {year:2014, artist:"Big Sean", title:"I Don't F**k with You (feat. E-40)"},
+  {year:2014, artist:"Big Sean", title:"I Don't Fuck With You (feat. E-40)"},
   {year:2013, artist:"Echosmith", title:"Cool Kids"},
   {year:2015, artist:"Halsey", title:"New Americana"},
   {year:2014, artist:"Elle King", title:"Ex's & Oh's"},
@@ -3637,7 +3637,7 @@ const PARTY_SONGS = [
   {year:2004, artist:"Britney Spears", title:"Toxic"},
   {year:2004, artist:"Maroon 5", title:"This Love"},
   {year:2004, artist:"Franz Ferdinand", title:"Take Me Out"},
-  {year:2004, artist:"Eamon", title:"F**k It (I Don't Want You Back)"},
+  {year:2004, artist:"Eamon", title:"Fuck It (I Don't Want You Back)"},
   {year:2004, artist:"Nelly", title:"Flap Your Wings"},
   {year:2004, artist:"JAY-Z", title:"99 Problems"},
   {year:2004, artist:"Petey Pablo", title:"Freek-a-Leek"},
@@ -4104,9 +4104,15 @@ function pickBest(results, song){
     if(!r.previewUrl) continue;
     if(BADVER.test(r.artistName||"") || BADVER.test(r.collectionName||"")) continue;
     const t = norm(r.trackName), a = norm(r.artistName);
-    let score = 0;
-    if(t===wantT) score += 3; else if(t.includes(wantT)||wantT.includes(t)) score += 1;
-    if(a===wantA) score += 2; else if(a.includes(wantA)||wantA.includes(a)) score += 1;
+    let tScore = 0, aScore = 0;
+    if(t===wantT) tScore = 3; else if(t.includes(wantT)||wantT.includes(t)) tScore = 1;
+    if(a===wantA) aScore = 2; else if(a.includes(wantA)||wantA.includes(a)) aScore = 1;
+    // BOTH must match at least partially. Artist-only used to be enough, so a
+    // curated title Apple spells differently got swapped for a random track by
+    // the same artist — wrong audio under a confident reveal. Skipping is
+    // always better than playing the wrong song.
+    if(tScore===0 || aScore===0) continue;
+    const score = tScore + aScore;
     if(score>bestScore){ bestScore=score; best=r; }
   }
   return best;
@@ -4137,7 +4143,7 @@ let bgRun = 0;   // bumped each game; background loaders stop when it changes
 async function resolveBatch(slice){
   const hits = await Promise.all(slice.map(async sg => {
     let res = [];
-    try{ res = await itunesSearch(sg.artist+" "+sg.title, 6); }catch(e){}
+    try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){}
     return { sg, hit: pickBest(res, sg) };
   }));
   let added = 0;
@@ -4973,7 +4979,7 @@ async function startVerify(){
   for(let i=0;i<songs.length;i+=BATCH){
     const slice = songs.slice(i, i+BATCH);
     const res = await Promise.all(slice.map(async sg => {
-      const r = await itunesSearch(sg.artist+" "+sg.title, 6);
+      const r = await itunesSearch(sg.artist+" "+sg.title, 10);
       return { sg, hit: pickBest(r, sg) };
     }));
     for(const {sg,hit} of res){
