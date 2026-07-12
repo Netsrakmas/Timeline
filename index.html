@@ -239,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v19";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v20";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4097,22 +4097,39 @@ function yearOf(releaseDate){ const y = parseInt(String(releaseDate||"").slice(0
 // pick the result that best matches the curated title/artist and has a playable preview
 // karaoke / tribute / novelty versions often have wrong or silent previews
 const BADVER = /karaoke|tribute|made famous|originally performed|as made popular|8[\- ]?bit|lullaby|meditation|piano tribute/i;
+// compare on the CORE title: "(feat. …)" / "[Club Mix]" suffixes off. Apple's
+// canonical track is often "Title (feat. X)", which never matched exactly and
+// could tie with a DIFFERENT same-artist song whose short title is a substring
+// (want "I Like to Move It": real "…(feat. The Mad Stuntman)" and other track
+// "Move It!" both scored 1 — iTunes result order then decided the audio).
+function coreNorm(s){
+  return norm(String(s||"")
+    .replace(/\(.*?\)|\[.*?\]/g, " ")                 // "(feat. X)" / "[Club Mix]"
+    .replace(/\b(feat\.?|ft\.?|featuring)\b.*$/i, " ")); // unbracketed "feat. X" tails
+}
 function pickBest(results, song){
   const wantT = norm(song.title), wantA = norm(song.artist);
+  const wantTC = coreNorm(song.title) || wantT;
   let best=null, bestScore=-1;
   for(const r of results){
     if(!r.previewUrl) continue;
     if(BADVER.test(r.artistName||"") || BADVER.test(r.collectionName||"")) continue;
-    const t = norm(r.trackName), a = norm(r.artistName);
+    const t = norm(r.trackName), tc = coreNorm(r.trackName) || t, a = norm(r.artistName);
     let tScore = 0, aScore = 0;
-    if(t===wantT) tScore = 3; else if(t.includes(wantT)||wantT.includes(t)) tScore = 1;
+    if(t===wantT || tc===wantTC) tScore = 3;
+    else if(t.includes(wantT)||tc.includes(wantTC)) tScore = 1;             // result extends want: mixes/edits
+    else if((wantT.includes(t)||wantTC.includes(tc)) && tc.length >= wantTC.length*0.7) tScore = 1;
+    // reverse containment (result much SHORTER than want) is a wrong-song
+    // vector — "Move It!" ⊂ "I Like to Move It" — so it needs ≥70% length
     if(a===wantA) aScore = 2; else if(a.includes(wantA)||wantA.includes(a)) aScore = 1;
-    // BOTH must match at least partially. Artist-only used to be enough, so a
-    // curated title Apple spells differently got swapped for a random track by
-    // the same artist — wrong audio under a confident reveal. Skipping is
-    // always better than playing the wrong song.
+    // BOTH must match at least partially — artist-only allowed wrong-song swaps.
+    // Skipping is always better than playing the wrong song.
     if(tScore===0 || aScore===0) continue;
-    const score = tScore + aScore;
+    // prefer releases from the curated era: original single/album beats a
+    // "(2010 Mixes)" reissue or sped-up upload when the text scores tie
+    const ry = yearOf(r.releaseDate);
+    const yBonus = (ry && song.year && Math.abs(ry - song.year) <= 3) ? 1 : 0;
+    const score = tScore + aScore + yBonus;
     if(score>bestScore){ bestScore=score; best=r; }
   }
   return best;
