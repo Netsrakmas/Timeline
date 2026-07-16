@@ -29,6 +29,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<!-- anonymous, cookieless visit stats (goatcounter.com) — no personal data, see privacy.html -->
+<script data-goatcounter="https://yearworm.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 <style>
   :root{
     --ink:#02040A; --surface:#101426; --surface-2:#131A35; --line:#2A3054;
@@ -256,7 +258,7 @@
 
 <script>
 "use strict";
-const BUILD = "v40";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v41";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4191,6 +4193,15 @@ document.addEventListener("visibilitychange", ()=>{
    Sends only: title, artist, old year, new year, build. No personal data. */
 /* Ko-fi tip jar — set the url to show a support link in the footer */
 const KOFI_URL = "";
+/* GoatCounter events: page views count automatically; these answer "do shared
+   links convert into games?". Anonymous + cookieless; retries because the
+   analytics script loads async and may land after boot. */
+function track(name, tries){
+  try{
+    if(window.goatcounter && window.goatcounter.count){ window.goatcounter.count({ path:name, event:true }); return; }
+    if((tries||0) < 20) setTimeout(()=>track(name, (tries||0)+1), 500);
+  }catch(e){}
+}
 const REPORT = {
   url:"https://docs.google.com/forms/d/e/1FAIpQLScXzozXI61tja9di2tuPaN9sP7Flf08o5eNaRRitjnYPx4gng/formResponse",
   fields:{ title:"entry.1538100355", artist:"entry.252531345", oldYear:"entry.539229286", newYear:"entry.1144383384", build:"entry.329807473" }
@@ -5310,6 +5321,7 @@ async function startChallenge(){
   if(!S.challenge) return;
   const prev = chalPlayed(S.challenge.idx);
   if(prev){ toast("You already played these songs — "+prev.s+"/"+RUN_LEN+". Send your result instead!"); return; }
+  track(S.challenge.beat != null ? "start-challenge-incoming" : "start-challenge-fresh");
   const songs = S.challenge.idx.map(i => stablePool()[i]).filter(Boolean);
   if(songs.length < 2){ toast("This challenge link doesn't work on this version."); return; }
   S.mode = "challenge"; S.turbo = false;
@@ -5369,6 +5381,7 @@ async function onStart(){
     S.players = [{ name:nm, timeline:[] }];   // survival is always solo
   }
   S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
+  track(S.mode==="survival" ? "start-survival" : S.turbo ? "start-turbo" : "start-passplay");
   // Working set: plenty of headroom over what the game needs, randomly sampled
   // (fresh mix each game). We don't resolve it all up front — streamed in below.
   const turboRun = S.mode==="classic" && S.turbo;
@@ -5405,6 +5418,7 @@ async function onStart(){
 // puzzle), solo, one turbo run. Ignores deck selection: always the full pool.
 async function startDaily(){
   if(dailyPlayedToday()){ toast("You already played today's daily — come back tomorrow!"); return; }
+  track("start-daily");
   S.mode = "daily"; S.turbo = false;
   S.players = [{ name:"You", timeline:[] }];
   const songs = dailySongs(RUN_LEN + 5);   // anchor + run + spares for dead previews
@@ -5536,6 +5550,7 @@ function backToSetup(){ bgRun++; S.loadingMore=false; clearGame(); closeOverlay(
 /* ---------- boot ---------- */
 function boot(){
   S.challenge = parseChallengeHash();
+  if(S.challenge) track("open-challenge-link");   // a shared link actually landed
   try{ S.yearOverrides = JSON.parse(store.get("tl_years")||"{}"); }catch(e){ S.yearOverrides = {}; }
   try{ S.customDecks = JSON.parse(store.get("tl_decks")||"[]")||[]; }catch(e){ S.customDecks = []; }
   S.selectedIds = DECKS[0] ? [DECKS[0].id] : [];
