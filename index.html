@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v33";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v34";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5385,6 +5385,14 @@ function saveYear(id, value){
     S.yearOverrides[id] = y;
     const card = S.deck.find(c => c.id===id);   // update the live card too, if mid-game
     if(card) card.year = y;
+    // already locked on a board? resumed games hold copies, not deck references —
+    // fix those too, keep each timeline sorted, and repaint so the fix is visible now
+    let onBoard = false;
+    (S.players||[]).forEach(p=>{
+      const t = (p.timeline||[]).find(c => c.id===id);
+      if(t){ t.year = y; p.timeline.sort((a,b)=>a.year-b.year); onBoard = true; }
+    });
+    if(onBoard){ renderGame(); saveGame(); }
   } else {
     delete S.yearOverrides[id];
   }
