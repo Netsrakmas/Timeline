@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v28";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v29";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4464,6 +4464,7 @@ function startGame(){
   } else {
     // classic/survival: seed each player their own freebie reference card
     S.players.forEach(p=>{
+      p.timeMs = 0;
       const c = drawCard();
       if(c){ S.used.add(c.id); p.timeline = [c]; }
     });
@@ -4562,10 +4563,8 @@ function chooseSlot(idx){
     if(correct){ S.score++; S.streak++; if(S.streak>S.bestStreak) S.bestStreak = S.streak; }
     else { S.lives--; S.streak = 0; }
   }
-  if(run){
-    p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1;
-    p.timeMs=(p.timeMs||0) + Math.max(0, Date.now()-(S.turnStart||Date.now()));
-  }
+  p.timeMs = (p.timeMs||0) + Math.max(0, Date.now()-(S.turnStart||Date.now()));
+  if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1; }
   S.used.add(S.current.id);
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
@@ -4586,7 +4585,11 @@ function advance(){
     nextTurn();   // same solo player keeps going — endless until out of lives
     return;
   }
-  if(p.timeline.length >= S.target){ overlayGameOver(false, p); return; }
+  // fair race: someone reaching the target doesn't end the game until the
+  // ROUND completes (equal turns for all); ties are then broken by time
+  const someoneFinished = S.players.some(pl => pl.timeline.length >= S.target);
+  const roundClosed = S.turn === S.players.length - 1;
+  if(someoneFinished && roundClosed){ overlayGameOver(false); return; }
   S.turn = (S.turn+1) % S.players.length;
   unlockAudio();   // this tap is a fresh user gesture — re-primes audio for the new turn
   nextTurn();      // clip loops, so nothing is missed while the phone is handed over
@@ -4985,7 +4988,10 @@ function overlayReveal(correct, p){
   const survival = S.mode==="survival";
   const run = isRun();
   const dead = survival && S.lives <= 0;
-  const won = !survival && !run && correct && p.timeline.length >= S.target;   // this card just won the game
+  const reached = !survival && !run && correct && p.timeline.length >= S.target;      // this player just hit the target
+  const roundClosed = S.turn === S.players.length - 1;
+  const anyFinished = !survival && !run && S.players.some(pl => pl.timeline.length >= S.target);
+  const won = anyFinished && roundClosed;   // round complete → results (equal turns for everyone)
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
@@ -5015,7 +5021,9 @@ function overlayReveal(correct, p){
     btn = allDone ? '🏁 See results' : (nxtName ? '▶ Pass to '+esc(nxtName)+' →' : 'Next song →');
     var extra = `<div style="font-size:19px; letter-spacing:2px; margin:12px 0 4px">${(p.results||[]).map(r=>r?'🟩':'🟥').join('')}${'⬛'.repeat(Math.max(0,RUN_LEN-(p.results||[]).length))}</div>${flagBlock}`;
   } else {
-    sub = won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded');
+    sub = reached ? '🏁 '+esc(p.name)+' hits '+S.target+'!'+(won?'':' Final turns — equal rounds for all.')
+        : anyFinished ? (correct?'Card goes to '+esc(p.name):'Card is discarded')+' · 🏁 final round'
+        : (correct?'Card goes to '+esc(p.name):'Card is discarded');
     const nxt = S.players[(S.turn+1) % S.players.length];
     btn = won ? '🏆 See results' : (S.players.length>1 ? '▶ Pass to '+esc(nxt.name)+' →' : 'Next turn →');
     var extra = flagBlock;
@@ -5055,15 +5063,16 @@ function overlayGameOver(deckEmpty, winner){
     document.getElementById("overlay").classList.add("show");
     return;
   }
-  let w = winner;
-  if(!w){ w = [...S.players].sort((a,b)=>b.timeline.length-a.timeline.length)[0]; }
+  const rankedC = [...S.players].sort((a,b)=>(b.timeline.length-a.timeline.length) || ((a.timeMs||0)-(b.timeMs||0)));
+  const w = winner || rankedC[0];
+  const tiedOnCards = !winner && rankedC.length>1 && rankedC[0].timeline.length===rankedC[1].timeline.length;
   buzz([0,30,40,30,40,90]);
   const sheet = document.getElementById("sheet");
   sheet.innerHTML = `
     <div class="winner-emoji">🏆</div>
     <div class="verdict good" style="margin-top:6px">${esc(w.name)} WINS</div>
-    <div class="muted" style="font-size:14px; margin:6px 0 4px">${deckEmpty?'Deck ran out — most cards takes it.':''}</div>
-    <div style="margin:14px 0 18px">${S.players.map(p=>`<div style="font-size:14px; margin:3px 0">${esc(p.name)} — <b>${p.timeline.length}</b></div>`).join("")}</div>
+    <div class="muted" style="font-size:14px; margin:6px 0 4px">${deckEmpty?'Deck ran out — most cards takes it.':tiedOnCards?'Tie on cards — fastest time decides ⏱':''}</div>
+    <div style="margin:14px 0 18px">${rankedC.map(pl=>`<div style="font-size:14px; margin:3px 0">${pl===w?'🏆 ':''}${esc(pl.name)} — <b>${pl.timeline.length}</b>${S.players.length>1?` · ${fmtTime(pl.timeMs)}`:''}</div>`).join("")}</div>
     <button class="btn pink" onclick="playAgain()">Play again</button>
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
   `;
