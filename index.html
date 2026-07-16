@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v29";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v30";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4120,6 +4120,15 @@ function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
 function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
 function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="classic" && S.turbo); }
+// classic race: after someone hits the target, only players ONE card short can
+// still force a tie (+1 max per turn). If none remain this round, it's over.
+function raceOver(){
+  if(!S.players.some(pl => pl.timeline.length >= S.target)) return false;
+  for(let t=S.turn+1; t<S.players.length; t++){
+    if(S.players[t].timeline.length === S.target-1) return false;
+  }
+  return true;
+}
 const PLAYER_COLORS = ["var(--gold)","var(--cyan)","var(--violet)","var(--good)","#FF8AC2","#FFA94B"];
 // owner -1 = the neutral anchor card (muted, so it doesn't read as player 1's)
 function ownerColor(i){ return i==null ? "" : i<0 ? "var(--muted)" : PLAYER_COLORS[i % PLAYER_COLORS.length]; }
@@ -4585,12 +4594,16 @@ function advance(){
     nextTurn();   // same solo player keeps going — endless until out of lives
     return;
   }
-  // fair race: someone reaching the target doesn't end the game until the
-  // ROUND completes (equal turns for all); ties are then broken by time
+  // fair race: someone reaching the target doesn't end the game while a later
+  // player this round can still tie (they're one card short). Hopeless final
+  // turns are skipped; card-ties are broken by total thinking time.
   const someoneFinished = S.players.some(pl => pl.timeline.length >= S.target);
-  const roundClosed = S.turn === S.players.length - 1;
-  if(someoneFinished && roundClosed){ overlayGameOver(false); return; }
-  S.turn = (S.turn+1) % S.players.length;
+  if(someoneFinished){
+    if(raceOver()){ overlayGameOver(false); return; }
+    do{ S.turn++; } while(S.players[S.turn].timeline.length !== S.target-1);   // next player who can still tie
+  } else {
+    S.turn = (S.turn+1) % S.players.length;
+  }
   unlockAudio();   // this tap is a fresh user gesture — re-primes audio for the new turn
   nextTurn();      // clip loops, so nothing is missed while the phone is handed over
 }
@@ -4989,9 +5002,8 @@ function overlayReveal(correct, p){
   const run = isRun();
   const dead = survival && S.lives <= 0;
   const reached = !survival && !run && correct && p.timeline.length >= S.target;      // this player just hit the target
-  const roundClosed = S.turn === S.players.length - 1;
   const anyFinished = !survival && !run && S.players.some(pl => pl.timeline.length >= S.target);
-  const won = anyFinished && roundClosed;   // round complete → results (equal turns for everyone)
+  const won = anyFinished && raceOver();   // nobody left who can still tie → results
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
@@ -5021,10 +5033,15 @@ function overlayReveal(correct, p){
     btn = allDone ? '🏁 See results' : (nxtName ? '▶ Pass to '+esc(nxtName)+' →' : 'Next song →');
     var extra = `<div style="font-size:19px; letter-spacing:2px; margin:12px 0 4px">${(p.results||[]).map(r=>r?'🟩':'🟥').join('')}${'⬛'.repeat(Math.max(0,RUN_LEN-(p.results||[]).length))}</div>${flagBlock}`;
   } else {
-    sub = reached ? '🏁 '+esc(p.name)+' hits '+S.target+'!'+(won?'':' Final turns — equal rounds for all.')
-        : anyFinished ? (correct?'Card goes to '+esc(p.name):'Card is discarded')+' · 🏁 final round'
+    sub = reached ? '🏁 '+esc(p.name)+' hits '+S.target+'!'+(won?'':' Last chance for anyone one card short.')
+        : anyFinished ? (correct?'Card goes to '+esc(p.name):'Card is discarded')+' · 🏁 final chance'
         : (correct?'Card goes to '+esc(p.name):'Card is discarded');
-    const nxt = S.players[(S.turn+1) % S.players.length];
+    let nxt = S.players[(S.turn+1) % S.players.length];
+    if(anyFinished && !won){
+      for(let t=S.turn+1; t<S.players.length; t++){
+        if(S.players[t].timeline.length === S.target-1){ nxt = S.players[t]; break; }
+      }
+    }
     btn = won ? '🏆 See results' : (S.players.length>1 ? '▶ Pass to '+esc(nxt.name)+' →' : 'Next turn →');
     var extra = flagBlock;
   }

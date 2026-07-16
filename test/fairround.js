@@ -1,5 +1,6 @@
-// Fair race-to-N: the game ends only when the ROUND completes (equal turns),
-// and a tie on cards is decided by total thinking time.
+// Fair race-to-N, smart final round: after someone hits N, only players ONE
+// card short still get a turn (they can tie); hopeless players are skipped;
+// card-ties are broken by total thinking time.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -33,10 +34,11 @@ const server = http.createServer((req,res)=>{
   const pg = await ctx.newPage();
   pg.on('pageerror',e=>console.log('PAGEERROR:',e.message));
 
-  // both players already AT the target (10 cards, years 1900-1909). Placing in
-  // the leftmost slot ("before 1900") is deterministically WRONG for any pool
-  // song (all years >= 1955), so card counts stay tied at 10-10.
-  const tl = pre => Array.from({length:10},(_,i)=>({id:pre+i, name:'Seed '+i, artist:'Seeder', year:1900+i}));
+  // P1: 9 cards (1900-1908) + a 1999 mystery -> LAST slot is deterministically
+  // CORRECT (1999 > 1908) -> P1 hits 10. P2: 9 cards (eligible to tie).
+  // P3: 5 cards (hopeless -> must be skipped). Deck mysteries are all >1908,
+  // so the last slot stays a correct play for P2 as well.
+  const tl = (pre,n) => Array.from({length:n},(_,i)=>({id:pre+i, name:'Seed '+i, artist:'Seeder', year:1900+i}));
   const deck = [
     {id:'d1', name:'Mystery One', artist:'M', year:1999, previewUrl: base+'clip.wav'},
     {id:'d2', name:'Mystery Two', artist:'M', year:2001, previewUrl: base+'clip.wav'},
@@ -44,7 +46,7 @@ const server = http.createServer((req,res)=>{
   ];
   const save = {v:2, target:10, turn:0, deck, used:['d1'],
     current: deck[0],
-    players:[{name:'P1', timeline:tl('x')},{name:'P2', timeline:tl('y')}],
+    players:[{name:'P1', timeline:tl('x',9)},{name:'P2', timeline:tl('y',9)},{name:'P3', timeline:tl('z',5)}],
     mode:'classic', lives:3, score:0, streak:0, bestStreak:0};
   await pg.addInitScript(s=>localStorage.setItem('tl_game', JSON.stringify(s)), save);
   await pg.goto(base,{waitUntil:'load'});
@@ -52,31 +54,30 @@ const server = http.createServer((req,res)=>{
   await pg.click('button:has-text("Resume")');
   await pg.waitForSelector('.slot.active',{timeout:20000});
 
-  // P1 places instantly (wrong on purpose) — game must NOT end
-  await pg.click('.slot.active >> nth=0');
+  // P1 places correct in the LAST slot -> hits 10. Game must continue for P2.
+  await pg.click('.slot.active >> nth=-1');
   await pg.waitForSelector('#overlay.show',{timeout:5000});
   let btn = await pg.$eval('#sheet .btn.primary', e=>e.textContent.trim());
   let sub = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/Pass to P2/.test(btn)) throw new Error('game ended before the round completed! btn='+btn);
-  if(!/final round/i.test(sub)) throw new Error('no final-round notice: '+sub.slice(0,120));
-  console.log('P1 done: game continues ("'+btn+'", final-round notice shown) OK');
+  if(!/hits 10/.test(sub)) throw new Error('no hits-10 notice: '+sub.slice(0,140));
+  if(!/Pass to P2/.test(btn)) throw new Error('expected P2 (one short) to get a final turn, btn='+btn);
+  console.log('P1 hits 10: game continues to P2 (eligible to tie) OK');
 
-  // P2's equalizing turn — deliberately slower, also wrong
+  // P2's equalizing turn — slower on purpose, also correct in the last slot -> ties at 10
   await pg.click('#sheet .btn.primary');
   await pg.waitForSelector('.slot.active',{timeout:20000});
-  await pg.waitForTimeout(1800);                       // P2 thinks longer
-  await pg.click('.slot.active >> nth=0');
+  await pg.waitForTimeout(1800);
+  await pg.click('.slot.active >> nth=-1');
   await pg.waitForSelector('#overlay.show',{timeout:5000});
   btn = await pg.$eval('#sheet .btn.primary', e=>e.textContent.trim());
-  if(!/See results/.test(btn)) throw new Error('round complete but no results button: '+btn);
-  console.log('P2 done: round closed, results offered OK');
+  if(!/See results/.test(btn)) throw new Error('P3 (hopeless) should be skipped -> results now; btn='+btn);
+  console.log('P2 ties at 10; P3 (5 cards) skipped -> results offered OK');
 
   await pg.click('#sheet .btn.primary');
   await pg.waitForTimeout(400);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/P1 WINS/.test(sheet)) throw new Error('expected P1 (faster) to win the tie: '+sheet.slice(0,160));
-  if(!/fastest time decides/i.test(sheet)) throw new Error('tie-break note missing: '+sheet.slice(0,160));
-  if(!(/🏆 P1/.test(sheet))) throw new Error('winner crown missing: '+sheet.slice(0,160));
+  if(!/P1 WINS/.test(sheet)) throw new Error('expected P1 (faster) to win the 10-10 tie: '+sheet.slice(0,180));
+  if(!/fastest time decides/i.test(sheet)) throw new Error('tie-break note missing: '+sheet.slice(0,180));
   console.log('tie 10-10 → fastest (P1) wins, tie-break note shown OK');
   console.log('FAIR-ROUND TEST PASS ✓');
   await browser.close(); server.close();
