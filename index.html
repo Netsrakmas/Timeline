@@ -256,7 +256,7 @@
 
 <script>
 "use strict";
-const BUILD = "v39";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v40";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4152,9 +4152,9 @@ function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
    is the real cheat (grinding fresh sets is just picking your proudest score) */
 function chalKey(idx){ return (idx||[]).join("."); }
 function loadChals(){ try{ return JSON.parse(store.get("tl_chals")||"{}")||{}; }catch(e){ return {}; } }
-function recordChal(idx, score, timeMs){
+function recordChal(idx, score, timeMs, mine){
   if(!idx || idx.length<2) return;
-  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0 };
+  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0, m:mine?1:0 };
   store.set("tl_chals", JSON.stringify(c));
 }
 function chalPlayed(idx){ return (idx && idx.length>=2) ? loadChals()[chalKey(idx)] : null; }
@@ -4764,10 +4764,12 @@ function renderSetup(){
     <div class="card" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
-          <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!</div>
+          <div class="eyebrow" style="color:var(--cyan)">${chalPlayed(S.challenge.idx).m ? '🎯 your challenge' : '🎯 friend challenge'}</div>
+          <div class="muted" style="font-size:12.5px; margin-top:4px">${chalPlayed(S.challenge.idx).m
+            ? `This is your own link — you set <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. Send it to friends!`
+            : `You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!`}</div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto">📤 Send result</button>
+        <button class="btn sm" style="flex:0 0 auto">${chalPlayed(S.challenge.idx).m ? '⚔️ Challenge' : '📤 Send result'}</button>
       </div>
     </div>` : `
     <div class="card" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
@@ -5210,7 +5212,8 @@ function overlayRunOver(){
   const score = me.hits||0;
   const perfect = score === RUN_LEN;
   const setIdx = (S.challenge && S.challenge.idx) || S.runCards;
-  if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0);
+  const mine = !(S.challenge && S.challenge.idx);   // own run (daily/turbo/fresh) vs an incoming link
+  if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0, mine);
   let streakLine = "", title = 'TURBO RUN';
   if(daily){
     title = 'DAILY #'+dailyNumber();

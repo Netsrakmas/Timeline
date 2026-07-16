@@ -117,6 +117,13 @@ async function placeN(pg, n, collectTitles){
   const cardTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/Done —/.test(cardTxt)) throw new Error('daily card not in done state');
   console.log('daily: played-today lock OK');
+  // opening your OWN link must read as "your challenge", not as a played friend-challenge
+  await pg.goto(base + chalHash, {waitUntil:'load'});
+  await pg.reload();   // hash-only goto is a same-document navigation; a real link opens fresh
+  await pg.waitForTimeout(600);
+  const ownTxt = await pg.$eval('#app', e=>e.innerText);
+  if(!/your challenge/i.test(ownTxt) || !/Send it to friends/.test(ownTxt)) throw new Error('own-link card wrong: '+ownTxt.slice(0,220));
+  console.log('own challenge link: shows YOUR challenge + send prompt OK');
   await ctx.close();
 
   // --- daily determinism (fresh profile) ---
