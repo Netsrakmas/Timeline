@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v31";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v32";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4119,6 +4119,16 @@ function dailySongs(n){ return seededSongs(dailyNumber() * 2654435761, n); }
 function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }catch(e){ return {}; } }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
 function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
+/* every seeded song-set is ONE-SHOT per device — replaying with known answers
+   is the real cheat (grinding fresh sets is just picking your proudest score) */
+function chalKey(idx){ return (idx||[]).join("."); }
+function loadChals(){ try{ return JSON.parse(store.get("tl_chals")||"{}")||{}; }catch(e){ return {}; } }
+function recordChal(idx, score, timeMs){
+  if(!idx || idx.length<2) return;
+  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0 };
+  store.set("tl_chals", JSON.stringify(c));
+}
+function chalPlayed(idx){ return (idx && idx.length>=2) ? loadChals()[chalKey(idx)] : null; }
 function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="classic" && S.turbo); }
 // classic race: after someone hits the target, only players ONE card short can
 // still force a tie (+1 max per turn). If none remain this round, it's over.
@@ -4702,16 +4712,25 @@ function renderSetup(){
       </div>
     </div>
 
-    ${S.challenge ? `
+    ${S.challenge ? (chalPlayed(S.challenge.idx) ? `
     <div class="card" style="border-color:var(--cyan)">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs` : `${RUN_LEN} songs, chosen by a friend`}</div>
+          <div class="muted" style="font-size:12.5px; margin-top:4px">You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!</div>
+        </div>
+        <button class="btn sm" style="flex:0 0 auto" onclick="shareChallengeBack()">📤 Send result</button>
+      </div>
+    </div>` : `
+    <div class="card" style="border-color:var(--cyan)">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div>
+          <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
+          <div class="muted" style="font-size:12.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
         </div>
         <button class="btn sm pink" style="flex:0 0 auto" onclick="startChallenge()">▶ Play</button>
       </div>
-    </div>` : `
+    </div>`) : `
     <div class="card">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
@@ -5140,6 +5159,8 @@ function overlayRunOver(){
 
   const score = me.hits||0;
   const perfect = score === RUN_LEN;
+  const setIdx = (S.challenge && S.challenge.idx) || S.runCards;
+  if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0);
   let streakLine = "", title = 'TURBO RUN';
   if(daily){
     title = 'DAILY #'+dailyNumber();
@@ -5200,10 +5221,16 @@ function shareDaily(){
 }
 function shareChallenge(score){
   if(!S.runCards || S.runCards.length < 2) return;
-  const t = Math.round((S.players[0].timeMs||0)/1000);
-  const url = "https://playyearworm.com/#c=" + S.runCards.join(".")
-            + (score!=null ? "&s="+score : "") + (t ? "&t="+t : "");
-  shareText(`I scored ${score}/${RUN_LEN} in ${fmtTime(t*1000)} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
+  shareChallengeIdx(S.runCards, score, Math.round((S.players[0].timeMs||0)/1000));
+}
+function shareChallengeIdx(idx, score, tSec){
+  const url = "https://playyearworm.com/#c=" + idx.join(".")
+            + (score!=null ? "&s="+score : "") + (tSec ? "&t="+tSec : "");
+  shareText(`I scored ${score}/${RUN_LEN}${tSec?` in ${fmtTime(tSec*1000)}`:""} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
+}
+function shareChallengeBack(){
+  const prev = S.challenge && chalPlayed(S.challenge.idx);
+  if(prev) shareChallengeIdx(S.challenge.idx, prev.s, Math.round((prev.t||0)/1000));
 }
 function shareText(text){
   if(navigator.share){ navigator.share({ text }).catch(()=>{}); }
@@ -5232,6 +5259,8 @@ async function startFreshChallenge(){
 }
 async function startChallenge(){
   if(!S.challenge) return;
+  const prev = chalPlayed(S.challenge.idx);
+  if(prev){ toast("You already played these songs — "+prev.s+"/"+RUN_LEN+". Send your result instead!"); return; }
   const songs = S.challenge.idx.map(i => stablePool()[i]).filter(Boolean);
   if(songs.length < 2){ toast("This challenge link doesn't work on this version."); return; }
   S.mode = "challenge"; S.turbo = false;

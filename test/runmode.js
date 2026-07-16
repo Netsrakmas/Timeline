@@ -139,6 +139,15 @@ async function placeN(pg, n, collectTitles){
     throw new Error('challenge songs differ from the shared run');
   }
   console.log('challenge roundtrip: same songs + verdict OK');
+  // one-shot lock: back on setup (and after reload) the set can't be replayed
+  await pg.click('text=Done');
+  await pg.waitForTimeout(400);
+  let lockTxt = await pg.$eval('#app', e=>e.innerText);
+  if(!/already played these/i.test(lockTxt) || !/Send result/.test(lockTxt)) throw new Error('one-shot lock missing after play: '+lockTxt.slice(0,200));
+  await pg.reload(); await pg.waitForTimeout(700);
+  lockTxt = await pg.$eval('#app', e=>e.innerText);
+  if(!/already played these/i.test(lockTxt)) throw new Error('one-shot lock lost after reload');
+  console.log('challenge one-shot lock: OK (incl. reload)');
   await ctx.close();
 
   // --- fresh self-made challenge: create, play, share, card resets ---
