@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v25";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v26";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4330,8 +4330,11 @@ function unlockAudio(){
     if(!a.src){ a.src = SILENT; }      // no real clip yet → unlock with silence
     a.muted = true;
     const p = a.play();
-    if(p && p.then) p.then(()=>{ audioUnlocked = true; a.pause(); a.currentTime=0; a.muted=false; }).catch(()=>{ a.muted=false; });
-    else { audioUnlocked = true; a.pause(); a.muted=false; }
+    // deferred pause must NEVER touch a real clip: only silence gets paused
+    // (a fast deck load could otherwise land this pause on the first track)
+    const settle = ()=>{ audioUnlocked = true; if(a.src === SILENT){ a.pause(); a.currentTime = 0; } a.muted = false; };
+    if(p && p.then) p.then(settle).catch(()=>{ a.muted = false; });
+    else settle();
   }catch(e){ a.muted=false; }
 }
 function maskMediaSession(){
@@ -4348,14 +4351,17 @@ function playClip(card){
     if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
     a.currentTime = 0;
     const p = a.play();
-    if(p && p.catch) p.catch(()=>{ /* gesture needed — Replay button will start it */ });
+    if(p && p.catch) p.catch(()=>{ S.playing=false; syncEq(); /* gesture needed — the ▶ Play button starts it */ });
     S.playing = true;
     maskMediaSession();
     maybeEnableViz(card.previewUrl);              // one-time: enable the live visualizer if CORS allows
   }catch(e){ S.playing = false; }
 }
 // keep the equalizer honest without a full re-render
-function syncEq(){ const eq=document.querySelector('.eq'); if(eq) eq.classList.toggle('paused', !S.playing); }
+function syncEq(){
+  const eq=document.querySelector('.eq'); if(eq) eq.classList.toggle('paused', !S.playing);
+  const b=document.getElementById('ppBtn'); if(b) b.innerHTML = S.playing ? '❚❚&nbsp; Pause' : '▶&nbsp; Play';
+}
 // some iTunes previews are broken/silent — detect the load failure and move on
 let autoSkips = 0;
 function wireAudio(){
@@ -4368,7 +4374,7 @@ function onAudioFail(){
   const a = aud();
   if(!S.current || !S.players || !S.players.length) return;
   if(!a || a.src !== S.current.previewUrl) return;   // ignore stale / silent-unlock errors
-  if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap Replay."); return; }
+  if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap ▶ Play."); return; }
   toast("Couldn't load that clip — skipping.");
   skipTrack();
 }
@@ -4380,8 +4386,14 @@ function skipTrack(){
   S.used.add(S.current.id);   // don't offer this one again
   nextTurn();
 }
-function replay(){ if(!S.current) return; unlockAudio(); playClip(S.current); renderGame(); }
-function pausePlayback(){ const a=aud(); if(a) a.pause(); S.playing=false; renderGame(); }
+// one toggle covers everything: resume after pause, AND the manual recovery
+// path when mobile blocked autoplay (call/notification/first-gesture cases)
+function togglePlay(){
+  if(!S.current) return;
+  const a = aud();
+  if(a && !a.paused){ a.pause(); S.playing=false; renderGame(); return; }
+  unlockAudio(); playClip(S.current); renderGame();
+}
 
 /* ---------- game logic ---------- */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -4936,8 +4948,7 @@ function renderGame(){
     </div>
 
     <div class="controls">
-      <button class="btn" onclick="replay()">↻ Replay</button>
-      <button class="btn" onclick="pausePlayback()">❚❚ Pause</button>
+      <button class="btn" id="ppBtn" onclick="togglePlay()">${S.playing ? '❚❚&nbsp; Pause' : '▶&nbsp; Play'}</button>
     </div>
 
     <div style="height:18px"></div>
