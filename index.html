@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v32";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v33";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4147,7 +4147,10 @@ function fmtTime(ms){ const s=Math.round((ms||0)/1000); return s<100 ? s+"s" : M
 /* ---------- year-correction reports (owner-reviewed, never auto-applied) ----------
    Fill REPORT with a Google Form's POST url + entry ids to enable the button.
    Sends only: title, artist, old year, new year, build. No personal data. */
-const REPORT = { url:"", fields:{ title:"", artist:"", oldYear:"", newYear:"", build:"" } };
+const REPORT = {
+  url:"https://docs.google.com/forms/d/e/1FAIpQLScXzozXI61tja9di2tuPaN9sP7Flf08o5eNaRRitjnYPx4gng/formResponse",
+  fields:{ title:"entry.1538100355", artist:"entry.252531345", oldYear:"entry.539229286", newYear:"entry.1144383384", build:"entry.329807473" }
+};
 function reportYear(id, oldYear){
   try{
     const card = S.deck.find(c => c.id===id); if(!card || !REPORT.url) return;
