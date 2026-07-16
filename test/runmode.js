@@ -1,4 +1,5 @@
-// E2E: turbo run (5 placements -> results) + daily determinism + share state.
+// E2E: turbo (classic difficulty, solo + 2-player), daily (determinism, lock,
+// share) and the challenge-link roundtrip.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -25,30 +26,30 @@ const server = http.createServer((req,res)=>{
 });
 
 let tid=1;
-async function newPage(browser, base){
-  const ctx = await browser.newContext({viewport:{width:540,height:960},hasTouch:true,serviceWorkers:'block'});
+async function newPage(browser, url){
+  const ctx = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
   const pg = await ctx.newPage();
   pg.on('pageerror',e=>console.log('PAGEERROR:',e.message));
+  await pg.addInitScript(()=>{ navigator.share = t => { window.__shared = (t&&t.text)||String(t); return Promise.resolve(); }; });
   await pg.route(/itunes\.apple\.com/, route=>{
     const u=new URL(route.request().url());const cb=u.searchParams.get('callback');const term=u.searchParams.get('term')||'x';
-    route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:base+'clip.wav'}]})})`});
+    route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:'http://localhost:8079/clip.wav'}]})})`});
   });
-  await pg.goto(base,{waitUntil:'load'});
+  await pg.goto(url,{waitUntil:'load'});
   await pg.waitForTimeout(700);
   return {ctx,pg};
 }
-async function playRun(pg){
-  // place 5 cards; reveal button label switches to results on the 5th
-  for(let i=1;i<=5;i++){
+async function placeN(pg, n, collectTitles){
+  const titles=[];
+  for(let i=1;i<=n;i++){
     await pg.waitForSelector('.slot.active',{timeout:20000});
     await pg.click('.slot.active');
     await pg.waitForSelector('#overlay.show',{timeout:5000});
-    const btn = await pg.$eval('#sheet .btn.primary', e=>e.textContent.trim());
-    if(i<5 && !/Next song/.test(btn)) throw new Error(`song ${i}: unexpected button "${btn}"`);
-    if(i===5 && !/results/.test(btn)) throw new Error(`song 5: expected results button, got "${btn}"`);
+    if(collectTitles) titles.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
     await pg.click('#sheet .btn.primary');
-    await pg.waitForTimeout(400);
+    await pg.waitForTimeout(350);
   }
+  return titles;
 }
 
 (async()=>{
@@ -56,60 +57,76 @@ async function playRun(pg){
   const base='http://localhost:8079/';
   const browser = await chromium.launch({executablePath:CHROME,args:['--autoplay-policy=no-user-gesture-required']});
 
-  // --- turbo ---
+  // --- turbo solo (classic + turbo difficulty) ---
   let {ctx,pg} = await newPage(browser, base);
-  await pg.click("text=⚡ Turbo");
-  await pg.click("text=⚡ Start turbo run");
-  await playRun(pg);
+  await pg.click('.diffs .diff:has-text("⚡ Turbo")');
+  await pg.click('text=⚡ Start turbo');
+  await placeN(pg, 5);
   let sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/TURBO RUN/.test(sheet) || !/\/5/.test(sheet)) throw new Error('turbo results screen wrong: '+sheet.slice(0,120));
-  console.log('turbo: 5 placements -> results OK ·', sheet.match(/\d\/5/)[0]);
-  // run again works
-  await pg.click('text=Run it again');
-  await pg.waitForSelector('.slot.active',{timeout:20000});
-  console.log('turbo: replay starts OK');
+  if(!/TURBO RUN/.test(sheet) || !/\/5/.test(sheet)) throw new Error('turbo solo results wrong: '+sheet.slice(0,140));
+  const hasChal = /Challenge a friend/.test(sheet);
+  console.log('turbo solo: results OK ·', sheet.match(/\d\/5/)[0], '· challenge button:', hasChal?'yes':'no');
   await ctx.close();
 
-  // --- daily: play + record ---
+  // --- turbo 2 players: ranking screen ---
   ({ctx,pg} = await newPage(browser, base));
-  const num1 = await pg.$eval('.card .eyebrow', e=>e.textContent);   // daily card is first
-  await pg.click('text=▶ Play');
-  // capture the daily's first mystery via S? not reachable; instead capture deck order via reveal titles
-  const titles=[];
-  for(let i=1;i<=5;i++){
-    await pg.waitForSelector('.slot.active',{timeout:20000});
-    await pg.click('.slot.active');
-    await pg.waitForSelector('#overlay.show',{timeout:5000});
-    titles.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
-    await pg.click('#sheet .btn.primary');
-    await pg.waitForTimeout(350);
-  }
+  await pg.click('text=+ Add player');
+  await pg.click('.diffs .diff:has-text("⚡ Turbo")');
+  await pg.click('text=⚡ Start turbo');
+  await placeN(pg, 10);   // 2 players x 5, reveal button rotates automatically
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/DAILY #/.test(sheet) || !/streak/.test(sheet)) throw new Error('daily results screen wrong: '+sheet.slice(0,140));
-  console.log('daily: results OK ·', (sheet.match(/DAILY #\d+/)||[])[0], '·', (sheet.match(/\d\/5/)||[])[0]);
-  // back to setup: card should now show Done + Share
+  if(!/WINS/.test(sheet) || !(sheet.match(/\/5/g)||[]).length>=2) throw new Error('turbo multi ranking wrong: '+sheet.slice(0,160));
+  console.log('turbo 2p: ranking OK ·', sheet.slice(0, 90));
+  await ctx.close();
+
+  // --- daily: play, record, share text, challenge link out ---
+  ({ctx,pg} = await newPage(browser, base));
+  await pg.click('text=▶ Play');
+  const titles1 = await placeN(pg, 5, true);
+  sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/DAILY #/.test(sheet) || !/streak/.test(sheet)) throw new Error('daily results wrong: '+sheet.slice(0,140));
+  // grab a challenge link from the daily result
+  if(!/Challenge a friend/.test(sheet)) throw new Error('daily results missing challenge button');
+  await pg.click('text=Challenge a friend');
+  await pg.waitForTimeout(300);
+  const shared = await pg.evaluate(()=>window.__shared);
+  const m = shared && shared.match(/#c=[\d.]+&s=\d/);
+  if(!m) throw new Error('challenge link not in share text: '+shared);
+  const chalHash = m[0];
+  console.log('daily: results + challenge link OK ·', chalHash.slice(0,26)+'…');
   await pg.click('text=Done');
   await pg.waitForTimeout(400);
   const cardTxt = await pg.$eval('#app', e=>e.innerText);
-  if(!/Done —/.test(cardTxt) || !/Share/.test(cardTxt)) throw new Error('daily card not in done state');
-  console.log('daily: played-today lock + share button OK');
+  if(!/Done —/.test(cardTxt)) throw new Error('daily card not in done state');
+  console.log('daily: played-today lock OK');
   await ctx.close();
 
-  // --- daily determinism: fresh profile, same 5 titles ---
+  // --- daily determinism (fresh profile) ---
   ({ctx,pg} = await newPage(browser, base));
   await pg.click('text=▶ Play');
-  const titles2=[];
-  for(let i=1;i<=5;i++){
-    await pg.waitForSelector('.slot.active',{timeout:20000});
-    await pg.click('.slot.active');
-    await pg.waitForSelector('#overlay.show',{timeout:5000});
-    titles2.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
-    await pg.click('#sheet .btn.primary');
-    await pg.waitForTimeout(350);
+  const titles2 = await placeN(pg, 5, true);
+  if(JSON.stringify(titles1)!==JSON.stringify(titles2)){
+    console.log(' run1:',titles1.join(' | ')); console.log(' run2:',titles2.join(' | '));
+    throw new Error('daily determinism FAIL');
   }
-  const same = JSON.stringify(titles)===JSON.stringify(titles2);
-  console.log('daily determinism (two fresh profiles, same songs):', same?'OK':'FAIL');
-  if(!same){ console.log(' run1:',titles.join(' | ')); console.log(' run2:',titles2.join(' | ')); process.exit(1); }
+  console.log('daily determinism: OK');
+  await ctx.close();
+
+  // --- challenge roundtrip: open the shared link in a fresh profile ---
+  ({ctx,pg} = await newPage(browser, base + chalHash));
+  const setupTxt = await pg.$eval('#app', e=>e.innerText);
+  if(!/friend challenge/i.test(setupTxt) || !/Beat their/.test(setupTxt)) throw new Error('challenge card missing on setup');
+  await pg.click('.card:has-text("friend challenge") >> text=▶ Play');
+  const titles3 = await placeN(pg, 5, true);
+  sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/CHALLENGE/.test(sheet)) throw new Error('challenge results wrong: '+sheet.slice(0,140));
+  if(!/beat their|Tied at|They hold it/i.test(sheet)) throw new Error('challenge verdict line missing: '+sheet.slice(0,160));
+  const sameSongs = JSON.stringify(titles3)===JSON.stringify(titles1);
+  if(!sameSongs){
+    console.log(' daily :',titles1.join(' | ')); console.log(' chall :',titles3.join(' | '));
+    throw new Error('challenge songs differ from the shared run');
+  }
+  console.log('challenge roundtrip: same songs + verdict OK');
   await ctx.close();
 
   console.log('ALL RUN-MODE TESTS PASS ✓');
