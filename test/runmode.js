@@ -59,6 +59,7 @@ async function placeN(pg, n, collectTitles){
 
   // --- turbo solo (classic + turbo difficulty) ---
   let {ctx,pg} = await newPage(browser, base);
+  await pg.click('#players .row >> nth=1 >> .iconbtn');   // default is 2 players; solo test drops one
   await pg.click('.diffs .diff:has-text("⚡ Turbo")');
   await pg.click('text=⚡ Start turbo');
   await placeN(pg, 5);
@@ -70,8 +71,7 @@ async function placeN(pg, n, collectTitles){
 
   // --- turbo 2 players: ranking screen ---
   ({ctx,pg} = await newPage(browser, base));
-  await pg.click('text=+ Add player');
-  await pg.click('.diffs .diff:has-text("⚡ Turbo")');
+  await pg.click('.diffs .diff:has-text("⚡ Turbo")');   // default 2 players
   await pg.click('text=⚡ Start turbo');
   await placeN(pg, 10);   // 2 players x 5, reveal button rotates automatically
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));

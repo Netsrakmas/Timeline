@@ -92,6 +92,9 @@
   .row:has(> input) .iconbtn{ height:auto; }
   /* a search result that's in the deck — instant feedback where you tapped */
   .btn.added{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border:none; opacity:1; cursor:default;}
+  /* the start button rides along while you scroll the (long) setup page */
+  .startbar{position:sticky; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:5; margin-top:16px;}
+  .startbar .btn{box-shadow:0 6px 24px rgba(0,0,0,.55), 0 10px 22px rgba(140,235,255,.18);}
   .diffs{display:flex; flex-direction:column; gap:8px;}
   .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:13px 15px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line);
@@ -239,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v22";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v23";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4623,7 +4626,7 @@ function syncDots(){
   [...dots.children].forEach((d,i)=>d.classList.toggle("on", i===page));
 }
 function renderSetup(){
-  if(!S.players.length) S.players=[{name:"",timeline:[]}];
+  if(!S.players.length) S.players=[{name:"",timeline:[]},{name:"",timeline:[]}];   // pass & play is 2+ by nature
   const survival = S.mode==="survival";
   const turbo = S.mode==="classic" && S.turbo;
   const dNum = dailyNumber(), dState = loadDaily();
@@ -4717,7 +4720,7 @@ function renderSetup(){
       ${S.turbo ? `<div class="hint">Everyone places ${RUN_LEN} mystery songs on their own timeline — every card <b>locks at its true year</b>, right or wrong. Highest score wins.${(loadBest().turbo)?` Solo best: <b>${loadBest().turbo}/${RUN_LEN}</b>.`:''}</div>` : ``}
     </div>`}
 
-    <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo' : '▶ Start game'}</button>
+    <div class="startbar"><button class="btn pink" style="font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo' : '▶ Start game'}</button></div>
 
     <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use · ${BUILD}<br>
       Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a><br>
@@ -4728,7 +4731,7 @@ function renderSetup(){
 
 function renderPlayers(){
   const box = document.getElementById("players"); if(!box) return;
-  if(S.players.length===0) S.players=[{name:"",timeline:[]}];
+  if(S.players.length===0) S.players=[{name:"",timeline:[]},{name:"",timeline:[]}];   // pass & play is 2+ by nature
   box.innerHTML = S.players.map((p,i)=>`
     <div class="row">
       <input type="text" placeholder="Player ${i+1}" value="${esc(p.name)}" onfocus="this.select()" oninput="renamePlayer(${i}, this.value)" />

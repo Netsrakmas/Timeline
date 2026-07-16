@@ -64,8 +64,7 @@ let trackId = 1000;
   await page.goto(base, { waitUntil:'load' });
   await page.waitForTimeout(800);
 
-  // two players, then start
-  await page.click('text=+ Add player');
+  // default is two players now — just start
   await page.click('text=▶ Start game');
 
   // wait for the first clip to actually play
