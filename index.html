@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v24";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v25";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4368,17 +4368,16 @@ function onAudioFail(){
   const a = aud();
   if(!S.current || !S.players || !S.players.length) return;
   if(!a || a.src !== S.current.previewUrl) return;   // ignore stale / silent-unlock errors
-  if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap Replay or Skip."); return; }
+  if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap Replay."); return; }
   toast("Couldn't load that clip — skipping.");
-  skipTrack(true);
+  skipTrack();
 }
-// skip the current mystery track (broken preview, or one you can't place) — same
-// player gets a fresh track; no score/life change.
-function skipTrack(auto){
+// auto-skip a broken preview — same player gets a fresh track; no score change.
+// (the manual Skip button was removed: curated decks + the 🚩 report flow cover it)
+function skipTrack(){
   if(!S.current) return;
   buzz(6);
   S.used.add(S.current.id);   // don't offer this one again
-  if(!auto) toast("Skipped");
   nextTurn();
 }
 function replay(){ if(!S.current) return; unlockAudio(); playClip(S.current); renderGame(); }
@@ -4939,7 +4938,6 @@ function renderGame(){
     <div class="controls">
       <button class="btn" onclick="replay()">↻ Replay</button>
       <button class="btn" onclick="pausePlayback()">❚❚ Pause</button>
-      <button class="btn" onclick="skipTrack(false)" title="Can't hear it? Skip">⤼ Skip</button>
     </div>
 
     <div style="height:18px"></div>
