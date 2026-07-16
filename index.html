@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v26";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v27";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4740,7 +4740,7 @@ function renderSetup(){
       <div style="height:16px"></div>
       <label class="fld">Game length</label>
       <div class="diffs" id="diffSel">
-        <button class="diff ${S.turbo?'sel':''}" onclick="setTurbo()"><span class="dname">⚡ Turbo</span><span class="dcards">${RUN_LEN} songs each · every card locks · ~3 min</span></button>
+        <button class="diff ${S.turbo?'sel':''}" onclick="setTurbo()"><span class="dname">⚡ Turbo</span><span class="dcards">${RUN_LEN} songs each · ~3 min</span></button>
         ${DIFFICULTIES.map(d=>`<button class="diff ${!S.turbo && S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">race to ${d.n} cards</span></button>`).join("")}
       </div>
       ${S.turbo ? `<div class="hint">Everyone places ${RUN_LEN} mystery songs on their own timeline — every card <b>locks at its true year</b>, right or wrong. Highest score wins.${(loadBest().turbo)?` Solo best: <b>${loadBest().turbo}/${RUN_LEN}</b>.`:''}</div>` : ``}
