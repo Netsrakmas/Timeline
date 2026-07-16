@@ -35,7 +35,7 @@ const server = http.createServer((req,res)=>{
   let tid=1;
   await pg.route(/itunes\.apple\.com/, route=>{
     const u=new URL(route.request().url());const cb=u.searchParams.get('callback');const term=u.searchParams.get('term')||'x';
-    route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:'http://localhost:8071/clip.wav'}]})})`});
+    route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:'http://localhost:8071/clip.wav',trackViewUrl:'https://music.apple.com/nl/song/'+tid}]})})`});
   });
   let reported = null;
   await pg.route(/docs\.google\.com/, route=>{
@@ -51,6 +51,11 @@ const server = http.createServer((req,res)=>{
   await pg.waitForSelector('.slot.active',{timeout:20000});
   await pg.click('.slot.active');
   await pg.waitForSelector('#overlay.show',{timeout:5000});
+
+  // reveal carries the Apple Music attribution link (Phase-0 commercial item)
+  const reveal = await pg.$eval('#sheet', e=>e.innerHTML);
+  if(!/Open in Apple Music/.test(reveal) || !/music\.apple\.com/.test(reveal)) throw new Error('Apple Music link missing on reveal');
+  console.log('reveal: Apple Music attribution link present ✓');
 
   // open the flag details, correct the year, then report
   await pg.click('.report-yr summary');

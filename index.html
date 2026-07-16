@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v37";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v38";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4175,6 +4175,8 @@ document.addEventListener("visibilitychange", ()=>{
 /* ---------- year-correction reports (owner-reviewed, never auto-applied) ----------
    Fill REPORT with a Google Form's POST url + entry ids to enable the button.
    Sends only: title, artist, old year, new year, build. No personal data. */
+/* Ko-fi tip jar — set the url to show a support link in the footer */
+const KOFI_URL = "";
 const REPORT = {
   url:"https://docs.google.com/forms/d/e/1FAIpQLScXzozXI61tja9di2tuPaN9sP7Flf08o5eNaRRitjnYPx4gng/formResponse",
   fields:{ title:"entry.1538100355", artist:"entry.252531345", oldYear:"entry.539229286", newYear:"entry.1144383384", build:"entry.329807473" }
@@ -4286,7 +4288,8 @@ async function resolveBatch(slice){
   for(const {sg,hit} of hits){
     if(hit && hit.previewUrl && !S.deckSeen.has(hit.trackId)){
       S.deckSeen.add(hit.trackId);
-      const c = { id:"it"+hit.trackId, name:sg.title, artist:sg.artist, year:sg.year, previewUrl:hit.previewUrl };
+      const c = { id:"it"+hit.trackId, name:sg.title, artist:sg.artist, year:sg.year, previewUrl:hit.previewUrl,
+                  view: /^https:\/\//.test(hit.trackViewUrl||"") ? hit.trackViewUrl : "" };   // Apple Music page, shown on reveals
       if(S.yearOverrides[c.id]) c.year = S.yearOverrides[c.id];
       S.deck.push(c); added++;
     }
@@ -4828,8 +4831,8 @@ function renderSetup(){
 
     <div class="startbar"><button class="btn pink" style="font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo' : '▶ Start game'}</button></div>
 
-    <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use · ${BUILD}<br>
-      Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a><br>
+    <div class="footnote">Self-hosted · 30-second previews courtesy of Apple Music · for personal use · ${BUILD}<br>
+      Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``}<br>
       <a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
   `;
   renderPlayers();
@@ -5110,6 +5113,8 @@ function overlayReveal(correct, p){
     <div class="reveal-yr" style="color:${correct?'var(--good)':'var(--bad)'}">${c.year}</div>
     <div class="reveal-ti">${esc(c.name)}</div>
     <div class="reveal-ar">${esc(c.artist)}</div>
+    ${c.view ? `<div style="margin-top:6px"><a href="${esc(c.view)}" target="_blank" rel="noopener"
+        style="font-size:12px; color:var(--muted)">🎵 Open in Apple Music</a></div>` : ``}
     ${missHint ? `<div style="font-size:12.5px; color:var(--cyan); margin-top:8px; font-weight:600">↳ belonged ${missHint}</div>` : ``}
     ${extra}
     <button class="btn primary" style="margin-top:14px" onclick="advance()">${btn}</button>
