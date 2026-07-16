@@ -239,7 +239,7 @@
 
 <script>
 "use strict";
-const BUILD = "v20";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v21";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4065,7 +4065,8 @@ const S = {
   checkingTrack: false,
   checkMessage: "",
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
-  mode: "classic",   // "classic" (pass & play to a target) | "survival" (solo, 3 lives, endless)
+  mode: "classic",   // "classic" | "survival" | "turbo" (solo, 5 songs, one timeline) | "daily" (turbo w/ date-seeded songs)
+  runIdx: 0, runScore: 0, runResults: [],   // turbo/daily run progress
   lives: 0,          // survival: hearts remaining
   score: 0,          // survival: cards placed correctly this run
   streak: 0,         // survival: current correct streak
@@ -4074,6 +4075,51 @@ const S = {
 /* survival personal bests, persisted in localStorage */
 function loadBest(){ try{ return JSON.parse(store.get("tl_best")||"{}")||{}; }catch(e){ return {}; } }
 function saveBest(b){ store.set("tl_best", JSON.stringify(b)); }
+
+/* ---------- daily challenge (no backend: the date is the seed) ---------- */
+const RUN_LEN = 5;                                   // songs per turbo/daily run
+const DAILY_EPOCH = Date.UTC(2026, 6, 1);            // #1 = 1 July 2026
+function dailyNumber(){ return Math.max(1, Math.floor((Date.now() - DAILY_EPOCH) / 864e5) + 1); }
+function localDay(offset){ const d = new Date(); d.setDate(d.getDate()+(offset||0));
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function mulberry32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a);
+  t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+// same songs for everyone today: pool sorted by a stable key, seeded picks.
+// slot 0 = the anchor card, 1..RUN_LEN = mysteries, rest = spares for failed lookups
+function dailySongs(n){
+  const every = DECKS.find(d => d.id==="everything");
+  const pool = [...every.songs].sort((a,b)=> (norm(a.title)+"|"+norm(a.artist)) < (norm(b.title)+"|"+norm(b.artist)) ? -1 : 1);
+  const rnd = mulberry32(dailyNumber() * 2654435761 % 2147483647);
+  const picked = [], seen = new Set();
+  while(picked.length < n && seen.size < pool.length){
+    const i = Math.floor(rnd() * pool.length);
+    if(seen.has(i)) continue; seen.add(i);
+    picked.push(pool[i]);
+  }
+  return picked;
+}
+function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }catch(e){ return {}; } }
+function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
+function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
+
+/* ---------- year-correction reports (owner-reviewed, never auto-applied) ----------
+   Fill REPORT with a Google Form's POST url + entry ids to enable the button.
+   Sends only: title, artist, old year, new year, build. No personal data. */
+const REPORT = { url:"", fields:{ title:"", artist:"", oldYear:"", newYear:"", build:"" } };
+function reportYear(id, oldYear){
+  try{
+    const card = S.deck.find(c => c.id===id); if(!card || !REPORT.url) return;
+    const newYear = S.yearOverrides[id] || card.year;
+    const fd = new FormData();
+    fd.append(REPORT.fields.title, card.name);
+    fd.append(REPORT.fields.artist, card.artist);
+    fd.append(REPORT.fields.oldYear, String(oldYear));
+    fd.append(REPORT.fields.newYear, String(newYear));
+    fd.append(REPORT.fields.build, BUILD);
+    fetch(REPORT.url, { method:"POST", mode:"no-cors", body:fd }).catch(()=>{});
+    toast("Reported — thanks for keeping the decks accurate! 🙏");
+  }catch(e){}
+}
 
 /* ---------- iTunes Search (JSONP — no key, no CORS hassle) ---------- */
 let _jsonpN = 0;
@@ -4321,6 +4367,7 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.rand
 function drawCard(){
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id));
   if(avail.length===0) return null;
+  if(S.mode==="daily") return avail[0];   // deck order IS the seeded order — same songs for everyone
   return avail[Math.floor(Math.random()*avail.length)];
 }
 function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id===id)); }
@@ -4328,6 +4375,7 @@ function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id
 /* ---------- save / resume (survives crashes & reloads) ---------- */
 function saveGame(){
   try{
+    if(S.mode==="turbo" || S.mode==="daily") return;   // 3-minute runs aren't worth resuming
     if(!S.players || !S.players.length) return;
     store.set("tl_game", JSON.stringify({
       v:2, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
@@ -4371,7 +4419,7 @@ function resumeSaved(){
 
 function startGame(){
   bgRun++;   // invalidate any background loader from a previous game
-  shuffle(S.deck);
+  if(S.mode!=="daily") shuffle(S.deck);   // daily: the seeded order IS the puzzle — same for everyone
   // seed each player with one freebie card so the first placement has a reference point
   S.players.forEach(p=>{
     const c = drawCard();
@@ -4379,6 +4427,7 @@ function startGame(){
   });
   S.turn = 0;
   if(S.mode==="survival"){ S.lives = 3; S.score = 0; S.streak = 0; S.bestStreak = 0; }
+  if(S.mode==="turbo" || S.mode==="daily"){ S.runIdx = 0; S.runScore = 0; S.runResults = []; }
   nextTurn();
   renderGame();
   saveGame();
@@ -4399,7 +4448,10 @@ async function nextTurn(){
     }
     S.checkingTrack = false; S.checkMessage = "";
   }
-  if(!c){ overlayGameOver(true); return; }
+  if(!c){
+    if(S.mode==="turbo" || S.mode==="daily"){ overlayRunOver(); return; }   // ran dry mid-run: score what we have
+    overlayGameOver(true); return;
+  }
   S.current = c;
   saveGame();
   renderGame();
@@ -4440,7 +4492,10 @@ function chooseSlot(idx){
   S.pendingSlot = idx;
   buzz(8);                                  // confirm the tap landed
   const correct = slotCorrect(p, idx);      // instant — no fake "checking" delay
-  if(correct && !p.timeline.some(c => c.id === S.current.id)){
+  const run = S.mode==="turbo" || S.mode==="daily";
+  // classic/survival: only correct cards stay. Runs: EVERY card locks at its
+  // true year (right or wrong) so the board densifies and the run gets harder.
+  if((correct || run) && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
   }
@@ -4448,6 +4503,7 @@ function chooseSlot(idx){
     if(correct){ S.score++; S.streak++; if(S.streak>S.bestStreak) S.bestStreak = S.streak; }
     else { S.lives--; S.streak = 0; }
   }
+  if(run){ S.runIdx++; S.runResults.push(!!correct); if(correct) S.runScore++; }
   S.used.add(S.current.id);
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
@@ -4456,6 +4512,12 @@ function chooseSlot(idx){
 function advance(){
   closeOverlay();
   const p = S.players[S.turn];
+  if(S.mode==="turbo" || S.mode==="daily"){
+    if(S.runIdx >= RUN_LEN){ overlayRunOver(); return; }
+    unlockAudio();
+    nextTurn();   // same solo player, next mystery
+    return;
+  }
   if(S.mode==="survival"){
     if(S.lives <= 0){ overlayGameOver(false, p); return; }
     nextTurn();   // same solo player keeps going — endless until out of lives
@@ -4534,6 +4596,9 @@ function syncDots(){
 function renderSetup(){
   if(!S.players.length) S.players=[{name:"",timeline:[]}];
   const survival = S.mode==="survival";
+  const turbo = S.mode==="turbo";
+  const dNum = dailyNumber(), dState = loadDaily();
+  const dailyDone = dailyPlayedToday();
   const custom = S.customDecks.map(d =>
     `<div class="row" style="align-items:stretch">
        <div style="flex:1">${deckCardHTML(d, d.songs.length)}</div>
@@ -4542,14 +4607,29 @@ function renderSetup(){
   app().innerHTML = `
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
-    <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+    <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+
+    <div class="card" style="border-color:var(--gold)">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div>
+          <div class="eyebrow">📅 daily challenge #${dNum}</div>
+          <div class="muted" style="font-size:12.5px; margin-top:4px">${dailyDone
+            ? `Done — <b style="color:var(--text)">${dState.score}/${RUN_LEN}</b> · streak 🔥${dState.streak||1}`
+            : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
+        </div>
+        ${dailyDone
+          ? `<button class="btn sm" style="flex:0 0 auto" onclick="shareDaily()">📤 Share</button>`
+          : `<button class="btn sm primary" style="flex:0 0 auto" onclick="startDaily()">▶ Play</button>`}
+      </div>
+    </div>
 
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">mode</div>
       <div style="height:10px"></div>
       <div class="diffs">
-        <button class="diff ${!survival?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">2+ players · race to a target</span></button>
+        <button class="diff ${S.mode==='classic'?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">2+ players · race to a target</span></button>
         <button class="diff ${survival?'sel':''}" onclick="setMode('survival')"><span class="dname">🎯 Survival</span><span class="dcards">solo · 3 lives · endless</span></button>
+        <button class="diff ${turbo?'sel':''}" onclick="setMode('turbo')"><span class="dname">⚡ Turbo</span><span class="dcards">solo · ${RUN_LEN} songs · ~3 min</span></button>
       </div>
     </div>
 
@@ -4571,7 +4651,16 @@ function renderSetup(){
       <div class="hint" id="deckTally">${tallyHTML()}</div>
     </div>
 
-    ${survival ? `
+    ${turbo ? `
+    <div class="card">
+      <div class="eyebrow" style="color:var(--cyan)">step 2 · turbo</div>
+      <div style="height:10px"></div>
+      <div class="hint" style="margin-top:0">${RUN_LEN} mystery songs, one growing timeline. Every card <b>locks at its true year</b> — right or wrong — so the board fills up and the last songs get tight. Score out of ${RUN_LEN}.</div>
+      <div style="height:12px"></div>
+      <div class="lb2"><div class="lb2-row" style="justify-content:space-around">
+        <span class="lb2-sc" style="min-width:auto">⚡ best turbo · <b style="color:var(--text)">${(loadBest().turbo||0)}/${RUN_LEN}</b></span>
+      </div></div>
+    </div>` : survival ? `
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">step 2 · survival</div>
       <div style="height:10px"></div>
@@ -4596,7 +4685,7 @@ function renderSetup(){
       </div>
     </div>`}
 
-    <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : '▶ Start game'}</button>
+    <button class="btn pink" style="margin-top:16px; font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo run' : '▶ Start game'}</button>
 
     <div class="footnote">Self-hosted · 30-second previews via Apple · for personal use · ${BUILD}<br>
       Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a><br>
@@ -4758,20 +4847,27 @@ function renderGame(){
   }).join("");
 
   const survival = S.mode==="survival";
+  const run = S.mode==="turbo" || S.mode==="daily";
   const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
+  const runSquares = run ? S.runResults.map(r=>r?'🟩':'🟥').join('') + '⬛'.repeat(Math.max(0, RUN_LEN - S.runResults.length)) : '';
   const hud = survival
     ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
          <span style="font-size:17px; letter-spacing:2px; flex:0 0 auto">${hearts}</span>
          <span class="lb2-sc" style="min-width:auto; flex:1; text-align:center"><b style="color:var(--text); font-size:15px">${S.score}</b> placed · streak ${S.streak}</span>
          <span class="lb2-sc" style="flex:0 0 auto">best ${(loadBest().cards||0)}</span>
        </div></div>`
+    : run
+    ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
+         <span style="font-size:16px; letter-spacing:2px; flex:0 0 auto">${runSquares}</span>
+         <span class="lb2-sc" style="min-width:auto; flex:1; text-align:right">song <b style="color:var(--text)">${Math.min(S.runIdx+1, RUN_LEN)}/${RUN_LEN}</b> · score ${S.runScore}</span>
+       </div></div>`
     : `<div class="lb2">${lbHTML}</div>`;
 
   app().innerHTML = `
     <div class="topbar">
       <div>
-        <div class="eyebrow">${survival ? 'survival · solo' : 'now placing'}</div>
-        <div class="turn-name">${survival ? 'Keep the run alive' : esc(p.name)}</div>
+        <div class="eyebrow">${survival ? 'survival · solo' : S.mode==="daily" ? 'daily challenge #'+dailyNumber() : S.mode==="turbo" ? 'turbo · solo' : 'now placing'}</div>
+        <div class="turn-name">${survival ? 'Keep the run alive' : run ? 'Lock it in' : esc(p.name)}</div>
       </div>
       <button class="btn sm ghost" onclick="confirmQuit()">Quit</button>
     </div>
@@ -4791,7 +4887,7 @@ function renderGame(){
     </div>
 
     <div style="height:18px"></div>
-    <p class="tl-label">${survival ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
+    <p class="tl-label">${(survival||run) ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Oldest first · reads left → right, top → bottom</div>
   `;
@@ -4817,28 +4913,35 @@ async function recheckOverlay(){
 function overlayReveal(correct, p){
   const c = S.current;
   const survival = S.mode==="survival";
+  const run = S.mode==="turbo" || S.mode==="daily";
   const dead = survival && S.lives <= 0;
-  const won = !survival && correct && p.timeline.length >= S.target;   // this card just won the game
+  const won = !survival && !run && correct && p.timeline.length >= S.target;   // this card just won the game
   const sheet = document.getElementById("sheet");
   S.checkingTrack = false;
   S.checkMessage = "";
   const missHint = !correct ? correctRange(p, c) : "";
+  // data-correction is collapsed and saves for NEXT time only — it can't flip this result
+  const flagBlock = `<details class="report-yr"><summary>🚩 Wrong year in our data?</summary>
+        <div class="year-fix" style="margin-top:8px;"><span class="muted" style="font-size:11px">correct year</span>
+          <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
+            onchange="saveYear('${c.id}', this.value); toast('Thanks — fixed for next time.')" /></div>
+        ${REPORT.url ? `<button class="btn ghost sm" style="margin-top:8px" onclick="reportYear('${c.id}', ${c.year})">📤 Report this fix so everyone gets it</button>` : ``}
+      </details>`;
   let sub, btn;
   if(survival){
     const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
     sub = correct ? `${S.score} placed · streak ${S.streak}` : (dead ? `Out of lives` : `Lost a life`);
     btn = dead ? '💀 See results' : 'Next song →';
     var extra = `<div style="font-size:22px; letter-spacing:3px; margin:14px 0 4px">${hearts}</div>`;
+  } else if(run){
+    sub = `${correct ? 'Locked in place' : 'Locked at its true spot'} · song ${S.runIdx}/${RUN_LEN} · score ${S.runScore}`;
+    btn = S.runIdx >= RUN_LEN ? '🏁 See results' : 'Next song →';
+    var extra = `<div style="font-size:19px; letter-spacing:2px; margin:12px 0 4px">${S.runResults.map(r=>r?'🟩':'🟥').join('')}${'⬛'.repeat(Math.max(0,RUN_LEN-S.runResults.length))}</div>${flagBlock}`;
   } else {
     sub = won ? '🏆 '+esc(p.name)+' hits '+S.target+'!' : (correct?'Card goes to '+esc(p.name):'Card is discarded');
     const nxt = S.players[(S.turn+1) % S.players.length];
     btn = won ? '🏆 See results' : (S.players.length>1 ? '▶ Pass to '+esc(nxt.name)+' →' : 'Next turn →');
-    // data-correction is collapsed and saves for NEXT time only — it can't flip this result
-    var extra = `<details class="report-yr"><summary>🚩 Wrong year in our data?</summary>
-        <div class="year-fix" style="margin-top:8px;"><span class="muted" style="font-size:11px">correct year</span>
-          <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
-            onchange="saveYear('${c.id}', this.value); toast('Thanks — fixed for next time.')" /></div>
-      </details>`;
+    var extra = flagBlock;
   }
   sheet.innerHTML = `
     <div class="verdict ${correct?'good':'bad'}">${correct?'✓ NICE!':'✗ NOPE'}</div>
@@ -4890,6 +4993,49 @@ function overlayGameOver(deckEmpty, winner){
   document.getElementById("overlay").classList.add("show");
 }
 
+/* ---------- turbo / daily run results ---------- */
+function overlayRunOver(){
+  const daily = S.mode==="daily";
+  const squares = S.runResults.map(r=>r?'🟩':'🟥').join('') + '⬛'.repeat(Math.max(0, RUN_LEN - S.runResults.length));
+  const perfect = S.runScore === RUN_LEN;
+  let streakLine = "";
+  if(daily){
+    // record today's result once; streak counts consecutive days played
+    const d = loadDaily();
+    if(d.last !== localDay(0)){
+      const streak = (d.last === localDay(-1)) ? (d.streak||0)+1 : 1;
+      saveDaily({ last: localDay(0), streak, best: Math.max(S.runScore, d.best||0),
+                  score: S.runScore, results: S.runResults.slice(), num: dailyNumber() });
+    }
+    streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
+  } else {
+    const best = loadBest();
+    if(S.runScore > (best.turbo||0)){ best.turbo = S.runScore; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
+  }
+  buzz(perfect ? [0,30,40,30,40,90] : [0,25,40,25]);
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">${perfect ? '🏆' : daily ? '📅' : '⚡'}</div>
+    <div class="verdict ${S.runScore>=3?'good':'bad'}" style="margin-top:6px">${daily ? 'DAILY #'+dailyNumber() : 'TURBO RUN'}</div>
+    <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${S.runScore>=3?'var(--good)':'var(--bad)'}">${S.runScore}/${RUN_LEN}</div>
+    <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares}</div>
+    ${streakLine}
+    ${daily
+      ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">📤 Share result</button>
+         <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>`
+      : `<button class="btn pink" style="margin-top:14px" onclick="playAgain()">⚡ Run it again</button>
+         <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Back to menu</button>`}
+  `;
+  document.getElementById("overlay").classList.add("show");
+}
+function shareDaily(){
+  const d = loadDaily();
+  const squares = (d.results||[]).map(r=>r?'🟩':'🟥').join('') || '⬛'.repeat(RUN_LEN);
+  const text = `Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}\n${squares} 🔥${d.streak||1}\nhttps://playyearworm.com`;
+  if(navigator.share){ navigator.share({ text }).catch(()=>{}); }
+  else { try{ navigator.clipboard.writeText(text); toast("Copied — paste it in the group chat 📋"); }catch(e){ toast(text); } }
+}
+
 /* ---------- UI actions ---------- */
 function toggleDeck(id){
   const i = S.selectedIds.indexOf(id);
@@ -4925,15 +5071,17 @@ function renderLoading(done, total){
 async function onStart(){
   let songs = selectedSongs();
   if(songs.length < 2){ toast("Pick at least one deck."); return; }
-  if(S.mode==="survival"){
+  if(S.mode==="survival" || S.mode==="turbo"){
     const nm = (S.players[0] && (S.players[0].name||"").trim()) || "You";
-    S.players = [{ name:nm, timeline:[] }];   // survival is always solo
+    S.players = [{ name:nm, timeline:[] }];   // solo modes
   }
   S.players.forEach((p,i)=>{ if(!(p.name||"").trim()) p.name = "Player "+(i+1); });
   // Working set: plenty of headroom over what the game needs, randomly sampled
   // (fresh mix each game). We don't resolve it all up front — streamed in below.
-  const need = S.mode==="survival" ? 90 : (S.players.length||1) * S.target;
-  const cap = S.mode==="survival" ? Math.min(songs.length, 350) : Math.max(120, Math.min(400, need * 4));
+  const need = S.mode==="survival" ? 90 : S.mode==="turbo" ? (RUN_LEN+1) : (S.players.length||1) * S.target;
+  const cap = S.mode==="survival" ? Math.min(songs.length, 350)
+            : S.mode==="turbo" ? Math.min(songs.length, 40)
+            : Math.max(120, Math.min(400, need * 4));
   songs = shuffle(songs.slice());
   if(songs.length > cap){ songs = songs.slice(0, cap); }
   unlockAudio();   // prime mobile audio within this tap
@@ -4957,6 +5105,30 @@ async function onStart(){
   S.used = new Set();
   startGame();                       // bumps bgRun
   loadRest(songs.slice(got), bgRun);   // background; appends to S.deck as it goes
+}
+
+// Daily challenge: seeded songs in FIXED order (no shuffle — the order is the
+// puzzle), solo, one turbo run. Ignores deck selection: always the full pool.
+async function startDaily(){
+  if(dailyPlayedToday()){ toast("You already played today's daily — come back tomorrow!"); return; }
+  S.mode = "daily";
+  S.players = [{ name:"You", timeline:[] }];
+  const songs = dailySongs(RUN_LEN + 5);   // anchor + run + spares for dead previews
+  unlockAudio();   // prime mobile audio within this tap
+  S.deck = [];
+  S.deckSeen = new Set();
+  S.loadingMore = false;
+  renderLoading(0, songs.length);
+  const got = await resolveInitial(songs, (d,t)=>renderLoading(d,t),
+    ()=> S.deck.length >= 2);   // anchor + first mystery — rest streams in below
+  if(S.deck.length < 2){
+    showError("Couldn't load today's songs — Apple may be rate-limiting. Wait a moment and try again.");
+    renderSetup();
+    return;
+  }
+  S.used = new Set();
+  startGame();
+  loadRest(songs.slice(got), bgRun);
 }
 
 function saveYear(id, value){
