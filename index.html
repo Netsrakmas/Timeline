@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v27";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v28";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4123,6 +4123,7 @@ function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="
 const PLAYER_COLORS = ["var(--gold)","var(--cyan)","var(--violet)","var(--good)","#FF8AC2","#FFA94B"];
 // owner -1 = the neutral anchor card (muted, so it doesn't read as player 1's)
 function ownerColor(i){ return i==null ? "" : i<0 ? "var(--muted)" : PLAYER_COLORS[i % PLAYER_COLORS.length]; }
+function fmtTime(ms){ const s=Math.round((ms||0)/1000); return s<100 ? s+"s" : Math.floor(s/60)+"m"+String(s%60).padStart(2,"0"); }
 
 /* ---------- year-correction reports (owner-reviewed, never auto-applied) ----------
    Fill REPORT with a Google Form's POST url + entry ids to enable the button.
@@ -4470,7 +4471,7 @@ function startGame(){
   S.turn = 0;
   if(S.mode==="survival"){ S.lives = 3; S.score = 0; S.streak = 0; S.bestStreak = 0; }
   if(isRun()){
-    S.players.forEach(pl => { pl.tries = 0; pl.hits = 0; pl.results = []; });
+    S.players.forEach(pl => { pl.tries = 0; pl.hits = 0; pl.results = []; pl.timeMs = 0; });
     // track pool indices for challenge links (solo runs only; null = unencodable)
     S.runCards = null;
     if(S.players.length===1 && S.players[0].timeline[0]){
@@ -4505,6 +4506,7 @@ async function nextTurn(){
     overlayGameOver(true); return;
   }
   S.current = c;
+  S.turnStart = Date.now();   // run tiebreaker: thinking time from clip start to placement
   if(isRun() && S.runCards && S.players.length===1){
     const i = poolIndexOf(c);
     S.runCards = i>=0 ? [...S.runCards, i] : null;   // null: contains a song outside the shared pool
@@ -4560,7 +4562,10 @@ function chooseSlot(idx){
     if(correct){ S.score++; S.streak++; if(S.streak>S.bestStreak) S.bestStreak = S.streak; }
     else { S.lives--; S.streak = 0; }
   }
-  if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1; }
+  if(run){
+    p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1;
+    p.timeMs=(p.timeMs||0) + Math.max(0, Date.now()-(S.turnStart||Date.now()));
+  }
   S.used.add(S.current.id);
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
@@ -4676,7 +4681,7 @@ function renderSetup(){
             : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
         </div>
         ${dailyDone
-          ? `<button class="btn sm" style="flex:0 0 auto" onclick="shareDaily()">📤 Share</button>`
+          ? `<button class="btn sm" style="flex:0 0 auto" onclick="shareDaily()">⚔️ Challenge</button>`
           : `<button class="btn sm primary" style="flex:0 0 auto" onclick="startDaily()">▶ Play</button>`}
       </div>
     </div>
@@ -5077,16 +5082,19 @@ function overlayRunOver(){
 
   // multiplayer turbo: ranked results
   if(!solo){
-    const ranked = [...S.players].sort((a,b)=>(b.hits||0)-(a.hits||0));
-    const top = ranked[0].hits||0;
+    // score first; equal scores are decided by the fastest total thinking time
+    const ranked = [...S.players].sort((a,b)=>((b.hits||0)-(a.hits||0)) || ((a.timeMs||0)-(b.timeMs||0)));
+    const top = ranked[0];
+    const tieBroken = ranked.length>1 && (ranked[0].hits||0)===(ranked[1].hits||0);
     const rows = ranked.map(pl=>{
       const oc = ownerColor(S.players.indexOf(pl));
-      return `<div style="font-size:14px; margin:5px 0">${(pl.hits||0)===top?'🏆 ':''}<span style="color:${oc}; font-weight:700">● ${esc(pl.name)}</span> — <b>${pl.hits||0}/${RUN_LEN}</b> <span style="font-size:12px; letter-spacing:1px">${squares(pl)}</span></div>`;
+      return `<div style="font-size:14px; margin:5px 0">${pl===top?'🏆 ':''}<span style="color:${oc}; font-weight:700">● ${esc(pl.name)}</span> — <b>${pl.hits||0}/${RUN_LEN}</b> · ${fmtTime(pl.timeMs)} <span style="font-size:12px; letter-spacing:1px">${squares(pl)}</span></div>`;
     }).join("");
     buzz([0,30,40,30,40,90]);
     sheet.innerHTML = `
       <div class="winner-emoji">⚡</div>
-      <div class="verdict good" style="margin-top:6px">${esc(ranked[0].name)} WINS</div>
+      <div class="verdict good" style="margin-top:6px">${esc(top.name)} WINS</div>
+      ${tieBroken ? `<div class="muted" style="font-size:12.5px; margin-top:4px">tie — fastest time decides ⏱</div>` : ``}
       <div style="margin:14px 0 16px">${rows}</div>
       <button class="btn pink" onclick="playAgain()">⚡ Run it again</button>
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Back to menu</button>
@@ -5104,16 +5112,27 @@ function overlayRunOver(){
     if(d.last !== localDay(0)){
       const streak = (d.last === localDay(-1)) ? (d.streak||0)+1 : 1;
       saveDaily({ last: localDay(0), streak, best: Math.max(score, d.best||0),
-                  score, results: (me.results||[]).slice(), num: dailyNumber() });
+                  score, results: (me.results||[]).slice(), num: dailyNumber(),
+                  idx: (S.runCards && S.runCards.length>=2) ? S.runCards : null,
+                  timeMs: me.timeMs||0 });
     }
     streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
   } else if(chal){
     title = 'CHALLENGE';
     const beat = S.challenge && S.challenge.beat;
+    const beatT = S.challenge && S.challenge.beatTime;
+    const myT = me.timeMs||0;
     if(beat!=null){
-      streakLine = score > beat ? `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 You beat their ${beat}/${RUN_LEN}!</div>`
-                 : score === beat ? `<div style="font-size:15px; margin:6px 0">🤝 Tied at ${beat}/${RUN_LEN}</div>`
-                 : `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">They hold it — ${beat}/${RUN_LEN}</div>`;
+      if(score > beat) streakLine = `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 You beat their ${beat}/${RUN_LEN}!</div>`;
+      else if(score < beat) streakLine = `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">They hold it — ${beat}/${RUN_LEN}</div>`;
+      else if(beatT){   // equal score: fastest time decides
+        streakLine = myT < beatT
+          ? `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 Tied at ${beat}/${RUN_LEN} — but you were faster! ⏱ ${fmtTime(myT)} vs ${fmtTime(beatT)}</div>`
+          : myT > beatT
+          ? `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">Tied at ${beat}/${RUN_LEN} — they were faster ⏱ ${fmtTime(beatT)} vs ${fmtTime(myT)}</div>`
+          : `<div style="font-size:15px; margin:6px 0">🤝 Dead even — same score, same time</div>`;
+      }
+      else streakLine = `<div style="font-size:15px; margin:6px 0">🤝 Tied at ${beat}/${RUN_LEN}</div>`;
     }
   } else {
     const best = loadBest();
@@ -5126,9 +5145,10 @@ function overlayRunOver(){
     <div class="verdict ${score>=3?'good':'bad'}" style="margin-top:6px">${title}</div>
     <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
+    <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
     ${streakLine}
-    ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">📤 Share result</button>` : ``}
-    ${canChallenge ? `<button class="btn ${daily?'':'pink'}" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
+    ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
+    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;
@@ -5137,12 +5157,18 @@ function overlayRunOver(){
 function shareDaily(){
   const d = loadDaily();
   const squares = (d.results||[]).map(r=>r?'🟩':'🟥').join('') || '⬛'.repeat(RUN_LEN);
-  shareText(`Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}\n${squares} 🔥${d.streak||1}\nhttps://playyearworm.com`);
+  const t = d.timeMs ? ` in ${fmtTime(d.timeMs)}` : "";
+  const url = (d.idx && d.idx.length>=2)
+    ? "https://playyearworm.com/#c=" + d.idx.join(".") + "&s=" + (d.score||0) + (d.timeMs?("&t="+Math.round(d.timeMs/1000)):"")
+    : "https://playyearworm.com";
+  shareText(`Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`);
 }
 function shareChallenge(score){
   if(!S.runCards || S.runCards.length < 2) return;
-  const url = "https://playyearworm.com/#c=" + S.runCards.join(".") + (score!=null ? "&s="+score : "");
-  shareText(`I scored ${score}/${RUN_LEN} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
+  const t = Math.round((S.players[0].timeMs||0)/1000);
+  const url = "https://playyearworm.com/#c=" + S.runCards.join(".")
+            + (score!=null ? "&s="+score : "") + (t ? "&t="+t : "");
+  shareText(`I scored ${score}/${RUN_LEN} in ${fmtTime(t*1000)} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
 }
 function shareText(text){
   if(navigator.share){ navigator.share({ text }).catch(()=>{}); }
@@ -5150,11 +5176,12 @@ function shareText(text){
 }
 // a #c=<i0.i1...>&s=<score> link carries the exact run: indices into the stable pool
 function parseChallengeHash(){
-  const m = (location.hash||"").match(/c=([\d.]+)(?:&s=(\d+))?/);
+  const m = (location.hash||"").match(/c=([\d.]+)(?:&s=(\d+))?(?:&t=(\d+))?/);
   if(!m) return null;
   const idx = m[1].split(".").map(Number).filter(n => Number.isFinite(n) && n>=0);
   if(idx.length < 2) return null;
-  return { idx: idx.slice(0, RUN_LEN+1), beat: m[2]!=null ? Math.min(RUN_LEN, parseInt(m[2],10)) : null };
+  return { idx: idx.slice(0, RUN_LEN+1), beat: m[2]!=null ? Math.min(RUN_LEN, parseInt(m[2],10)) : null,
+           beatTime: m[3]!=null ? parseInt(m[3],10)*1000 : null };
 }
 async function startChallenge(){
   if(!S.challenge) return;

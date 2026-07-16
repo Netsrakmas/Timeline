@@ -98,11 +98,11 @@ async function placeN(pg, n, collectTitles){
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/DAILY #/.test(sheet) || !/streak/.test(sheet)) throw new Error('daily results wrong: '+sheet.slice(0,140));
   // grab a challenge link from the daily result
-  if(!/Challenge a friend/.test(sheet)) throw new Error('daily results missing challenge button');
-  await pg.click('text=Challenge a friend');
+  if(!/Challenge friends/.test(sheet)) throw new Error('daily results missing challenge button');
+  await pg.click('text=⚔️ Challenge friends');
   await pg.waitForTimeout(300);
   const shared = await pg.evaluate(()=>window.__shared);
-  const m = shared && shared.match(/#c=[\d.]+&s=\d/);
+  const m = shared && shared.match(/#c=[\d.]+&s=\d+(?:&t=\d+)?/);
   if(!m) throw new Error('challenge link not in share text: '+shared);
   const chalHash = m[0];
   console.log('daily: results + challenge link OK ·', chalHash.slice(0,26)+'…');
@@ -132,7 +132,7 @@ async function placeN(pg, n, collectTitles){
   const titles3 = await placeN(pg, 5, true);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('challenge results wrong: '+sheet.slice(0,140));
-  if(!/beat their|Tied at|They hold it/i.test(sheet)) throw new Error('challenge verdict line missing: '+sheet.slice(0,160));
+  if(!/beat their|Tied|They hold it|faster|Dead even/i.test(sheet)) throw new Error('challenge verdict line missing: '+sheet.slice(0,160));
   const sameSongs = JSON.stringify(titles3)===JSON.stringify(titles1);
   if(!sameSongs){
     console.log(' daily :',titles1.join(' | ')); console.log(' chall :',titles3.join(' | '));
