@@ -141,6 +141,26 @@ async function placeN(pg, n, collectTitles){
   console.log('challenge roundtrip: same songs + verdict OK');
   await ctx.close();
 
+  // --- fresh self-made challenge: create, play, share, card resets ---
+  ({ctx,pg} = await newPage(browser, base));
+  const createCard = await pg.$eval('#app', e=>e.innerText);
+  if(!/challenge a friend/i.test(createCard)) throw new Error('create-a-challenge card missing on setup');
+  await pg.click('.card:has-text("challenge a friend") >> text=▶ Go');
+  await placeN(pg, 5);
+  sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/CHALLENGE/.test(sheet)) throw new Error('fresh challenge results wrong: '+sheet.slice(0,140));
+  if(!/Challenge a friend on these songs/.test(sheet)) throw new Error('fresh challenge missing share button');
+  await pg.click('text=Challenge a friend on these songs');
+  await pg.waitForTimeout(300);
+  const shared2 = await pg.evaluate(()=>window.__shared);
+  if(!shared2 || !/#c=[\d.]+&s=\d/.test(shared2)) throw new Error('fresh challenge share link missing: '+shared2);
+  await pg.click('text=Done');
+  await pg.waitForTimeout(400);
+  const after = await pg.$eval('#app', e=>e.innerText);
+  if(!/challenge a friend/i.test(after) || /Beat their/.test(after)) throw new Error('setup should show the CREATE card again, not an incoming one');
+  console.log('fresh challenge: create → play → share link → setup resets OK');
+  await ctx.close();
+
   console.log('ALL RUN-MODE TESTS PASS ✓');
   await browser.close(); server.close();
 })().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});

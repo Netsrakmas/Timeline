@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v30";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v31";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4711,7 +4711,16 @@ function renderSetup(){
         </div>
         <button class="btn sm pink" style="flex:0 0 auto" onclick="startChallenge()">▶ Play</button>
       </div>
-    </div>` : ``}
+    </div>` : `
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div>
+          <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
+          <div class="muted" style="font-size:12.5px; margin-top:4px">${RUN_LEN} random songs — play, then send your score · as often as you like</div>
+        </div>
+        <button class="btn sm" style="flex:0 0 auto" onclick="startFreshChallenge()">▶ Go</button>
+      </div>
+    </div>`}
 
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">mode</div>
@@ -5208,6 +5217,18 @@ function parseChallengeHash(){
   if(idx.length < 2) return null;
   return { idx: idx.slice(0, RUN_LEN+1), beat: m[2]!=null ? Math.min(RUN_LEN, parseInt(m[2],10)) : null,
            beatTime: m[3]!=null ? parseInt(m[3],10)*1000 : null };
+}
+// create-your-own challenge: random songs, play, then send the gauntlet
+async function startFreshChallenge(){
+  const pool = stablePool();
+  const idx = [], seen = new Set();
+  while(idx.length < RUN_LEN+1 && seen.size < pool.length){
+    const i = Math.floor(Math.random() * pool.length);
+    if(seen.has(i)) continue; seen.add(i); idx.push(i);
+  }
+  S.challenge = { idx, beat: null, beatTime: null };
+  await startChallenge();
+  S.challenge = null;   // self-made: no incoming-challenge card back on setup
 }
 async function startChallenge(){
   if(!S.challenge) return;
