@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v36";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v37";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4604,7 +4604,7 @@ function chooseSlot(idx){
   const run = isRun();
   // classic/survival: only correct cards stay. Runs: EVERY card locks at its
   // true year (right or wrong) so the board densifies and the run gets harder.
-  if(run) S.current.owner = S.turn;   // who placed it — colors the shared board
+  if(run){ S.current.owner = S.turn; S.current.wrong = !correct; }   // colors the shared board; misses lock in red
   if((correct || run) && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
@@ -4729,7 +4729,7 @@ function renderSetup(){
     <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
 
-    <div class="card" style="border-color:var(--gold)">
+    <div class="card" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow">📅 daily challenge #${dNum}</div>
@@ -4738,37 +4738,37 @@ function renderSetup(){
             : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
         </div>
         ${dailyDone
-          ? `<button class="btn sm" style="flex:0 0 auto" onclick="shareDaily()">⚔️ Challenge</button>`
-          : `<button class="btn sm primary" style="flex:0 0 auto" onclick="startDaily()">▶ Play</button>`}
+          ? `<button class="btn sm" style="flex:0 0 auto">⚔️ Challenge</button>`
+          : `<button class="btn sm primary" style="flex:0 0 auto">▶ Play</button>`}
       </div>
     </div>
 
     ${S.challenge ? (chalPlayed(S.challenge.idx) ? `
-    <div class="card" style="border-color:var(--cyan)">
+    <div class="card" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
           <div class="muted" style="font-size:12.5px; margin-top:4px">You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!</div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto" onclick="shareChallengeBack()">📤 Send result</button>
+        <button class="btn sm" style="flex:0 0 auto">📤 Send result</button>
       </div>
     </div>` : `
-    <div class="card" style="border-color:var(--cyan)">
+    <div class="card" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
           <div class="muted" style="font-size:12.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
         </div>
-        <button class="btn sm pink" style="flex:0 0 auto" onclick="startChallenge()">▶ Play</button>
+        <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
       </div>
     </div>`) : `
-    <div class="card">
+    <div class="card" style="cursor:pointer" onclick="startFreshChallenge()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
           <div class="muted" style="font-size:12.5px; margin-top:4px">${RUN_LEN} random songs — play, then send your score · as often as you like</div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto" onclick="startFreshChallenge()">▶ Go</button>
+        <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
     </div>`}
 
@@ -4967,7 +4967,7 @@ function renderGame(){
         <span class="ins">+</span><span class="rng">${rng}</span></button>`;
     }
     if(i<tl.length){
-      const oc = ownerColor(tl[i].owner);
+      const oc = tl[i].wrong ? "var(--bad)" : ownerColor(tl[i].owner);   // a missed guess reads red, not as a trophy
       slotsHTML += `<div class="placed"${oc?` style="border-color:${oc}"`:``}><div class="yr"${oc?` style="color:${oc}"`:``}>${tl[i].year}</div>
         <div><div class="ti">${esc(tl[i].name)}</div><div class="ar">${esc(tl[i].artist)}</div></div></div>`;
     }

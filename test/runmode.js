@@ -69,7 +69,13 @@ async function placeN(pg, n, collectTitles){
   let sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/TURBO RUN/.test(sheet) || !/\/5/.test(sheet)) throw new Error('turbo solo results wrong: '+sheet.slice(0,140));
   const hasChal = /Challenge a friend/.test(sheet);
-  console.log('turbo solo: results OK ·', sheet.match(/\d\/5/)[0], '· challenge button:', hasChal?'yes':'no');
+  // misses lock in red: red cards on the board == wrong placements in state == 5 - hits
+  const hits = Number(sheet.match(/(\d)\/5/)[1]);
+  const wrongState = await pg.evaluate(()=> S.players[0].timeline.filter(c=>c.wrong).length);
+  const redCards = await pg.$$eval('.placed', els=>els.filter(e=>(e.getAttribute('style')||'').includes('var(--bad)')).length);
+  if(wrongState !== 5-hits) throw new Error('wrong-flag count '+wrongState+' != misses '+(5-hits));
+  if(redCards !== wrongState) throw new Error('red cards on board ('+redCards+') != wrong placements ('+wrongState+')');
+  console.log('turbo solo: results OK ·', hits+'/5', '· challenge button:', hasChal?'yes':'no', '· misses in red:', redCards);
   await ctx.close();
 
   // --- turbo 2 players: ranking screen ---
@@ -128,7 +134,8 @@ async function placeN(pg, n, collectTitles){
   ({ctx,pg} = await newPage(browser, base + chalHash));
   const setupTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/friend challenge/i.test(setupTxt) || !/Beat their/.test(setupTxt)) throw new Error('challenge card missing on setup');
-  await pg.click('.card:has-text("friend challenge") >> text=▶ Play');
+  // tap the card BODY, not the Play button — the whole card is the trigger
+  await pg.click('.card:has-text("friend challenge") >> .muted');
   const titles3 = await placeN(pg, 5, true);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('challenge results wrong: '+sheet.slice(0,140));
@@ -154,7 +161,8 @@ async function placeN(pg, n, collectTitles){
   ({ctx,pg} = await newPage(browser, base));
   const createCard = await pg.$eval('#app', e=>e.innerText);
   if(!/challenge a friend/i.test(createCard)) throw new Error('create-a-challenge card missing on setup');
-  await pg.click('.card:has-text("challenge a friend") >> text=▶ Go');
+  // whole card triggers it — tap the description text instead of the Go button
+  await pg.click('.card:has-text("challenge a friend") >> .muted');
   await placeN(pg, 5);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('fresh challenge results wrong: '+sheet.slice(0,140));
