@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v35";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v36";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4104,19 +4104,32 @@ function poolIndexOf(card){   // -1 if the song isn't in the shared pool (e.g. c
   const k = norm(card.name||card.title)+"|"+norm(card.artist);
   return stablePool().findIndex(s => norm(s.title)+"|"+norm(s.artist) === k);
 }
-// seeded picks from the stable pool.
+// seeded picks from the stable pool — CLUSTERED by era: every pick (anchor
+// included) lands inside a narrow year window around a seeded center. A set
+// spread over the whole pool leaves decade-wide gaps where any guess scores;
+// tight gaps are what make a run hard. Tune difficulty with RUN_YEAR_SPAN.
 // slot 0 = the anchor card, 1..RUN_LEN = mysteries, rest = spares for failed lookups
-function seededSongs(seed, n){
+const RUN_YEAR_SPAN = 8;   // ± years around the set's center
+function seededIdx(seed, n){
   const pool = stablePool();
   const rnd = mulberry32(seed % 2147483647);
+  const center = pool[Math.floor(rnd() * pool.length)].year;
+  let span = RUN_YEAR_SPAN, cand = [];
+  for(;;){
+    cand = [];
+    for(let i=0;i<pool.length;i++) if(Math.abs(pool[i].year - center) <= span) cand.push(i);
+    if(cand.length >= n*4 || span > 60) break;   // sparse era: widen until there's real choice
+    span += 2;
+  }
   const picked = [], seen = new Set();
-  while(picked.length < n && seen.size < pool.length){
-    const i = Math.floor(rnd() * pool.length);
-    if(seen.has(i)) continue; seen.add(i);
-    picked.push(pool[i]);
+  while(picked.length < n && seen.size < cand.length){
+    const j = cand[Math.floor(rnd() * cand.length)];
+    if(seen.has(j)) continue; seen.add(j);
+    picked.push(j);
   }
   return picked;
 }
+function seededSongs(seed, n){ return seededIdx(seed, n).map(i => stablePool()[i]); }
 function dailySongs(n){ return seededSongs(dailyNumber() * 2654435761, n); }
 function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }catch(e){ return {}; } }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
@@ -5265,12 +5278,8 @@ function parseChallengeHash(){
 }
 // create-your-own challenge: random songs, play, then send the gauntlet
 async function startFreshChallenge(){
-  const pool = stablePool();
-  const idx = [], seen = new Set();
-  while(idx.length < RUN_LEN+1 && seen.size < pool.length){
-    const i = Math.floor(Math.random() * pool.length);
-    if(seen.has(i)) continue; seen.add(i); idx.push(i);
-  }
+  // same clustered picker as the daily, just with a random seed
+  const idx = seededIdx(Math.floor(Math.random() * 2147483647), RUN_LEN + 1);
   S.challenge = { idx, beat: null, beatTime: null };
   await startChallenge();
   S.challenge = null;   // self-made: no incoming-challenge card back on setup
