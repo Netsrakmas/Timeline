@@ -242,7 +242,7 @@
 
 <script>
 "use strict";
-const BUILD = "v23";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "v24";   // keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4120,6 +4120,9 @@ function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
 function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
 function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="classic" && S.turbo); }
+const PLAYER_COLORS = ["var(--gold)","var(--cyan)","var(--violet)","var(--good)","#FF8AC2","#FFA94B"];
+// owner -1 = the neutral anchor card (muted, so it doesn't read as player 1's)
+function ownerColor(i){ return i==null ? "" : i<0 ? "var(--muted)" : PLAYER_COLORS[i % PLAYER_COLORS.length]; }
 
 /* ---------- year-correction reports (owner-reviewed, never auto-applied) ----------
    Fill REPORT with a Google Form's POST url + entry ids to enable the button.
@@ -4439,11 +4442,20 @@ function resumeSaved(){
 function startGame(){
   bgRun++;   // invalidate any background loader from a previous game
   if(S.mode!=="daily" && S.mode!=="challenge") shuffle(S.deck);   // seeded runs: the order IS the puzzle
-  // seed each player with one freebie card so the first placement has a reference point
-  S.players.forEach(p=>{
+  if(isRun()){
+    // runs play on ONE shared timeline: a single neutral anchor, and every
+    // player's locked cards land on the same board (colored per player)
     const c = drawCard();
-    if(c){ S.used.add(c.id); p.timeline = [c]; }
-  });
+    const board = [];
+    if(c){ S.used.add(c.id); c.owner = -1; board.push(c); }
+    S.players.forEach(p => { p.timeline = board; });   // same array reference
+  } else {
+    // classic/survival: seed each player their own freebie reference card
+    S.players.forEach(p=>{
+      const c = drawCard();
+      if(c){ S.used.add(c.id); p.timeline = [c]; }
+    });
+  }
   S.turn = 0;
   if(S.mode==="survival"){ S.lives = 3; S.score = 0; S.streak = 0; S.bestStreak = 0; }
   if(isRun()){
@@ -4464,6 +4476,8 @@ async function nextTurn(){
   S.pendingSlot = null;
   S.checkingTrack = false;
   S.checkMessage = "";
+  S.current = null;   // no stale card while we draw/wait — otherwise the slots stay
+                      // tappable and a tap "re-places" last turn's card (ghost turn)
   let c = drawCard();
   if(!c && S.loadingMore){
     // background loader is still fetching — wait for more cards, don't end the game
@@ -4526,6 +4540,7 @@ function chooseSlot(idx){
   const run = isRun();
   // classic/survival: only correct cards stay. Runs: EVERY card locks at its
   // true year (right or wrong) so the board densifies and the run gets harder.
+  if(run) S.current.owner = S.turn;   // who placed it — colors the shared board
   if((correct || run) && !p.timeline.some(c => c.id === S.current.id)){
     p.timeline.push(S.current);
     p.timeline.sort((a,b)=>a.year-b.year);
@@ -4861,7 +4876,8 @@ function renderGame(){
         <span class="ins">+</span><span class="rng">${rng}</span></button>`;
     }
     if(i<tl.length){
-      slotsHTML += `<div class="placed"><div class="yr">${tl[i].year}</div>
+      const oc = ownerColor(tl[i].owner);
+      slotsHTML += `<div class="placed"${oc?` style="border-color:${oc}"`:``}><div class="yr"${oc?` style="color:${oc}"`:``}>${tl[i].year}</div>
         <div><div class="ti">${esc(tl[i].name)}</div><div class="ar">${esc(tl[i].artist)}</div></div></div>`;
     }
   }
@@ -4892,10 +4908,15 @@ function renderGame(){
          <span class="lb2-sc" style="flex:0 0 auto">best ${(loadBest().cards||0)}</span>
        </div></div>`
     : run
-    ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
-         <span style="font-size:16px; letter-spacing:2px; flex:0 0 auto">${runSquares}</span>
-         <span class="lb2-sc" style="min-width:auto; flex:1; text-align:right">song <b style="color:var(--text)">${Math.min((p.tries||0)+1, RUN_LEN)}/${RUN_LEN}</b> · score ${p.hits||0}</span>
-       </div></div>`
+    ? (S.players.length>1
+      ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
+           <span style="flex:1; font-size:13px">${S.players.map((pl,i)=>`<span style="color:${ownerColor(i)}; font-weight:700; margin-right:10px">● ${esc(pl.name)} ${pl.hits||0}/${RUN_LEN}</span>`).join("")}</span>
+           <span class="lb2-sc" style="flex:0 0 auto">song ${Math.min((p.tries||0)+1, RUN_LEN)}/${RUN_LEN}</span>
+         </div></div>`
+      : `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
+           <span style="font-size:16px; letter-spacing:2px; flex:0 0 auto">${runSquares}</span>
+           <span class="lb2-sc" style="min-width:auto; flex:1; text-align:right">song <b style="color:var(--text)">${Math.min((p.tries||0)+1, RUN_LEN)}/${RUN_LEN}</b> · score ${p.hits||0}</span>
+         </div></div>`)
     : `<div class="lb2">${lbHTML}</div>`;
 
   app().innerHTML = `
@@ -4922,7 +4943,7 @@ function renderGame(){
     </div>
 
     <div style="height:18px"></div>
-    <p class="tl-label">${(survival||run) ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
+    <p class="tl-label">${run ? (S.players.length>1 ? 'Shared timeline' : 'Your timeline') : survival ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
     ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Oldest first · reads left → right, top → bottom</div>
   `;
@@ -5037,6 +5058,8 @@ function overlayGameOver(deckEmpty, winner){
 
 /* ---------- run results (turbo / daily / challenge) ---------- */
 function overlayRunOver(){
+  S.current = null;
+  renderGame();   // repaint the final board behind the results (last card included)
   const daily = S.mode==="daily", chal = S.mode==="challenge";
   const solo = S.players.length===1;
   const me = S.players[0];
@@ -5047,7 +5070,10 @@ function overlayRunOver(){
   if(!solo){
     const ranked = [...S.players].sort((a,b)=>(b.hits||0)-(a.hits||0));
     const top = ranked[0].hits||0;
-    const rows = ranked.map(pl=>`<div style="font-size:14px; margin:5px 0">${(pl.hits||0)===top?'🏆 ':''}${esc(pl.name)} — <b>${pl.hits||0}/${RUN_LEN}</b> <span style="font-size:12px; letter-spacing:1px">${squares(pl)}</span></div>`).join("");
+    const rows = ranked.map(pl=>{
+      const oc = ownerColor(S.players.indexOf(pl));
+      return `<div style="font-size:14px; margin:5px 0">${(pl.hits||0)===top?'🏆 ':''}<span style="color:${oc}; font-weight:700">● ${esc(pl.name)}</span> — <b>${pl.hits||0}/${RUN_LEN}</b> <span style="font-size:12px; letter-spacing:1px">${squares(pl)}</span></div>`;
+    }).join("");
     buzz([0,30,40,30,40,90]);
     sheet.innerHTML = `
       <div class="winner-emoji">⚡</div>

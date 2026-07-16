@@ -47,7 +47,10 @@ async function placeN(pg, n, collectTitles){
     await pg.waitForSelector('#overlay.show',{timeout:5000});
     if(collectTitles) titles.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
     await pg.click('#sheet .btn.primary');
-    await pg.waitForTimeout(350);
+    // wait until the overlay actually closed before hunting the next slot —
+    // otherwise a click can land in the between-turns window (disabled slots)
+    await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:5000}).catch(()=>{});
+    await pg.waitForTimeout(250);
   }
   return titles;
 }
@@ -76,7 +79,16 @@ async function placeN(pg, n, collectTitles){
   await placeN(pg, 10);   // 2 players x 5, reveal button rotates automatically
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/WINS/.test(sheet) || !(sheet.match(/\/5/g)||[]).length>=2) throw new Error('turbo multi ranking wrong: '+sheet.slice(0,160));
-  console.log('turbo 2p: ranking OK ·', sheet.slice(0, 90));
+  const placed = await pg.$$eval('.placed', e=>e.length);
+  if(placed !== 11){
+    const st = await pg.evaluate(()=>({board:S.players[0].timeline.map(c=>c.name+':'+c.year+':o'+c.owner),
+      tries:S.players.map(p=>p.tries), hits:S.players.map(p=>p.hits), deck:S.deck.length, used:S.used.size}));
+    console.log('DEBUG state:', JSON.stringify(st,null,1));
+    throw new Error('board not shared: expected 11 placed cards (1 anchor + 10 locked), got '+placed);
+  }
+  const colored = await pg.$$eval('.placed .yr[style]', e=>e.length);
+  if(colored < 10) throw new Error('owner colors missing: only '+colored+' colored cards');
+  console.log('turbo 2p: ranking OK · shared board (11 cards, '+colored+' colored)');
   await ctx.close();
 
   // --- daily: play, record, share text, challenge link out ---
