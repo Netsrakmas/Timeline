@@ -261,7 +261,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.2.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.2.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4202,6 +4202,41 @@ document.addEventListener("visibilitychange", ()=>{
    Sends only: title, artist, old year, new year, build. No personal data. */
 /* Ko-fi tip jar — set the url to show a support link in the footer */
 const KOFI_URL = "";
+/* Daily leaderboard — set url to the deployed Worker (see server/README.md)
+   and the ranking UI turns on. Sends only: device token, nickname, score,
+   time. One-shot per day is enforced server-side too. */
+const LB = { url:"" };
+function deviceId(){
+  let d = store.get("tl_device");
+  if(!d){ d = [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join(""); store.set("tl_device", d); }
+  return d;
+}
+function lbNick(){ return (store.get("tl_nick")||"").trim() || "Player"; }
+async function lbSubmitDaily(score, timeMs){
+  if(!LB.url) return null;
+  try{
+    const r = await fetch(LB.url+"/daily", { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ day: dailyNumber(), device: deviceId(), nick: lbNick(), score, timeMs }) });
+    return r.ok ? await r.json() : null;
+  }catch(e){ return null; }
+}
+async function lbFetchDaily(){
+  if(!LB.url) return null;
+  try{ const r = await fetch(LB.url+"/daily?device="+deviceId()); return r.ok ? await r.json() : null; }catch(e){ return null; }
+}
+function lbLineHTML(b){
+  if(!b || !b.me) return `<span class="muted">leaderboard unavailable</span>`;
+  const medal = b.me.rank===1 ? "🥇" : b.me.rank===2 ? "🥈" : b.me.rank===3 ? "🥉" : "🌍";
+  const mini = (b.top||[]).slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} ${esc(t.nick)} ${t.score}/${RUN_LEN}`).join(" · ");
+  return `${medal} <b>#${b.me.rank}</b> of ${b.total} today${mini ? `<div class="muted" style="font-size:11.5px; margin-top:3px">${mini}</div>` : ``}`;
+}
+function saveNick(v){
+  store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,16));
+  const d = loadDaily();
+  if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0).then(b=>{
+    const el = document.getElementById("lbline"); if(el && b) el.innerHTML = lbLineHTML(b);
+  });
+}
 /* GoatCounter events: page views count automatically; these answer "do shared
    links convert into games?". Anonymous + cookieless; retries because the
    analytics script loads async and may land after boot. */
@@ -4800,7 +4835,7 @@ function renderSetup(){
         <div>
           <div class="eyebrow">📅 daily challenge #${dNum}</div>
           <div class="muted" style="font-size:12.5px; margin-top:4px">${dailyDone
-            ? `Done — <b style="color:var(--text)">${dState.score}/${RUN_LEN}</b> · streak 🔥${dState.streak||1}`
+            ? `Done — <b style="color:var(--text)">${dState.score}/${RUN_LEN}</b> · streak 🔥${dState.streak||1}<span id="dailyLbMini"></span>`
             : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
         </div>
         ${dailyDone
@@ -4901,6 +4936,10 @@ function renderSetup(){
       <a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
   `;
   renderPlayers();
+  if(dailyDone && LB.url) lbFetchDaily().then(b=>{
+    const el = document.getElementById("dailyLbMini");
+    if(el && b && b.me) el.textContent = " · 🌍 #"+b.me.rank+"/"+b.total;
+  });
 }
 
 function renderPlayers(){
@@ -5305,12 +5344,21 @@ function overlayRunOver(){
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
     <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
     ${streakLine}
+    ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>
+    <div class="row" style="justify-content:center; align-items:center; gap:6px; margin:2px 0 4px">
+      <span class="muted" style="font-size:11px">playing as</span>
+      <input value="${esc(lbNick())}" maxlength="16" aria-label="Leaderboard nickname"
+        style="width:110px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
+    </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
     ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;
   document.getElementById("overlay").classList.add("show");
+  if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0).then(b=>{
+    const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
+  });
 }
 function shareDaily(){
   const d = loadDaily();

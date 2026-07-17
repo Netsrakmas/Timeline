@@ -1,0 +1,102 @@
+// E2E: daily leaderboard client — submit after the daily, rank line + top-3,
+// nickname edit resubmits, setup card shows the mini rank. API stubbed.
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright-core');
+
+const ROOT = '/home/user/Timeline';
+const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+function makeWav(){
+  const sr=8000,n=3200;const d=Buffer.alloc(n*2);
+  for(let i=0;i<n;i++)d.writeInt16LE((Math.floor(i/40)%2)?4000:-4000,i*2);
+  const h=Buffer.alloc(44);h.write('RIFF',0);h.writeUInt32LE(36+d.length,4);h.write('WAVEfmt ',8);
+  h.writeUInt32LE(16,16);h.writeUInt16LE(1,20);h.writeUInt16LE(1,22);h.writeUInt32LE(sr,24);
+  h.writeUInt32LE(sr*2,28);h.writeUInt16LE(2,32);h.writeUInt16LE(16,34);h.write('data',36);h.writeUInt32LE(d.length,40);
+  return Buffer.concat([h,d]);
+}
+const WAV = makeWav();
+const server = http.createServer((req,res)=>{
+  let p = decodeURIComponent(req.url.split('?')[0]); if(p==='/')p='/index.html';
+  if(p==='/clip.wav'){res.writeHead(200,{'Content-Type':'audio/wav','Access-Control-Allow-Origin':'*'});return res.end(WAV);}
+  const f = path.join(ROOT,p);
+  if(!f.startsWith(ROOT)||!fs.existsSync(f)){res.writeHead(404);return res.end();}
+  res.writeHead(200,{'Content-Type':p.endsWith('.html')?'text/html':'application/octet-stream'});
+  fs.createReadStream(f).pipe(res);
+});
+
+(async()=>{
+  await new Promise(r=>server.listen(8085,r));
+  const base='http://localhost:8085/';
+  const browser = await chromium.launch({executablePath:CHROME,args:['--autoplay-policy=no-user-gesture-required']});
+  const ctx = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
+  const pg = await ctx.newPage();
+  pg.on('pageerror',e=>console.log('PAGEERROR:',e.message));
+  let tid=1;
+  await pg.route(/itunes\.apple\.com/, route=>{
+    const u=new URL(route.request().url());const cb=u.searchParams.get('callback');const term=u.searchParams.get('term')||'x';
+    route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:'http://localhost:8085/clip.wav'}]})})`});
+  });
+
+  const posts = [], gets = [];
+  await pg.route(/lb\.test/, route=>{
+    const req = route.request();
+    const body = { day: 16, total: 42,
+      me: { nick:'Player', score: 2, timeMs: 9000, rank: 7 },
+      top: [{nick:'Ace',score:5,timeMs:8000},{nick:'Bo',score:4,timeMs:9000},{nick:'Cy',score:4,timeMs:12000}] };
+    if(req.method()==='POST'){ posts.push(JSON.parse(req.postData())); }
+    else gets.push(req.url());
+    route.fulfill({ contentType:'application/json', body: JSON.stringify(body),
+      headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'} });
+  });
+
+  await pg.goto(base,{waitUntil:'load'});
+  await pg.waitForTimeout(700);
+  await pg.evaluate(()=>{ LB.url = 'https://lb.test'; });
+
+  // play the daily
+  await pg.click('text=▶ Play');
+  for(let i=1;i<=5;i++){
+    await pg.waitForSelector('.slot.active',{timeout:20000});
+    await pg.click('.slot.active');
+    await pg.waitForSelector('#overlay.show',{timeout:5000});
+    await pg.click('#sheet .btn.primary');
+    await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:5000}).catch(()=>{});
+    await pg.waitForTimeout(250);
+  }
+  await pg.waitForTimeout(600);
+  const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/#7 of 42 today/.test(sheet)) throw new Error('rank line missing: '+sheet.slice(0,220));
+  if(!/Ace 5\/5/.test(sheet) || !/Cy 4\/5/.test(sheet)) throw new Error('top-3 missing: '+sheet.slice(0,220));
+  if(!/playing as/.test(sheet)) throw new Error('nickname field missing');
+  if(posts.length!==1) throw new Error('expected 1 submit, got '+posts.length);
+  const p0 = posts[0];
+  if(!/^[a-f0-9]{32}$/.test(p0.device) || p0.score==null || p0.timeMs==null || p0.day==null) throw new Error('bad submit payload: '+JSON.stringify(p0));
+  console.log('daily submit + rank line + top-3 OK ·', JSON.stringify({day:p0.day, score:p0.score}));
+
+  // nickname edit → resubmit with new nick (score untouched server-side)
+  await pg.$eval('#sheet input[aria-label="Leaderboard nickname"]', e=>{ e.value='Sam'; e.dispatchEvent(new Event('change')); });
+  await pg.waitForTimeout(400);
+  if(posts.length!==2 || posts[1].nick!=='Sam') throw new Error('nick resubmit missing: '+JSON.stringify(posts[1]||null));
+  console.log('nickname edit resubmits OK');
+
+  // back on setup: daily card shows the mini rank (via GET)
+  await pg.click('#sheet button:has-text("Done")');
+  await pg.waitForTimeout(600);
+  const card = await pg.$eval('#app', e=>e.innerText);
+  if(!/🌍 #7\/42/.test(card)) throw new Error('setup mini rank missing: '+card.slice(0,200));
+  if(gets.length<1) throw new Error('expected a GET for the setup card');
+  console.log('setup card mini rank OK');
+
+  // and with LB.url empty (default), nothing leaderboard-ish must render
+  const ctx2 = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
+  const pg2 = await ctx2.newPage();
+  await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
+  const off = await pg2.$eval('#app', e=>e.innerText);
+  if(/🌍|playing as/.test(off)) throw new Error('leaderboard UI leaked while disabled');
+  console.log('disabled by default (LB.url empty) OK');
+  await ctx2.close();
+
+  console.log('LEADERBOARD TEST PASS ✓');
+  await browser.close(); server.close();
+})().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});
