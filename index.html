@@ -261,7 +261,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.0.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4761,6 +4761,35 @@ function renderSetup(){
        <div style="flex:1">${deckCardHTML(d, d.songs.length)}</div>
        <button class="btn iconbtn ghost" title="Edit deck" onclick="editDeck('${d.id}')">✎</button>
      </div>`).join("");
+  // Incoming link carries a score AND we've played this set → it's a result
+  // coming back: show the verdict. (Unless the score+time are our own — then
+  // it's just our own link and the "your challenge" card below handles it.)
+  let chalResultHTML = "";
+  if(S.challenge && S.challenge.beat != null){
+    const mine = chalPlayed(S.challenge.idx);
+    const ownEcho = mine && mine.m && S.challenge.beat === mine.s
+      && (S.challenge.beatTime == null || S.challenge.beatTime === Math.round((mine.t||0)/1000)*1000);
+    if(mine && !ownEcho){
+      const tS = S.challenge.beat, tT = S.challenge.beatTime;
+      const both = `their <b style="color:var(--text)">${tS}/${RUN_LEN}</b>${tT?` ⏱ ${fmtTime(tT)}`:``} vs your <b style="color:var(--text)">${mine.s}/${RUN_LEN}</b>${mine.t?` ⏱ ${fmtTime(mine.t)}`:``}`;
+      let icon, line;
+      if(tS > mine.s){ icon="😤"; line=`They beat you — ${both}.`; }
+      else if(tS < mine.s){ icon="🏆"; line=`You're still on top — ${both}.`; }
+      else if(tT && mine.t && tT !== Math.round((mine.t||0)/1000)*1000){
+        icon = tT < mine.t ? "😤" : "🏆";
+        line = `Tie on cards, ${tT < mine.t ? "they were faster" : "you were faster"} — ${both}.`;
+      } else { icon="🤝"; line=`Dead even — ${both}.`; }
+      chalResultHTML = `
+    <div class="card" style="border-color:var(--violet)">
+      <div class="eyebrow" style="color:var(--violet)">🏁 challenge result ${icon}</div>
+      <div class="muted" style="font-size:12.5px; margin-top:4px">${line}</div>
+      <div class="row" style="margin-top:10px; gap:8px">
+        <button class="btn sm pink" onclick="startFreshChallenge()">⚔️ Rematch — new songs</button>
+        <button class="btn sm" onclick="shareChallengeBack()">📤 Send result</button>
+      </div>
+    </div>`;
+    }
+  }
   app().innerHTML = `
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
@@ -4780,7 +4809,7 @@ function renderSetup(){
       </div>
     </div>
 
-    ${S.challenge ? (chalPlayed(S.challenge.idx) ? `
+    ${S.challenge ? (chalResultHTML || (chalPlayed(S.challenge.idx) ? `
     <div class="card" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
@@ -4800,7 +4829,7 @@ function renderSetup(){
         </div>
         <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
       </div>
-    </div>`) : `
+    </div>`)) : `
     <div class="card" role="button" tabindex="0" style="cursor:pointer" onclick="startFreshChallenge()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>

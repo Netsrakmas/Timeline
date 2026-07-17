@@ -112,7 +112,7 @@ async function placeN(pg, n, collectTitles){
   if(!m) throw new Error('challenge link not in share text: '+shared);
   const chalHash = m[0];
   console.log('daily: results + challenge link OK ·', chalHash.slice(0,26)+'…');
-  await pg.click('text=Done');
+  await pg.click('#sheet button:has-text("Done")');
   await pg.waitForTimeout(400);
   const cardTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/Done —/.test(cardTxt)) throw new Error('daily card not in done state');
@@ -124,6 +124,15 @@ async function placeN(pg, n, collectTitles){
   const ownTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/your challenge/i.test(ownTxt) || !/Send it to friends/.test(ownTxt)) throw new Error('own-link card wrong: '+ownTxt.slice(0,220));
   console.log('own challenge link: shows YOUR challenge + send prompt OK');
+  // a link with a DIFFERENT score on the same set = a friend's result coming back
+  const sM = chalHash.match(/&s=(\d+)/); const friendS = (+sM[1]) > 0 ? +sM[1]-1 : +sM[1]+1;
+  const resHash = chalHash.replace(/&s=\d+/, '&s='+friendS).replace(/&t=\d+/, '&t=1');
+  await pg.goto(base + resHash, {waitUntil:'load'});
+  await pg.reload(); await pg.waitForTimeout(600);
+  const resTxt = await pg.$eval('#app', e=>e.innerText);
+  if(!/challenge result/i.test(resTxt) || !/vs your/.test(resTxt) || !/Rematch/.test(resTxt))
+    throw new Error('friend-result card missing: '+resTxt.slice(0,220));
+  console.log('friend result link: verdict card OK ('+friendS+'/5 vs own)');
   await ctx.close();
 
   // --- daily determinism (fresh profile) ---
@@ -153,15 +162,19 @@ async function placeN(pg, n, collectTitles){
     throw new Error('challenge songs differ from the shared run');
   }
   console.log('challenge roundtrip: same songs + verdict OK');
-  // one-shot lock: back on setup (and after reload) the set can't be replayed
-  await pg.click('text=Done');
+  // back on setup: the link carries the challenger's score and we've played —
+  // that's a RESULT card (verdict vs their score), with rematch + send-back.
+  // No Play button anywhere on it = the one-shot lock still holds.
+  await pg.click('#sheet button:has-text("Done")');
   await pg.waitForTimeout(400);
   let lockTxt = await pg.$eval('#app', e=>e.innerText);
-  if(!/already played these/i.test(lockTxt) || !/Send result/.test(lockTxt)) throw new Error('one-shot lock missing after play: '+lockTxt.slice(0,200));
+  if(!/challenge result/i.test(lockTxt) || !/vs your/.test(lockTxt)) throw new Error('result card missing after play: '+lockTxt.slice(0,220));
+  if(!/Rematch/.test(lockTxt) || !/Send result/.test(lockTxt)) throw new Error('result card buttons missing');
+  if(/Beat their/.test(lockTxt)) throw new Error('play card leaked through — one-shot lock broken');
   await pg.reload(); await pg.waitForTimeout(700);
   lockTxt = await pg.$eval('#app', e=>e.innerText);
-  if(!/already played these/i.test(lockTxt)) throw new Error('one-shot lock lost after reload');
-  console.log('challenge one-shot lock: OK (incl. reload)');
+  if(!/challenge result/i.test(lockTxt)) throw new Error('result card lost after reload');
+  console.log('challenge result card: verdict + rematch shown, lock holds (incl. reload)');
   await ctx.close();
 
   // --- fresh self-made challenge: create, play, share, card resets ---
@@ -178,7 +191,7 @@ async function placeN(pg, n, collectTitles){
   await pg.waitForTimeout(300);
   const shared2 = await pg.evaluate(()=>window.__shared);
   if(!shared2 || !/#c=[\d.]+&s=\d/.test(shared2)) throw new Error('fresh challenge share link missing: '+shared2);
-  await pg.click('text=Done');
+  await pg.click('#sheet button:has-text("Done")');
   await pg.waitForTimeout(400);
   const after = await pg.$eval('#app', e=>e.innerText);
   if(!/challenge a friend/i.test(after) || /Beat their/.test(after)) throw new Error('setup should show the CREATE card again, not an incoming one');
