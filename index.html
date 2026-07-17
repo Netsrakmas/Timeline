@@ -110,8 +110,19 @@
   .row:has(> input) .iconbtn{ height:auto; }
   /* a search result that's in the deck — instant feedback where you tapped */
   .btn.added{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border:none; opacity:1; cursor:default;}
-  /* the start button rides along while you scroll the (long) setup page */
-  .startbar{position:sticky; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:5; margin-top:16px;}
+  /* the start button rides along while you scroll — docked on a fade so it
+     never reads as a stray button floating on top of the deck chips */
+  .startbar{position:sticky; bottom:0; z-index:5; margin:16px -6px 0; padding:12px 6px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg, rgba(3,5,13,0), rgba(3,5,13,.92) 45%);}
+  /* segmented 2-up mode toggle */
+  .diffs.duo{flex-direction:row;}
+  .duo .diff{flex:1; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 13px;}
+  .duo .diff .dcards{font-size:11px;}
+  /* game length as one wrapping chip row */
+  .diffs.chips{flex-direction:row; flex-wrap:wrap; gap:8px;}
+  .chips .diff{flex:0 0 auto; width:auto; border-radius:999px; padding:10px 14px;}
+  .chips .diff .dname{font-size:13.5px;}
+  .card.slim{padding:13px 15px;}
   .topbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
   .sect{font-size:12px; letter-spacing:.28em; text-transform:uppercase; font-weight:700; margin:24px 2px 10px;}
   .topbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
@@ -266,7 +277,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.8.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.9.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4919,7 +4930,7 @@ function renderSetup(){
     <div class="sect" style="color:var(--cyan); margin-top:0">🌍 online</div>
     <div id="chalNews"></div>
 
-    <div class="card" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
+    <div class="card slim" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow">📅 daily challenge #${dNum}</div>
@@ -4934,7 +4945,7 @@ function renderSetup(){
     </div>
 
     ${S.challenge ? (chalResultHTML || (chalPlayed(S.challenge.idx) ? `
-    <div class="card" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
+    <div class="card slim" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">${chalPlayed(S.challenge.idx).m ? '🎯 your challenge' : '🎯 friend challenge'}</div>
@@ -4946,7 +4957,7 @@ function renderSetup(){
         <button class="btn sm" style="flex:0 0 auto">${chalPlayed(S.challenge.idx).m ? '⚔️ Challenge' : '📤 Send result'}</button>
       </div>
     </div>` : `
-    <div class="card" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
+    <div class="card slim" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
@@ -4956,7 +4967,7 @@ function renderSetup(){
         <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
       </div>
     </div>`)) : `
-    <div class="card" role="button" tabindex="0" style="cursor:pointer" onclick="startFreshChallenge()">
+    <div class="card slim" role="button" tabindex="0" style="cursor:pointer" onclick="startFreshChallenge()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
@@ -4965,17 +4976,6 @@ function renderSetup(){
         <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
     </div>`}
-
-    <div class="sect" style="color:var(--gold)">🎧 on this phone</div>
-
-    <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">mode</div>
-      <div style="height:10px"></div>
-      <div class="diffs">
-        <button class="diff ${S.mode==='classic'?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">one phone · pass it round</span></button>
-        <button class="diff ${survival?'sel':''}" onclick="setMode('survival')"><span class="dname">🎯 Survival</span><span class="dcards">solo · 3 lives · endless</span></button>
-      </div>
-    </div>
 
     ${hasSavedGame() ? `
     <div class="card" style="border-color:var(--cyan)">
@@ -4986,41 +4986,46 @@ function renderSetup(){
       <button class="btn ghost sm" style="margin-top:8px" onclick="discardSaved()">Discard &amp; start fresh</button>
     </div>` : ``}
 
+    <div class="sect" style="color:var(--gold)">🎧 on this phone</div>
+
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">music</div>
+      <div class="diffs duo">
+        <button class="diff ${S.mode==='classic'?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">one phone · pass it round</span></button>
+        <button class="diff ${survival?'sel':''}" onclick="setMode('survival')"><span class="dname">🎯 Survival</span><span class="dcards">solo · 3 lives · endless</span></button>
+      </div>
+
+      <div class="eyebrow" style="color:var(--cyan); margin-top:18px">music</div>
       <div style="height:10px"></div>
       ${deckCarouselHTML()}
       ${custom ? `<div style="height:8px"></div><label class="fld">Your decks</label><div class="deck-list">${custom}</div>` : ``}
-      <button class="btn ghost sm" style="margin-top:10px" onclick="newDeck()">+ Build your own deck</button>
-      <div class="hint" id="deckTally">${tallyHTML()}</div>
-    </div>
+      <div class="row" style="justify-content:space-between; align-items:center; margin-top:10px">
+        <button class="btn ghost sm" onclick="newDeck()">+ Build your own deck</button>
+        <span class="hint" id="deckTally" style="margin:0">${tallyHTML()}</span>
+      </div>
 
-    ${survival ? `
-    <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 2 · survival</div>
+      ${survival ? `
+      <div class="eyebrow" style="color:var(--cyan); margin-top:18px">you</div>
       <div style="height:10px"></div>
-      <label class="fld" for="soloName">Your name (optional)</label>
-      <input id="soloName" type="text" placeholder="You" value="${esc((S.players[0]&&S.players[0].name)||'')}" oninput="renamePlayer(0, this.value)" />
-      <div class="hint">Place each track on your timeline. <b>3 lives</b> — a wrong guess costs one. The run never ends until you're out of lives; just go as long as you can. It gets harder on its own as the gaps tighten.</div>
+      <input id="soloName" type="text" placeholder="Your name (optional)" value="${esc((S.players[0]&&S.players[0].name)||'')}" oninput="renamePlayer(0, this.value)" />
+      <div class="hint">3 lives — a wrong guess costs one. Go as long as you can.</div>
       <div style="height:12px"></div>
       <div class="lb2"><div class="lb2-row" style="justify-content:space-around">
         <span class="lb2-sc" style="min-width:auto">🎯 best run · <b style="color:var(--text)">${(loadBest().cards||0)}</b> placed</span>
         <span class="lb2-sc" style="min-width:auto">🔥 best streak · <b style="color:var(--text)">${(loadBest().streak||0)}</b></span>
-      </div></div>
-    </div>` : `
-    <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">players</div>
+      </div></div>` : `
+      <div class="eyebrow" style="color:var(--cyan); margin-top:18px">players</div>
       <div style="height:10px"></div>
       <div class="players-list" id="players"></div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="addPlayer()">+ Add player</button>
-      <div style="height:16px"></div>
-      <label class="fld">Game length</label>
-      <div class="diffs" id="diffSel">
-        <button class="diff ${S.turbo?'sel':''}" onclick="setTurbo()"><span class="dname">⚡ Turbo</span><span class="dcards">${RUN_LEN} songs each · ~3 min</span></button>
-        ${DIFFICULTIES.map(d=>`<button class="diff ${!S.turbo && S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">first to ${d.n}</span></button>`).join("")}
+
+      <div class="eyebrow" style="color:var(--cyan); margin-top:18px">game length</div>
+      <div style="height:10px"></div>
+      <div class="diffs chips" id="diffSel">
+        <button class="diff ${S.turbo?'sel':''}" onclick="setTurbo()"><span class="dname">⚡ Turbo · 3 min</span></button>
+        ${DIFFICULTIES.map(d=>`<button class="diff ${!S.turbo && S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">first to ${d.n}</span></button>`).join("")}
       </div>
-      ${S.turbo ? `<div class="hint">Everyone places ${RUN_LEN} mystery songs on their own timeline — every card <b>locks at its true year</b>, right or wrong. Highest score wins.${(loadBest().turbo)?` Solo best: <b>${loadBest().turbo}/${RUN_LEN}</b>.`:''}</div>` : ``}
-    </div>`}
+      ${S.turbo ? `<div class="hint">Everyone places ${RUN_LEN} mystery songs on one shared timeline — every card <b>locks at its true year</b>. Highest score wins.${(loadBest().turbo)?` Solo best: <b>${loadBest().turbo}/${RUN_LEN}</b>.`:''}</div>` : ``}`}
+    </div>
 
     <div class="startbar"><button class="btn pink" style="font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo' : '▶ Start game'}</button></div>
 
