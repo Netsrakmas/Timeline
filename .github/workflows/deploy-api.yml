@@ -15,6 +15,17 @@ jobs:
         with:
           node-version: 20
 
+      - name: Verify the Cloudflare token before doing anything
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::secret CLOUDFLARE_API_TOKEN is empty or missing"; exit 1; fi
+          TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          RESP=$(curl -sS -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)
+          echo "$RESP" | grep -q '"success":\s*true' \
+            || { echo "::error::Cloudflare rejected the token (wrong value, or the token was revoked). Response: $RESP"; exit 1; }
+          echo "token verified ✓"
+
       - name: Create D1 database if missing, wire its id into wrangler.toml
         working-directory: server
         env:
