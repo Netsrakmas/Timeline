@@ -263,7 +263,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.5.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.6.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4247,6 +4247,10 @@ function saveNick(v){
   if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el && b) el.innerHTML = lbLineHTML(b);
   });
+  // refresh the name on recent set boards too (server keeps the score, takes the nick)
+  const c = loadChals();
+  Object.entries(c).filter(([k,e])=>e.at).sort((a,b)=>b[1].at-a[1].at).slice(0,5)
+    .forEach(([k,e])=>lbSubmitChal(k, e.s, Math.max(e.t||0, 500)));
 }
 /* challenge-set boards: every finished run on a shared set reports to /chal,
    so the challenger SEES who played their set — no send-back link needed */
@@ -4263,7 +4267,8 @@ async function lbFetchChal(setkey){
   try{ const r = await fetch(LB.url+"/chal?set="+encodeURIComponent(setkey)+"&device="+deviceId()); return r.ok ? await r.json() : null; }catch(e){ return null; }
 }
 function chalOthersHTML(b){
-  const rows = (b && b.results || []).slice(0,5).map(r=>`${r.you?'<b>you</b>':'<b>'+esc(r.nick)+'</b>'} ${r.score}/${RUN_LEN} ⏱ ${fmtTime(r.timeMs)}`);
+  const rows = (b && b.results || []).slice(0,5).map(r=>
+    `${r.you ? `<b>${esc(lbNick())}</b> <span style="opacity:.75">(you)</span>` : '<b>'+esc(r.nick)+'</b>'} ${r.score}/${RUN_LEN} ⏱ ${fmtTime(r.timeMs)}`);
   return rows.length ? `<div class="muted" style="font-size:12.5px; margin-top:8px">🏁 ${b.total} played this set: ${rows.join(" · ")}</div>` : "";
 }
 // "someone played your challenge!" — check own recent sets for new results
@@ -4890,6 +4895,13 @@ function renderSetup(){
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+    ${LB.url ? `
+    <div class="row" style="align-items:center; gap:8px; margin:-6px 0 16px">
+      <span class="muted" style="font-size:13px">🎧 playing as</span>
+      <input value="${esc(lbNick())}" maxlength="20" aria-label="Your player name"
+        style="width:160px; font-size:13.5px; padding:7px 10px"
+        onchange="saveNick(this.value); toast('Name saved — '+lbNick())" />
+    </div>` : ``}
     <div id="chalNews"></div>
 
     <div class="card" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">

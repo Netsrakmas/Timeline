@@ -97,7 +97,8 @@ const server = http.createServer((req,res)=>{
   const card = await pg.$eval('#app', e=>e.innerText);
   if(!/🌍 #7\/42/.test(card)) throw new Error('setup mini rank missing: '+card.slice(0,200));
   if(gets.length<1) throw new Error('expected a GET for the setup card');
-  console.log('setup card mini rank OK');
+  if(!/playing as/.test(card)) throw new Error('identity row missing on setup: '+card.slice(0,160));
+  console.log('setup card mini rank + identity row OK');
 
   // --- step 2: challenge-set boards ---
   // the finished daily also reported to /chal (the set is shareable)
@@ -124,7 +125,8 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(600);
   const chalSheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/2 played this set/.test(chalSheet) || !/Jesse 4\/5/.test(chalSheet)) throw new Error('set board missing on results: '+chalSheet.slice(0,240));
-  console.log('results sheet shows set board with Jesse OK');
+  if(!/\(you\)/.test(chalSheet)) throw new Error('own row not marked (you): '+chalSheet.slice(0,240));
+  console.log('results sheet shows set board with Jesse + (you) marker OK');
 
   // back on setup: Jesse counts as NEW on our own set -> news card
   await pg.click('#sheet button:has-text("Done")');
@@ -145,8 +147,8 @@ const server = http.createServer((req,res)=>{
   await pg2.route(/workers\.dev|lb\.test/, r=>r.abort());   // and a dead API must stay silent
   await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
   const off = await pg2.$eval('#app', e=>e.innerText);
-  if(/🌍|playing as/.test(off)) throw new Error('leaderboard UI leaked before playing');
-  console.log('no leaderboard UI before playing / API errors stay silent OK');
+  if(/🌍|new results/.test(off)) throw new Error('leaderboard UI leaked before playing');
+  console.log('no rank/news UI before playing / API errors stay silent OK');
   await ctx2.close();
 
   console.log('LEADERBOARD TEST PASS ✓');
