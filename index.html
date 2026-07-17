@@ -263,7 +263,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.5.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.5.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5484,8 +5484,11 @@ function parseChallengeHash(){
 }
 // create-your-own challenge: random songs, play, then send the gauntlet
 async function startFreshChallenge(){
-  // same clustered picker as the daily, just with a random seed
-  const idx = seededIdx(Math.floor(Math.random() * 2147483647), RUN_LEN + 1);
+  // same clustered picker as the daily, just with a random seed — WITH spare
+  // candidates: if a preview lookup fails the run still fills its 5 songs.
+  // The shared link is built from S.runCards (the songs actually played), so
+  // it only ever contains resolvable tracks.
+  const idx = seededIdx(Math.floor(Math.random() * 2147483647), RUN_LEN + 5);
   S.challenge = { idx, beat: null, beatTime: null };
   await startChallenge();
   S.challenge = null;   // self-made: no incoming-challenge card back on setup
