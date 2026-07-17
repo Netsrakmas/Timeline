@@ -21,7 +21,7 @@ const json = (obj, status, cors) =>
   new Response(JSON.stringify(obj), { status: status || 200, headers: { ...cors, "content-type": "application/json" } });
 
 function cleanNick(n){
-  const s = String(n == null ? "" : n).replace(/[^\p{L}\p{N} _\-.]/gu, "").replace(/\s+/g, " ").trim().slice(0, 16);
+  const s = String(n == null ? "" : n).replace(/[^\p{L}\p{N} _\-.]/gu, "").replace(/\s+/g, " ").trim().slice(0, 20);
   return s || "Player";
 }
 

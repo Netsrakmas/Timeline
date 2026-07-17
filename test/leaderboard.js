@@ -70,6 +70,7 @@ const server = http.createServer((req,res)=>{
     await pg.waitForSelector('.slot.active',{timeout:20000});
     await pg.click('.slot.active');
     await pg.waitForSelector('#overlay.show',{timeout:5000});
+    if(i===5) break;   // final placement lands straight on the results sheet
     await pg.click('#sheet .btn.primary');
     await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:5000}).catch(()=>{});
     await pg.waitForTimeout(250);
@@ -108,9 +109,14 @@ const server = http.createServer((req,res)=>{
   chalOthers = [{nick:'Jesse',score:4,timeMs:12000}];
   await pg.click('.card:has-text("challenge a friend") >> .muted');
   for(let i=1;i<=5;i++){
-    await pg.waitForSelector('.slot.active',{timeout:20000});
+    try{ await pg.waitForSelector('.slot.active',{timeout:15000}); }
+    catch(e){
+      console.log('DEBUG APP:', (await pg.$eval('#app', x=>x.innerText)).slice(0,500).replace(/\n/g,' | '));
+      console.log('DEBUG state:', await pg.evaluate(()=>JSON.stringify({mode:S.mode, cur:!!S.current, deck:S.deck.length, used:S.used.size, loading:S.loadingMore, chk:S.checkingTrack, msg:S.checkMessage, chal:S.challenge&&S.challenge.idx})));
+      throw e; }
     await pg.click('.slot.active');
     await pg.waitForSelector('#overlay.show',{timeout:5000});
+    if(i===5) break;   // final placement lands straight on the results sheet
     await pg.click('#sheet .btn.primary');
     await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:5000}).catch(()=>{});
     await pg.waitForTimeout(250);

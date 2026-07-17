@@ -74,7 +74,9 @@
   .tag{color:var(--muted); font-size:14px; margin-bottom:22px; line-height:1.5;}
   .card{background:linear-gradient(180deg, #13182E, #0D1121); border:1px solid var(--line); border-radius:var(--r); padding:18px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 26px rgba(0,0,0,.35);}
-  .card + .card{margin-top:14px;}
+  .card + .card{margin-top:16px;}
+  /* the news card lives inside a wrapper div, so the sibling rule misses it */
+  #chalNews .card{margin-bottom:16px;}
   label.fld{display:block; font-size:13px; color:var(--muted); margin:0 0 7px; letter-spacing:.02em;}
   input[type=text], input[type=number]{
     width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
@@ -94,7 +96,7 @@
   .btn:hover{filter:brightness(1.04);}
   .btn.sm{padding:10px 12px; font-size:13px; width:auto; min-height:40px;}
   .btn:disabled{opacity:.45; cursor:not-allowed;}
-  .hint{font-size:12.5px; color:var(--muted); margin-top:9px; line-height:1.55;}
+  .hint{font-size:13.5px; color:var(--muted); margin-top:9px; line-height:1.55;}
   .pill{display:inline-flex; align-items:center; gap:7px; font-size:12px; padding:6px 11px; border-radius:99px;
     border:1px solid var(--line); background:var(--surface);}
   .dot{width:8px; height:8px; border-radius:99px; background:var(--muted);}
@@ -244,7 +246,7 @@
     box-shadow:0 8px 30px rgba(0,0,0,.4); display:none;}
   .toast.show{display:block;}
   #errbar{display:none; position:fixed; top:0; left:0; right:0; z-index:70; background:#3A1418; color:#FFD9D9;
-    border-bottom:1px solid var(--bad); padding:14px 16px; font-size:12.5px; line-height:1.55; white-space:pre-wrap; cursor:pointer;}
+    border-bottom:1px solid var(--bad); padding:14px 16px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; cursor:pointer;}
   .footnote{margin-top:26px; font-size:11.5px; color:var(--muted); text-align:center; line-height:1.6;}
   .footnote a{display:inline-block; padding:6px 2px;}   /* small links, honest tap targets */
   .card[onclick]:focus-visible, .btn:focus-visible, .slot:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
@@ -261,7 +263,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.5.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4211,7 +4213,18 @@ function deviceId(){
   if(!d){ d = [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join(""); store.set("tl_device", d); }
   return d;
 }
-function lbNick(){ return (store.get("tl_nick")||"").trim() || "Player"; }
+// first-timers get a fun anonymous identity instead of "Player" — stored, so
+// it stays consistent on this device until they pick their own
+const NICK_ADJ = ["Incognito","Unknown","Sneaky","Funky","Turbo","Disco","Vinyl","Retro","Groovy","Cosmic","Electric","Shady"];
+const NICK_ANIMAL = ["Badger","Penguin","Walrus","Otter","Llama","Moose","Gecko","Panda","Ferret","Narwhal","Flamingo","Raccoon"];
+function lbNick(){
+  let n = (store.get("tl_nick")||"").trim();
+  if(!n){
+    n = NICK_ADJ[Math.floor(Math.random()*NICK_ADJ.length)] + " " + NICK_ANIMAL[Math.floor(Math.random()*NICK_ANIMAL.length)];
+    store.set("tl_nick", n);
+  }
+  return n.slice(0,20);
+}
 async function lbSubmitDaily(score, timeMs){
   if(!LB.url) return null;
   try{
@@ -4231,7 +4244,7 @@ function lbLineHTML(b){
   return `${medal} <b>#${b.me.rank}</b> of ${b.total} today${mini ? `<div class="muted" style="font-size:11.5px; margin-top:3px">${mini}</div>` : ``}`;
 }
 function saveNick(v){
-  store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,16));
+  store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,20));
   const d = loadDaily();
   if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el && b) el.innerHTML = lbLineHTML(b);
@@ -4253,7 +4266,7 @@ async function lbFetchChal(setkey){
 }
 function chalOthersHTML(b){
   const rows = (b && b.results || []).slice(0,5).map(r=>`${r.you?'<b>you</b>':'<b>'+esc(r.nick)+'</b>'} ${r.score}/${RUN_LEN} ⏱ ${fmtTime(r.timeMs)}`);
-  return rows.length ? `<div class="muted" style="font-size:11.5px; margin-top:6px">🏁 ${b.total} played this set: ${rows.join(" · ")}</div>` : "";
+  return rows.length ? `<div class="muted" style="font-size:12.5px; margin-top:8px">🏁 ${b.total} played this set: ${rows.join(" · ")}</div>` : "";
 }
 // "someone played your challenge!" — check own recent sets for new results
 async function chalNews(){
@@ -4274,7 +4287,7 @@ async function chalNews(){
   if(el && lines.length) el.innerHTML = `
     <div class="card" style="border-color:var(--violet)">
       <div class="eyebrow" style="color:var(--violet)">🏁 new results on your challenges</div>
-      ${lines.map(l=>`<div class="muted" style="font-size:12.5px; margin-top:5px">${l}</div>`).join("")}
+      ${lines.map(l=>`<div class="muted" style="font-size:13.5px; margin-top:5px">${l}</div>`).join("")}
     </div>`;
 }
 /* GoatCounter events: page views count automatically; these answer "do shared
@@ -4421,11 +4434,13 @@ async function loadRest(list, myRun){
   S.loadingMore = true;
   const BATCH = 2, DELAY = 2200;
   for(let i=0;i<list.length;i+=BATCH){
-    if(bgRun !== myRun){ S.loadingMore = false; return; }   // game ended/restarted
+    // a newer game owns the flag now — dying loaders must NOT touch it, or
+    // they'd kill the new game's starvation-wait mid-run (early "ran dry")
+    if(bgRun !== myRun) return;
     await resolveBatch(list.slice(i, i+BATCH));
     await new Promise(r => setTimeout(r, DELAY));
   }
-  S.loadingMore = false;
+  if(bgRun === myRun) S.loadingMore = false;
 }
 
 /* ---------- audio (30s preview clips) ---------- */
@@ -4730,6 +4745,13 @@ function chooseSlot(idx){
   S.used.add(S.current.id);
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
+  // last placement of a run: skip the in-between reveal — the results screen
+  // carries the final song's reveal line itself (one screen, not two)
+  if(run && S.players.every(pl => (pl.tries||0) >= RUN_LEN)){
+    S.lastReveal = { correct, id:S.current.id, year:S.current.year, name:S.current.name, artist:S.current.artist };
+    overlayRunOver();
+    return;
+  }
   overlayReveal(correct, p);
 }
 function advance(){
@@ -4857,7 +4879,7 @@ function renderSetup(){
       chalResultHTML = `
     <div class="card" style="border-color:var(--violet)">
       <div class="eyebrow" style="color:var(--violet)">🏁 challenge result ${icon}</div>
-      <div class="muted" style="font-size:12.5px; margin-top:4px">${line}</div>
+      <div class="muted" style="font-size:13.5px; margin-top:4px">${line}</div>
       <div id="chalSetBoard"></div>
       <div class="row" style="margin-top:10px; gap:8px">
         <button class="btn sm pink" onclick="startFreshChallenge()">⚔️ Rematch — new songs</button>
@@ -4876,7 +4898,7 @@ function renderSetup(){
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow">📅 daily challenge #${dNum}</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">${dailyDone
+          <div class="muted" style="font-size:13.5px; margin-top:4px">${dailyDone
             ? `Done — <b style="color:var(--text)">${dState.score}/${RUN_LEN}</b> · streak 🔥${dState.streak||1}<span id="dailyLbMini"></span>`
             : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
         </div>
@@ -4891,7 +4913,7 @@ function renderSetup(){
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">${chalPlayed(S.challenge.idx).m ? '🎯 your challenge' : '🎯 friend challenge'}</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">${chalPlayed(S.challenge.idx).m
+          <div class="muted" style="font-size:13.5px; margin-top:4px">${chalPlayed(S.challenge.idx).m
             ? `This is your own link — you set <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. Send it to friends!`
             : `You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!`}</div>
           <div id="chalSetBoard"></div>
@@ -4903,7 +4925,7 @@ function renderSetup(){
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
+          <div class="muted" style="font-size:13.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
           <div id="chalSetBoard"></div>
         </div>
         <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
@@ -4913,7 +4935,7 @@ function renderSetup(){
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
-          <div class="muted" style="font-size:12.5px; margin-top:4px">${RUN_LEN} random songs — play, then send your score · as often as you like</div>
+          <div class="muted" style="font-size:13.5px; margin-top:4px">${RUN_LEN} random songs — play, then send your score · as often as you like</div>
         </div>
         <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
@@ -5211,6 +5233,15 @@ async function recheckOverlay(){
   overlayReveal(correct, p);
 }
 
+// data-correction is collapsed and saves for NEXT time only — it can't flip a result
+function flagBlockHTML(id, year){
+  return `<details class="report-yr"><summary>🚩 Wrong year in our data?</summary>
+        <div class="year-fix" style="margin-top:8px;"><span class="muted" style="font-size:11px">correct year</span>
+          <input class="rev-yr" type="number" inputmode="numeric" value="${year}"
+            onchange="saveYear('${id}', this.value); toast('Thanks — fixed for next time.')" /></div>
+        ${REPORT.url ? `<button class="btn ghost sm" style="margin-top:8px" onclick="reportYear('${id}', ${year})">📤 Report this fix so everyone gets it</button>` : ``}
+      </details>`;
+}
 function overlayReveal(correct, p){
   const c = S.current;
   const survival = S.mode==="survival";
@@ -5223,13 +5254,7 @@ function overlayReveal(correct, p){
   S.checkingTrack = false;
   S.checkMessage = "";
   const missHint = !correct ? correctRange(p, c) : "";
-  // data-correction is collapsed and saves for NEXT time only — it can't flip this result
-  const flagBlock = `<details class="report-yr"><summary>🚩 Wrong year in our data?</summary>
-        <div class="year-fix" style="margin-top:8px;"><span class="muted" style="font-size:11px">correct year</span>
-          <input class="rev-yr" type="number" inputmode="numeric" value="${c.year}"
-            onchange="saveYear('${c.id}', this.value); toast('Thanks — fixed for next time.')" /></div>
-        ${REPORT.url ? `<button class="btn ghost sm" style="margin-top:8px" onclick="reportYear('${c.id}', ${c.year})">📤 Report this fix so everyone gets it</button>` : ``}
-      </details>`;
+  const flagBlock = flagBlockHTML(c.id, c.year);
   let sub, btn;
   if(survival){
     const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
@@ -5268,7 +5293,7 @@ function overlayReveal(correct, p){
     <div class="reveal-ar">${esc(c.artist)}</div>
     ${c.view ? `<div><a href="${esc(c.view)}" target="_blank" rel="noopener"
         style="font-size:12px; color:var(--muted); display:inline-block; padding:10px 8px 6px">🎵 Open in Apple Music</a></div>` : ``}
-    ${missHint ? `<div style="font-size:12.5px; color:var(--cyan); margin-top:8px; font-weight:600">↳ belonged ${missHint}</div>` : ``}
+    ${missHint ? `<div style="font-size:13.5px; color:var(--cyan); margin-top:8px; font-weight:600">↳ belonged ${missHint}</div>` : ``}
     ${extra}
     <button class="btn primary" style="margin-top:14px" onclick="advance()">${btn}</button>
   `;
@@ -5322,6 +5347,11 @@ function overlayRunOver(){
   const me = S.players[0];
   const squares = pl => (pl.results||[]).map(r=>r?'🟩':'🟥').join('') + '⬛'.repeat(Math.max(0, RUN_LEN - (pl.results||[]).length));
   const sheet = document.getElementById("sheet");
+  // the run's final placement reveals right here — no separate in-between screen
+  const last = S.lastReveal; S.lastReveal = null;
+  const lastLine = last ? `<div style="font-size:14px; margin:2px 0 6px">last song:
+      <span style="color:${last.correct?'var(--good)':'var(--bad)'}; font-weight:700">${last.correct?'✓':'✗'} ${last.year}</span>
+      <span class="muted">— ${esc(last.name)} · ${esc(last.artist)}</span></div>` : ``;
 
   // multiplayer turbo: ranked results
   if(!solo){
@@ -5337,8 +5367,10 @@ function overlayRunOver(){
     sheet.innerHTML = `
       <div class="winner-emoji">⚡</div>
       <div class="verdict good" style="margin-top:6px">${esc(top.name)} WINS</div>
-      ${tieBroken ? `<div class="muted" style="font-size:12.5px; margin-top:4px">tie — fastest time decides ⏱</div>` : ``}
+      ${tieBroken ? `<div class="muted" style="font-size:13.5px; margin-top:4px">tie — fastest time decides ⏱</div>` : ``}
+      ${lastLine}
       <div style="margin:14px 0 16px">${rows}</div>
+      ${last ? flagBlockHTML(last.id, last.year) : ``}
       <button class="btn pink" onclick="playAgain()">⚡ Run it again</button>
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Back to menu</button>
     `;
@@ -5392,14 +5424,16 @@ function overlayRunOver(){
     <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
     <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
+    ${lastLine}
     ${streakLine}
     ${(chal || (!daily && canChallenge)) && LB.url ? `<div id="chalBoard"></div>` : ``}
     ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>
     <div class="row" style="justify-content:center; align-items:center; gap:6px; margin:2px 0 4px">
       <span class="muted" style="font-size:11px">playing as</span>
-      <input value="${esc(lbNick())}" maxlength="16" aria-label="Leaderboard nickname"
-        style="width:110px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
+      <input value="${esc(lbNick())}" maxlength="20" aria-label="Leaderboard nickname"
+        style="width:150px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
     </div>` : ``}
+    ${last ? flagBlockHTML(last.id, last.year) : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
     ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}

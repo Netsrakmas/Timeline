@@ -45,7 +45,15 @@ async function placeN(pg, n, collectTitles){
     await pg.waitForSelector('.slot.active',{timeout:20000});
     await pg.click('.slot.active');
     await pg.waitForSelector('#overlay.show',{timeout:5000});
-    if(collectTitles) titles.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
+    if(collectTitles){
+      if(i<n) titles.push(await pg.$eval('.reveal-ti', e=>e.textContent.trim()));
+      else { // the run's final placement lands straight on the results sheet
+        const t = await pg.$eval('#sheet', e=>e.innerText);
+        const m = t.match(/last song:\s*[✓✗] \d+ — (.+?) · /);
+        titles.push(m ? m[1].trim() : '?');
+      }
+    }
+    if(i===n) break;   // results sheet is already up — nothing to click through
     await pg.click('#sheet .btn.primary');
     // wait until the overlay actually closed before hunting the next slot —
     // otherwise a click can land in the between-turns window (disabled slots)
