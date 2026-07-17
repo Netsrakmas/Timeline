@@ -154,7 +154,7 @@ const server = http.createServer((req,res)=>{
   await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
   const off = await pg2.$eval('#app', e=>e.innerText);
   if(/🌍 #\d/.test(off) || /new results/.test(off)) throw new Error('rank/news UI leaked before playing');
-  if(!/ONLINE · ONE SHOT/i.test(off) || !/ON THIS PHONE/i.test(off)) throw new Error('section headers missing');
+  if(!/ONLINE/i.test(off) || !/ON THIS PHONE/i.test(off)) throw new Error('section headers missing');
   console.log('section headers present · no rank/news before playing · API errors silent OK');
   await ctx2.close();
 

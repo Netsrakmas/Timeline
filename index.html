@@ -125,9 +125,8 @@
     color:var(--text); width:100%; text-align:left; font:inherit; font-weight:700;}
   .diff .dname{font-size:15px;}
   .diff .dcards{flex:0 0 auto; font-size:12px; color:var(--muted); letter-spacing:.04em; font-weight:500;}
-  .diff.sel{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border-color:transparent;
-    box-shadow:0 8px 20px rgba(255,194,75,.22);}
-  .diff.sel .dcards{color:#2A1A00; opacity:.85;}
+  .diff.sel{background:var(--surface-2); border-color:var(--gold); box-shadow:none;}
+  .diff.sel .dname{color:var(--gold);}
 
   /* DECK PICKER */
   .deck-list{display:flex; flex-direction:column; gap:8px;}
@@ -138,9 +137,8 @@
   .deck .dt{display:block; font-size:15px; font-weight:700; line-height:1.25;}
   .deck .dd{display:block; font-size:12px; color:var(--muted); font-weight:500; margin-top:3px; line-height:1.3;}
   .deck .dn{flex:0 0 auto; font-size:12px; color:var(--muted); font-weight:500;}
-  .deck.sel{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border-color:transparent;
-    box-shadow:0 8px 20px rgba(255,194,75,.22);}
-  .deck.sel .dd, .deck.sel .dn{color:#2A1A00; opacity:.85;}
+  .deck.sel{background:var(--surface-2); border-color:var(--gold); box-shadow:none;}
+  .deck.sel .dt{color:var(--gold);}
   /* deck carousel — side-scrollable pages of 6 chips (2 cols × 3 rows) */
   .deck-carousel{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:14px;
     -webkit-overflow-scrolling:touch; padding:2px 0 4px; scrollbar-width:none;}
@@ -156,9 +154,8 @@
   .dchip .dm{min-width:0; flex:1;}
   .dchip .dn2{display:block; font-weight:700; font-size:13px; line-height:1.25;}
   .dchip .dc2{display:block; font-size:10.5px; color:var(--muted); margin-top:3px; line-height:1.3;}
-  .dchip.sel{background:linear-gradient(180deg,#FFDE93,var(--gold)); color:#2A1A00; border-color:transparent;
-    box-shadow:0 6px 16px rgba(255,194,75,.22);}
-  .dchip.sel .dc2{color:#2A1A00; opacity:.82;}
+  .dchip.sel{background:var(--surface-2); border-color:var(--gold); box-shadow:none;}
+  .dchip.sel .dn2{color:var(--gold);}
 
   /* DECK BUILDER */
   .res-list{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
@@ -269,7 +266,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.7.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.8.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4068,11 +4065,11 @@ const PARTY_SONGS = [
   const pKeys = new Set(PARTY_SONGS.map(key));
   const bucket = (lo,hi) => pool.filter(s => s.year>=lo && s.year<=hi).slice(0,600);
   DECKS.unshift(
-    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:"all years & genres", songs:pool },
+    { id:"everything", name:"Every Era", emoji:"\u{1F30D}", desc:"1955–now", songs:pool },
     { id:"classics", name:"The Classics", emoji:"\u{1F3DB}\uFE0F", desc:"1950s\u20131989", songs:bucket(0,1989) },
     { id:"thehits", name:"The Hits", emoji:"\u2728", desc:"1990\u20132009", songs:bucket(1990,2009) },
     { id:"now", name:"Now", emoji:"\u26A1", desc:"2010\u2013now", songs:bucket(2010,9999) },
-    { id:"party", name:"Party Anthems", emoji:"\u{1F389}", desc:"every era \u00B7 dance floor", songs:pool.filter(s=>pKeys.has(key(s))).slice(0,600) },
+    { id:"party", name:"Party Anthems", emoji:"\u{1F389}", desc:"dance floor", songs:pool.filter(s=>pKeys.has(key(s))).slice(0,600) },
   );
   DECKS.splice(5);   // launch: show only these five decks; the themed songs remain in the pool above
 })();
@@ -4854,8 +4851,7 @@ function tallyHTML(){
   const rec = (S.players.length||1) * S.target;
   if(!S.selectedIds.length) return `Pick one or more decks — tap to combine. Swipe sideways for more.`;
   if(S.mode==="survival") return `<b style="color:var(--text)">${combined} songs</b> in the pool — survival pulls a fresh random run each time.`;
-  return `<b style="color:var(--text)">${combined} songs</b> across ${S.selectedIds.length} deck${S.selectedIds.length>1?'s':''}`
-    + ` · recommended ~${rec}+ for ${S.players.length||1} player${(S.players.length||1)>1?'s':''} × ${S.target}`
+  return `<b style="color:var(--text)">${combined} songs</b>`
     + (combined < rec ? ` <span style="color:var(--bad)">— add another deck</span>` : ` <span style="color:var(--good)">✓</span>`);
 }
 function updateTally(){ const el=document.getElementById("deckTally"); if(el) el.innerHTML = tallyHTML(); }
@@ -4919,8 +4915,8 @@ function renderSetup(){
     ${LB.url ? `<div class="topbar" id="topbar">${nickChipHTML()}</div>` : ``}
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
-    <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
-    <div class="sect" style="color:var(--cyan); margin-top:0">🌍 online · one shot · ranked</div>
+    <div class="tag">Hear a song, drop it on your timeline by year.</div>
+    <div class="sect" style="color:var(--cyan); margin-top:0">🌍 online</div>
     <div id="chalNews"></div>
 
     <div class="card" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
@@ -4964,19 +4960,19 @@ function renderSetup(){
       <div class="row" style="justify-content:space-between; align-items:center">
         <div>
           <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
-          <div class="muted" style="font-size:13.5px; margin-top:4px">${RUN_LEN} random songs — play, then send your score · as often as you like</div>
+          <div class="muted" style="font-size:13.5px; margin-top:4px">Play ${RUN_LEN} songs, send the score</div>
         </div>
         <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
     </div>`}
 
-    <div class="sect" style="color:var(--gold)">🎧 on this phone · party &amp; practice</div>
+    <div class="sect" style="color:var(--gold)">🎧 on this phone</div>
 
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">mode</div>
       <div style="height:10px"></div>
       <div class="diffs">
-        <button class="diff ${S.mode==='classic'?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">1+ players · turbo or race</span></button>
+        <button class="diff ${S.mode==='classic'?'sel':''}" onclick="setMode('classic')"><span class="dname">👥 Pass &amp; Play</span><span class="dcards">one phone · pass it round</span></button>
         <button class="diff ${survival?'sel':''}" onclick="setMode('survival')"><span class="dname">🎯 Survival</span><span class="dcards">solo · 3 lives · endless</span></button>
       </div>
     </div>
@@ -4991,7 +4987,7 @@ function renderSetup(){
     </div>` : ``}
 
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 1 · pick decks · combine to taste</div>
+      <div class="eyebrow" style="color:var(--cyan)">music</div>
       <div style="height:10px"></div>
       ${deckCarouselHTML()}
       ${custom ? `<div style="height:8px"></div><label class="fld">Your decks</label><div class="deck-list">${custom}</div>` : ``}
@@ -5013,7 +5009,7 @@ function renderSetup(){
       </div></div>
     </div>` : `
     <div class="card">
-      <div class="eyebrow" style="color:var(--cyan)">step 2 · players</div>
+      <div class="eyebrow" style="color:var(--cyan)">players</div>
       <div style="height:10px"></div>
       <div class="players-list" id="players"></div>
       <button class="btn ghost sm" style="margin-top:10px" onclick="addPlayer()">+ Add player</button>
@@ -5021,16 +5017,15 @@ function renderSetup(){
       <label class="fld">Game length</label>
       <div class="diffs" id="diffSel">
         <button class="diff ${S.turbo?'sel':''}" onclick="setTurbo()"><span class="dname">⚡ Turbo</span><span class="dcards">${RUN_LEN} songs each · ~3 min</span></button>
-        ${DIFFICULTIES.map(d=>`<button class="diff ${!S.turbo && S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">race to ${d.n} cards</span></button>`).join("")}
+        ${DIFFICULTIES.map(d=>`<button class="diff ${!S.turbo && S.target===d.n?'sel':''}" onclick="setTarget(${d.n})"><span class="dname">${d.name}</span><span class="dcards">first to ${d.n}</span></button>`).join("")}
       </div>
       ${S.turbo ? `<div class="hint">Everyone places ${RUN_LEN} mystery songs on their own timeline — every card <b>locks at its true year</b>, right or wrong. Highest score wins.${(loadBest().turbo)?` Solo best: <b>${loadBest().turbo}/${RUN_LEN}</b>.`:''}</div>` : ``}
     </div>`}
 
     <div class="startbar"><button class="btn pink" style="font-size:16px; padding:16px" onclick="onStart()">${survival ? '🎯 Start survival' : turbo ? '⚡ Start turbo' : '▶ Start game'}</button></div>
 
-    <div class="footnote">Self-hosted · 30-second previews courtesy of Apple Music · for personal use · ${BUILD}<br>
-      Song previews belong to their rights holders · <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``}<br>
-      <a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
+    <div class="footnote">No account needed · 30-second previews courtesy of Apple Music, all rights with their owners<br>
+      <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>
   `;
   renderPlayers();
   if(dailyDone && LB.url) lbFetchDaily().then(b=>{
@@ -5104,6 +5099,7 @@ function renderBuilder(){
     </div>
     <button class="btn pink" style="margin-top:16px; padding:16px" onclick="saveBuilder()">Save deck</button>
     ${b.id ? `<button class="btn ghost" style="margin-top:10px; color:var(--bad)" onclick="deleteDeck()">🗑 Delete this deck</button>` : ``}
+    <div class="footnote"><a href="#" onclick="startVerify();return false;" style="font-size:11px">🕵 check deck years vs Apple</a></div>
   `;
 }
 function deleteDeck(){
