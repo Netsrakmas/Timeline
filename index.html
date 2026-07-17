@@ -261,7 +261,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4159,7 +4159,7 @@ function chalKey(idx){ return (idx||[]).join("."); }
 function loadChals(){ try{ return JSON.parse(store.get("tl_chals")||"{}")||{}; }catch(e){ return {}; } }
 function recordChal(idx, score, timeMs, mine){
   if(!idx || idx.length<2) return;
-  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0, m:mine?1:0 };
+  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0, m:mine?1:0, at:Date.now(), n:0 };
   store.set("tl_chals", JSON.stringify(c));
 }
 function chalPlayed(idx){ return (idx && idx.length>=2) ? loadChals()[chalKey(idx)] : null; }
@@ -4236,6 +4236,46 @@ function saveNick(v){
   if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el && b) el.innerHTML = lbLineHTML(b);
   });
+}
+/* challenge-set boards: every finished run on a shared set reports to /chal,
+   so the challenger SEES who played their set — no send-back link needed */
+async function lbSubmitChal(setkey, score, timeMs){
+  if(!LB.url) return null;
+  try{
+    const r = await fetch(LB.url+"/chal", { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ set:setkey, device:deviceId(), nick:lbNick(), score, timeMs }) });
+    return r.ok ? await r.json() : null;
+  }catch(e){ return null; }
+}
+async function lbFetchChal(setkey){
+  if(!LB.url) return null;
+  try{ const r = await fetch(LB.url+"/chal?set="+encodeURIComponent(setkey)+"&device="+deviceId()); return r.ok ? await r.json() : null; }catch(e){ return null; }
+}
+function chalOthersHTML(b){
+  const rows = (b && b.results || []).slice(0,5).map(r=>`${r.you?'<b>you</b>':'<b>'+esc(r.nick)+'</b>'} ${r.score}/${RUN_LEN} ⏱ ${fmtTime(r.timeMs)}`);
+  return rows.length ? `<div class="muted" style="font-size:11.5px; margin-top:6px">🏁 ${b.total} played this set: ${rows.join(" · ")}</div>` : "";
+}
+// "someone played your challenge!" — check own recent sets for new results
+async function chalNews(){
+  if(!LB.url) return;
+  const c = loadChals();
+  const own = Object.entries(c).filter(([k,v])=>v.m && v.at).sort((a,b)=>b[1].at-a[1].at).slice(0,3);
+  const lines = []; let changed = false;
+  for(const [k,v] of own){
+    const b = await lbFetchChal(k); if(!b) continue;
+    const others = (b.results||[]).filter(r=>!r.you);
+    if(others.length > (v.n||0)){
+      others.slice(0,3).forEach(r=>lines.push(`<b>${esc(r.nick)}</b> scored ${r.score}/${RUN_LEN} ⏱ ${fmtTime(r.timeMs)} — you set ${v.s}/${RUN_LEN}`));
+      v.n = others.length; changed = true;
+    }
+  }
+  if(changed) store.set("tl_chals", JSON.stringify(c));
+  const el = document.getElementById("chalNews");
+  if(el && lines.length) el.innerHTML = `
+    <div class="card" style="border-color:var(--violet)">
+      <div class="eyebrow" style="color:var(--violet)">🏁 new results on your challenges</div>
+      ${lines.map(l=>`<div class="muted" style="font-size:12.5px; margin-top:5px">${l}</div>`).join("")}
+    </div>`;
 }
 /* GoatCounter events: page views count automatically; these answer "do shared
    links convert into games?". Anonymous + cookieless; retries because the
@@ -4818,6 +4858,7 @@ function renderSetup(){
     <div class="card" style="border-color:var(--violet)">
       <div class="eyebrow" style="color:var(--violet)">🏁 challenge result ${icon}</div>
       <div class="muted" style="font-size:12.5px; margin-top:4px">${line}</div>
+      <div id="chalSetBoard"></div>
       <div class="row" style="margin-top:10px; gap:8px">
         <button class="btn sm pink" onclick="startFreshChallenge()">⚔️ Rematch — new songs</button>
         <button class="btn sm" onclick="shareChallengeBack()">📤 Send result</button>
@@ -4829,6 +4870,7 @@ function renderSetup(){
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+    <div id="chalNews"></div>
 
     <div class="card" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
       <div class="row" style="justify-content:space-between; align-items:center">
@@ -4852,6 +4894,7 @@ function renderSetup(){
           <div class="muted" style="font-size:12.5px; margin-top:4px">${chalPlayed(S.challenge.idx).m
             ? `This is your own link — you set <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. Send it to friends!`
             : `You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!`}</div>
+          <div id="chalSetBoard"></div>
         </div>
         <button class="btn sm" style="flex:0 0 auto">${chalPlayed(S.challenge.idx).m ? '⚔️ Challenge' : '📤 Send result'}</button>
       </div>
@@ -4861,6 +4904,7 @@ function renderSetup(){
         <div>
           <div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
           <div class="muted" style="font-size:12.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
+          <div id="chalSetBoard"></div>
         </div>
         <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
       </div>
@@ -4940,6 +4984,11 @@ function renderSetup(){
     const el = document.getElementById("dailyLbMini");
     if(el && b && b.me) el.textContent = " · 🌍 #"+b.me.rank+"/"+b.total;
   });
+  if(S.challenge && LB.url) lbFetchChal(chalKey(S.challenge.idx)).then(b=>{
+    const el = document.getElementById("chalSetBoard");
+    if(el && b && b.total) el.innerHTML = chalOthersHTML(b);
+  });
+  chalNews();
 }
 
 function renderPlayers(){
@@ -5344,6 +5393,7 @@ function overlayRunOver(){
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
     <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
     ${streakLine}
+    ${(chal || (!daily && canChallenge)) && LB.url ? `<div id="chalBoard"></div>` : ``}
     ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>
     <div class="row" style="justify-content:center; align-items:center; gap:6px; margin:2px 0 4px">
       <span class="muted" style="font-size:11px">playing as</span>
@@ -5358,6 +5408,9 @@ function overlayRunOver(){
   document.getElementById("overlay").classList.add("show");
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
+  });
+  if(LB.url && setIdx && setIdx.length>=2) lbSubmitChal(chalKey(setIdx), score, me.timeMs||0).then(b=>{
+    const el = document.getElementById("chalBoard"); if(el && b) el.innerHTML = chalOthersHTML(b);
   });
 }
 function shareDaily(){

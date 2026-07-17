@@ -38,9 +38,19 @@ const server = http.createServer((req,res)=>{
     route.fulfill({contentType:'text/javascript',body:`${cb}(${JSON.stringify({resultCount:1,results:[{trackId:++tid,trackName:term,artistName:term,collectionName:'T',releaseDate:'1999-01-01',previewUrl:'http://localhost:8085/clip.wav'}]})})`});
   });
 
-  const posts = [], gets = [];
+  const posts = [], gets = [], chalPosts = [], chalGets = [];
+  let chalOthers = [];   // extra players the stubbed /chal board reports
   await pg.route(/lb\.test/, route=>{
     const req = route.request();
+    const isChal = /\/chal/.test(req.url());
+    if(isChal){
+      if(req.method()==='POST') chalPosts.push(JSON.parse(req.postData())); else chalGets.push(req.url());
+      const results = [{nick:'Player',score:2,timeMs:9000,you:true}, ...chalOthers];
+      route.fulfill({ contentType:'application/json',
+        body: JSON.stringify({ set:'x', total: results.length, results }),
+        headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'} });
+      return;
+    }
     const body = { day: 16, total: 42,
       me: { nick:'Player', score: 2, timeMs: 9000, rank: 7 },
       top: [{nick:'Ace',score:5,timeMs:8000},{nick:'Bo',score:4,timeMs:9000},{nick:'Cy',score:4,timeMs:12000}] };
@@ -87,6 +97,41 @@ const server = http.createServer((req,res)=>{
   if(!/🌍 #7\/42/.test(card)) throw new Error('setup mini rank missing: '+card.slice(0,200));
   if(gets.length<1) throw new Error('expected a GET for the setup card');
   console.log('setup card mini rank OK');
+
+  // --- step 2: challenge-set boards ---
+  // the finished daily also reported to /chal (the set is shareable)
+  if(chalPosts.length < 1) throw new Error('run not submitted to /chal: '+chalPosts.length);
+  if(!/^\d+(\.\d+)+$/.test(chalPosts[0].set)) throw new Error('bad set key: '+chalPosts[0].set);
+  console.log('run submitted to /chal ·', chalPosts[0].set.slice(0,20)+'…');
+
+  // create a fresh challenge; its results sheet shows the set board incl. others
+  chalOthers = [{nick:'Jesse',score:4,timeMs:12000}];
+  await pg.click('.card:has-text("challenge a friend") >> .muted');
+  for(let i=1;i<=5;i++){
+    await pg.waitForSelector('.slot.active',{timeout:20000});
+    await pg.click('.slot.active');
+    await pg.waitForSelector('#overlay.show',{timeout:5000});
+    await pg.click('#sheet .btn.primary');
+    await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:5000}).catch(()=>{});
+    await pg.waitForTimeout(250);
+  }
+  await pg.waitForTimeout(600);
+  const chalSheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/2 played this set/.test(chalSheet) || !/Jesse 4\/5/.test(chalSheet)) throw new Error('set board missing on results: '+chalSheet.slice(0,240));
+  console.log('results sheet shows set board with Jesse OK');
+
+  // back on setup: Jesse counts as NEW on our own set -> news card
+  await pg.click('#sheet button:has-text("Done")');
+  await pg.waitForTimeout(700);
+  let news = await pg.$eval('#app', e=>e.innerText);
+  if(!/new results on your challenges/i.test(news) || !/Jesse/.test(news)) throw new Error('news card missing: '+news.slice(0,220));
+  console.log('news card: Jesse played your challenge OK');
+
+  // seen once = seen; a reload with unchanged board shows no news
+  await pg.reload(); await pg.waitForTimeout(900);
+  news = await pg.$eval('#app', e=>e.innerText);
+  if(/new results on your challenges/i.test(news)) throw new Error('news card should not repeat for already-seen results');
+  console.log('news card marks results as seen OK');
 
   // a fresh profile that hasn't played the daily shows no leaderboard UI yet
   const ctx2 = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});

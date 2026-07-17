@@ -57,6 +57,16 @@ async function board(env, day, device, cors){
     top: top.map(r => ({ nick: r.nick, score: r.score, timeMs: r.time_ms })) }, 200, cors);
 }
 
+const SET_RE = /^\d+(\.\d+){1,8}$/;   // pool indices joined with dots (anchor + up to 8)
+
+async function chalBoardResp(env, setkey, device, cors){
+  const rows = (await env.DB.prepare(
+    "SELECT nick, score, time_ms, device FROM chals WHERE setkey=?1 ORDER BY score DESC, time_ms ASC, created ASC LIMIT 50"
+  ).bind(setkey).all()).results || [];
+  return json({ set: setkey, total: rows.length,
+    results: rows.map(r => ({ nick: r.nick, score: r.score, timeMs: r.time_ms, you: !!device && r.device === device })) }, 200, cors);
+}
+
 export default {
   async fetch(req, env){
     const url = new URL(req.url);
@@ -90,6 +100,32 @@ export default {
         "ON CONFLICT(day, device) DO UPDATE SET nick=excluded.nick"
       ).bind(day, device, nick, score, timeMs, Date.now()).run();
       return board(env, day, device, cors);
+    }
+
+    if(url.pathname === "/chal" && req.method === "GET"){
+      const set = url.searchParams.get("set") || "";
+      if(!SET_RE.test(set)) return json({ error: "bad set" }, 400, cors);
+      const device = (url.searchParams.get("device") || "").slice(0, 64);
+      return chalBoardResp(env, set, /^[a-f0-9]{16,64}$/i.test(device) ? device : null, cors);
+    }
+
+    if(url.pathname === "/chal" && req.method === "POST"){
+      let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
+      const set = String(b.set || "");
+      const score = parseInt(b.score, 10);
+      const timeMs = parseInt(b.timeMs, 10);
+      const device = String(b.device || "");
+      if(!SET_RE.test(set)) return json({ error: "bad set" }, 400, cors);
+      if(!/^[a-f0-9]{16,64}$/i.test(device)) return json({ error: "bad device" }, 400, cors);
+      if(!Number.isFinite(score) || score < 0 || score > RUN_LEN) return json({ error: "bad score" }, 400, cors);
+      if(!Number.isFinite(timeMs) || timeMs < 500 || timeMs > RUN_LEN * 70000) return json({ error: "bad time" }, 400, cors);
+      const nick = cleanNick(b.nick);
+      // one shot per set per device — first result stands, resubmits refresh the nick
+      await env.DB.prepare(
+        "INSERT INTO chals (setkey, device, nick, score, time_ms, created) VALUES (?1,?2,?3,?4,?5,?6) " +
+        "ON CONFLICT(setkey, device) DO UPDATE SET nick=excluded.nick"
+      ).bind(set, device, nick, score, timeMs, Date.now()).run();
+      return chalBoardResp(env, set, device, cors);
     }
 
     return json({ error: "not found" }, 404, cors);

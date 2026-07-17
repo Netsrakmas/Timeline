@@ -10,3 +10,16 @@ CREATE TABLE IF NOT EXISTS scores (
   PRIMARY KEY (day, device)
 );
 CREATE INDEX IF NOT EXISTS idx_scores_day ON scores(day, score DESC, time_ms ASC);
+
+-- challenge-set results: every finished run on a shared song set, keyed by the
+-- set itself (pool indices joined with dots) — powers cross-device boards
+CREATE TABLE IF NOT EXISTS chals (
+  setkey  TEXT    NOT NULL,
+  device  TEXT    NOT NULL,
+  nick    TEXT    NOT NULL,
+  score   INTEGER NOT NULL,
+  time_ms INTEGER NOT NULL,
+  created INTEGER NOT NULL,
+  PRIMARY KEY (setkey, device)
+);
+CREATE INDEX IF NOT EXISTS idx_chals_set ON chals(setkey, score DESC, time_ms ASC);

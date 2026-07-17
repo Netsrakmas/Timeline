@@ -3,7 +3,8 @@
 // routing, validation, one-shot upsert semantics and rank math.)
 const worker = (await import('/home/user/Timeline/server/worker.js')).default;
 
-const rows = [];   // {day, device, nick, score, time_ms, created}
+const rows = [];    // {day, device, nick, score, time_ms, created}
+const chals = [];   // {setkey, device, nick, score, time_ms, created}
 function fakeDB(){
   return { prepare(sql){ return { bind(...a){ return {
     async run(){
@@ -12,6 +13,13 @@ function fakeDB(){
         const ex = rows.find(r=>r.day===day && r.device===device);
         if(ex){ ex.nick = nick; }   // ON CONFLICT: nick only
         else rows.push({day, device, nick, score, time_ms, created});
+        return {};
+      }
+      if(/^INSERT INTO chals/.test(sql)){
+        const [setkey, device, nick, score, time_ms, created] = a;
+        const ex = chals.find(r=>r.setkey===setkey && r.device===device);
+        if(ex){ ex.nick = nick; }
+        else chals.push({setkey, device, nick, score, time_ms, created});
         return {};
       }
       throw new Error('unexpected run: '+sql);
@@ -32,6 +40,10 @@ function fakeDB(){
         const day=a[0];
         const s=[...rows.filter(r=>r.day===day)].sort((x,y)=> y.score-x.score || x.time_ms-y.time_ms || x.created-y.created);
         return { results: s.slice(0,25) };
+      }
+      if(/SELECT nick, score, time_ms, device FROM chals WHERE setkey=\?1 ORDER BY/.test(sql)){
+        const s=[...chals.filter(r=>r.setkey===a[0])].sort((x,y)=> y.score-x.score || x.time_ms-y.time_ms || x.created-y.created);
+        return { results: s.slice(0,50) };
       }
       throw new Error('unexpected all: '+sql);
     },
@@ -85,4 +97,25 @@ r = await js(await call('GET','/daily?device='+dev('a')));
 if(r.body.me.rank!==3) throw new Error('GET rank wrong: '+JSON.stringify(r.body.me));
 if(r.body.top.length!==3) throw new Error('top wrong');
 
-console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS)');
+// --- challenge-set boards ---
+for(const bad of [
+  {set:'abc', device:dev('a'), score:3, timeMs:9000},
+  {set:'12', device:dev('a'), score:3, timeMs:9000},          // single index: not a set
+  {set:'1.2.3', device:dev('a'), score:7, timeMs:9000},
+]){
+  r = await js(await call('POST','/chal',bad));
+  if(r.status!==400) throw new Error('chal should reject: '+JSON.stringify(bad));
+}
+r = await js(await call('POST','/chal',{set:'10.20.30.40.50.60', device:dev('a'), nick:'Sam', score:3, timeMs:9000}));
+if(r.body.total!==1 || !r.body.results[0].you) throw new Error('chal first submit wrong: '+JSON.stringify(r.body));
+await call('POST','/chal',{set:'10.20.30.40.50.60', device:dev('b'), nick:'Jesse', score:4, timeMs:12000});
+r = await js(await call('POST','/chal',{set:'10.20.30.40.50.60', device:dev('a'), nick:'Sammy', score:5, timeMs:800}));
+const me2 = r.body.results.find(x=>x.you);
+if(r.body.total!==2 || me2.score!==3 || me2.nick!=='Sammy') throw new Error('chal one-shot broken: '+JSON.stringify(r.body));
+if(r.body.results[0].nick!=='Jesse') throw new Error('chal ranking wrong: '+JSON.stringify(r.body.results));
+r = await js(await call('GET','/chal?set=10.20.30.40.50.60&device='+dev('b')));
+if(r.body.total!==2 || !r.body.results.find(x=>x.you && x.nick==='Jesse')) throw new Error('chal GET wrong: '+JSON.stringify(r.body));
+if(r.body.results.some(x=>x.device)) throw new Error('device tokens must not leak in chal results');
+console.log('chal boards: validation, one-shot, ranking, you-flag, no device leak ✓');
+
+console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards)');
