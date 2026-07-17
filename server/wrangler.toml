@@ -1,6 +1,7 @@
 name = "yearworm-api"
 main = "worker.js"
 compatibility_date = "2026-07-01"
+account_id = "068a305342a3734354d0697da0dec1a5"
 
 [[d1_databases]]
 binding = "DB"

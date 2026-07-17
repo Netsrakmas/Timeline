@@ -9,6 +9,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "068a305342a3734354d0697da0dec1a5"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,10 +23,16 @@ jobs:
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::error::secret CLOUDFLARE_API_TOKEN is empty or missing"; exit 1; fi
           TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')
+          # user tokens verify on /user/..., account-owned tokens on /accounts/<id>/... — accept either
           RESP=$(curl -sS -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify)
-          echo "$RESP" | grep -q '"success":\s*true' \
-            || { echo "::error::Cloudflare rejected the token (wrong value, or the token was revoked). Response: $RESP"; exit 1; }
-          echo "token verified ✓"
+          if ! echo "$RESP" | grep -q '"success":\s*true'; then
+            RESP2=$(curl -sS -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+            echo "$RESP2" | grep -q '"success":\s*true' \
+              || { echo "::error::Cloudflare rejected the token on both verify endpoints. user: $RESP · account: $RESP2"; exit 1; }
+            echo "account-owned token verified ✓"
+          else
+            echo "user token verified ✓"
+          fi
 
       - name: Create D1 database if missing, wire its id into wrangler.toml
         working-directory: server
