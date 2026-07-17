@@ -148,10 +148,20 @@ async function placeN(pg, n, collectTitles){
 
   // --- challenge roundtrip: open the shared link in a fresh profile ---
   ({ctx,pg} = await newPage(browser, base + chalHash));
+  // a playable link greets with a big Accept overlay
+  await pg.waitForSelector('#overlay.show',{timeout:5000});
+  const invite = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/CHALLENGED/i.test(invite) || !/scored/.test(invite) || !/Accept/.test(invite)) throw new Error('invite overlay wrong: '+invite.slice(0,160));
+  // "Not now" falls back to the setup card
+  await pg.click('#sheet button:has-text("Not now")');
+  await pg.waitForTimeout(300);
   const setupTxt = await pg.$eval('#app', e=>e.innerText);
-  if(!/friend challenge/i.test(setupTxt) || !/Beat their/.test(setupTxt)) throw new Error('challenge card missing on setup');
-  // tap the card BODY, not the Play button — the whole card is the trigger
-  await pg.click('.card:has-text("friend challenge") >> .muted');
+  if(!/friend challenge/i.test(setupTxt) || !/Beat their/.test(setupTxt)) throw new Error('challenge card missing after dismiss');
+  console.log('challenge invite: overlay + Not-now fallback OK');
+  // reload → invite again → this time Accept
+  await pg.reload(); await pg.waitForTimeout(700);
+  await pg.waitForSelector('#overlay.show',{timeout:5000});
+  await pg.click('#sheet button:has-text("Accept challenge")');
   const titles3 = await placeN(pg, 5, true);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('challenge results wrong: '+sheet.slice(0,140));

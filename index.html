@@ -261,7 +261,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.2.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5586,6 +5586,22 @@ function playAgain(){
 function backToSetup(){ bgRun++; S.loadingMore=false; clearGame(); closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
 
 /* ---------- boot ---------- */
+/* Arriving on a playable challenge link: don't make the guest hunt for the
+   card on the setup screen — greet them with one big Accept. The tap doubles
+   as the audio-unlock gesture, which is why we can't just auto-start. */
+function overlayChallengeInvite(){
+  const beat = S.challenge.beat;
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">🎯</div>
+    <div class="verdict" style="color:var(--cyan)">YOU'VE BEEN CHALLENGED</div>
+    <div class="muted" style="font-size:13.5px; line-height:1.5">${beat != null
+      ? `A friend scored <b style="color:var(--text)">${beat}/${RUN_LEN}</b>${S.challenge.beatTime ? ` in ${fmtTime(S.challenge.beatTime)}` : ``} — beat them on the same ${RUN_LEN} songs.`
+      : `${RUN_LEN} songs, picked by a friend.`} One shot, the clock counts ⏱</div>
+    <button class="btn primary" style="margin-top:16px" onclick="closeOverlay(); startChallenge();">▶ Accept challenge</button>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="closeOverlay()">Not now</button>`;
+  document.getElementById("overlay").classList.add("show");
+}
 function boot(){
   S.challenge = parseChallengeHash();
   if(S.challenge) track("open-challenge-link");   // a shared link actually landed
@@ -5593,6 +5609,7 @@ function boot(){
   try{ S.customDecks = JSON.parse(store.get("tl_decks")||"[]")||[]; }catch(e){ S.customDecks = []; }
   S.selectedIds = DECKS[0] ? [DECKS[0].id] : [];
   renderSetup();
+  if(S.challenge && !chalPlayed(S.challenge.idx)) overlayChallengeInvite();
 }
 boot();
 </script>
