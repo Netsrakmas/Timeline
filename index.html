@@ -113,6 +113,7 @@
   /* the start button rides along while you scroll the (long) setup page */
   .startbar{position:sticky; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:5; margin-top:16px;}
   .topbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
+  .sect{font-size:12px; letter-spacing:.28em; text-transform:uppercase; font-weight:700; margin:24px 2px 10px;}
   .topbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
   .nickchip{font:inherit; font-size:13px; font-weight:600; color:var(--text); cursor:pointer;
     background:rgba(19,26,53,.88); border:1px solid var(--line); border-radius:999px;
@@ -268,7 +269,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.6.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.7.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4919,6 +4920,7 @@ function renderSetup(){
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a track, slot it into your timeline by release year. ${survival ? '<b>3 lives, endless</b> — how long a run can you build?' : turbo ? '<b>5 songs, one timeline</b> — a full game in 3 minutes.' : 'Build a run of '+S.target+' and you win.'} No account needed — songs play as 30-second previews.</div>
+    <div class="sect" style="color:var(--cyan); margin-top:0">🌍 online · one shot · ranked</div>
     <div id="chalNews"></div>
 
     <div class="card" role="button" tabindex="0" style="border-color:var(--gold); cursor:pointer" onclick="${dailyDone ? 'shareDaily()' : 'startDaily()'}">
@@ -4967,6 +4969,8 @@ function renderSetup(){
         <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
     </div>`}
+
+    <div class="sect" style="color:var(--gold)">🎧 on this phone · party &amp; practice</div>
 
     <div class="card">
       <div class="eyebrow" style="color:var(--cyan)">mode</div>

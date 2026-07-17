@@ -153,8 +153,9 @@ const server = http.createServer((req,res)=>{
   await pg2.route(/workers\.dev|lb\.test/, r=>r.abort());   // and a dead API must stay silent
   await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
   const off = await pg2.$eval('#app', e=>e.innerText);
-  if(/🌍|new results/.test(off)) throw new Error('leaderboard UI leaked before playing');
-  console.log('no rank/news UI before playing / API errors stay silent OK');
+  if(/🌍 #\d/.test(off) || /new results/.test(off)) throw new Error('rank/news UI leaked before playing');
+  if(!/ONLINE · ONE SHOT/i.test(off) || !/ON THIS PHONE/i.test(off)) throw new Error('section headers missing');
+  console.log('section headers present · no rank/news before playing · API errors silent OK');
   await ctx2.close();
 
   console.log('LEADERBOARD TEST PASS ✓');
