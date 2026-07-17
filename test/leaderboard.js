@@ -88,13 +88,14 @@ const server = http.createServer((req,res)=>{
   if(gets.length<1) throw new Error('expected a GET for the setup card');
   console.log('setup card mini rank OK');
 
-  // and with LB.url empty (default), nothing leaderboard-ish must render
+  // a fresh profile that hasn't played the daily shows no leaderboard UI yet
   const ctx2 = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
   const pg2 = await ctx2.newPage();
+  await pg2.route(/workers\.dev|lb\.test/, r=>r.abort());   // and a dead API must stay silent
   await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
   const off = await pg2.$eval('#app', e=>e.innerText);
-  if(/🌍|playing as/.test(off)) throw new Error('leaderboard UI leaked while disabled');
-  console.log('disabled by default (LB.url empty) OK');
+  if(/🌍|playing as/.test(off)) throw new Error('leaderboard UI leaked before playing');
+  console.log('no leaderboard UI before playing / API errors stay silent OK');
   await ctx2.close();
 
   console.log('LEADERBOARD TEST PASS ✓');

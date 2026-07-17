@@ -261,7 +261,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.2.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4205,7 +4205,7 @@ const KOFI_URL = "";
 /* Daily leaderboard — set url to the deployed Worker (see server/README.md)
    and the ranking UI turns on. Sends only: device token, nickname, score,
    time. One-shot per day is enforced server-side too. */
-const LB = { url:"" };
+const LB = { url:"https://yearworm-api.samkarsten.workers.dev" };
 function deviceId(){
   let d = store.get("tl_device");
   if(!d){ d = [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join(""); store.set("tl_device", d); }
