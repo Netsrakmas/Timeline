@@ -97,8 +97,14 @@ const server = http.createServer((req,res)=>{
   const card = await pg.$eval('#app', e=>e.innerText);
   if(!/🌍 #7\/42/.test(card)) throw new Error('setup mini rank missing: '+card.slice(0,200));
   if(gets.length<1) throw new Error('expected a GET for the setup card');
-  if(!/playing as/.test(card)) throw new Error('identity row missing on setup: '+card.slice(0,160));
-  console.log('setup card mini rank + identity row OK');
+  if(!/🎧 Sam/.test(card)) throw new Error('identity chip missing on setup: '+card.slice(0,160));
+  // chip is tap-to-edit in place
+  await pg.click('.nickchip');
+  await pg.$eval('#nickTop', e=>{ e.value='Sammy'; e.blur(); });
+  await pg.waitForTimeout(300);
+  const chip = await pg.$eval('.nickchip', e=>e.textContent);
+  if(!/Sammy/.test(chip)) throw new Error('chip edit failed: '+chip);
+  console.log('setup mini rank + identity chip (tap-to-edit) OK');
 
   // --- step 2: challenge-set boards ---
   // the finished daily also reported to /chal (the set is shareable)
