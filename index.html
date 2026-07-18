@@ -301,7 +301,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.2.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.2.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5808,7 +5808,7 @@ function overlayRunOver(){
         ${_social.friends.filter(f=>!(S.chalTarget && f.id===S.chalTarget.user)).slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
       </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
-    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : '🔗 Challenge a friend on these songs'}</button>` : ``}
+    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : S.chalTarget ? '🔗 Challenge someone else on these songs' : '🔗 Challenge a friend on these songs'}</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;

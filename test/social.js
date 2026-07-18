@@ -247,7 +247,8 @@ const server = http.createServer((req,res)=>{
   const sheet2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/Sent to Jesse — you set \d\/5/.test(sheet2)) throw new Error('sent line missing: '+sheet2.slice(0,260));
   if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear in the direct-send row');
-  console.log('friend ⚔️ button: fresh run + auto-sent gauntlet OK');
+  if(!/Challenge someone else on these songs/.test(sheet2)) throw new Error('share button should read "someone else" after auto-send: '+sheet2.slice(0,260));
+  console.log('friend ⚔️ button: fresh run + auto-sent gauntlet + someone-else label OK');
 
   await ctx.close();
 
