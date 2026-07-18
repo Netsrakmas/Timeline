@@ -301,7 +301,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.1.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4480,6 +4480,7 @@ function friendsCardHTML(st){
   const inbox = (st && st.inbox || []).filter(m => m.kind === "challenge");
   const reacts = (st && st.inbox || []).filter(m => m.kind === "react");
   const results = (st && st.inbox || []).filter(m => m.kind === "result");
+  const newFriends = (st && st.inbox || []).filter(m => m.kind === "friend");
   const reqs = st && st.requests || [];
   const fr = st && st.friends || [];
   return `<div class="card slim">
@@ -4490,6 +4491,10 @@ function friendsCardHTML(st){
       ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
         <button class="btn sm pink" style="flex:0 0 auto" onclick="playInboxChal(${m.id})">▶ Play</button>
+      </div>`).join("")}
+      ${newFriends.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> used your code — you're friends now!</span>
+        <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
       </div>`).join("")}
       ${results.map(m=>{
         const w = m.payload && m.payload.w, sc = m.payload && m.payload.score;

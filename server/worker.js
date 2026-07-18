@@ -215,12 +215,17 @@ async function handleSocialPost(env, b, cors){
     const [a, bb] = pair(me.id, other.id);
     const ex = await env.DB.prepare("SELECT requester, status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
     if(ex){
-      if(ex.status === "pending" && ex.requester !== me.id)
+      // legacy pending rows (from the old request flow) resolve on any re-add
+      if(ex.status === "pending")
         await env.DB.prepare("UPDATE friends SET status='accepted' WHERE a=?1 AND b=?2").bind(a, bb).run();
-      // already friends / already asked: both fine, fall through to state
+      // already friends: fine, fall through to state
     } else {
-      await env.DB.prepare("INSERT INTO friends (a, b, requester, status, created) VALUES (?1,?2,?3,'pending',?4)")
+      // adding by code IS mutual consent — the code owner shared it, so no
+      // accept round-trip: instant friendship + a courtesy note in their inbox
+      await env.DB.prepare("INSERT INTO friends (a, b, requester, status, created) VALUES (?1,?2,?3,'accepted',?4)")
         .bind(a, bb, me.id, Date.now()).run();
+      await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'friend',?3,?4)")
+        .bind(other.id, me.id, "{}", Date.now()).run();
     }
     return socialState(env, me, cors);
   }

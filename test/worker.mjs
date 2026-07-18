@@ -33,10 +33,11 @@ function fakeDB(){
       if(/^INSERT INTO devices/.test(sql)){ const [device,user_id,created]=a;
         const ex=devices.find(d=>d.device===device); if(ex) ex.user_id=user_id; else devices.push({device,user_id,created}); return {}; }
       if(/^UPDATE users SET handle/.test(sql)){ const [handle,handle_lc,id]=a; const u=users.find(x=>x.id===id); if(u){u.handle=handle;u.handle_lc=handle_lc;} return {}; }
-      if(/^INSERT INTO friends/.test(sql)){ const [x,y,requester,created]=a; friends.push({a:x,b:y,requester,status:'pending',created}); return {}; }
+      if(/^INSERT INTO friends/.test(sql)){ const [x,y,requester,created]=a;
+        friends.push({a:x,b:y,requester,status:sql.includes("'accepted'")?'accepted':'pending',created}); return {}; }
       if(/^UPDATE friends SET status='accepted'/.test(sql)){ const [x,y]=a; const f=friends.find(r=>r.a===x&&r.b===y); if(f) f.status='accepted'; return {}; }
       if(/^DELETE FROM friends/.test(sql)){ const [x,y]=a; const i=friends.findIndex(r=>r.a===x&&r.b===y); if(i>=0) friends.splice(i,1); return {}; }
-      if(/^INSERT INTO inbox/.test(sql)){ const kind = sql.includes("'react'") ? 'react' : sql.includes("'result'") ? 'result' : 'challenge';
+      if(/^INSERT INTO inbox/.test(sql)){ const kind = sql.includes("'react'") ? 'react' : sql.includes("'result'") ? 'result' : sql.includes("'friend'") ? 'friend' : 'challenge';
         const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind,payload,created,seen:0}); return {}; }
       if(/^INSERT OR IGNORE INTO duels/.test(sql)){ const [msg_id,x,y,score_a,score_b,time_a,time_b,winner,created]=a;
         if(duels.some(d=>d.msg_id===msg_id)) return {meta:{changes:0}};
@@ -178,13 +179,23 @@ if(!r.body.me || r.body.me.handle!=='Jesse') throw new Error('second claim faile
 r = await js(await call('POST','/social',{device:dev('b'), action:'add', code:r.body.me.code}));
 if(r.status!==400) throw new Error('adding your own code should fail');
 r = await js(await call('POST','/social',{device:dev('b'), action:'add', code:codeA}));
-if(r.body.outgoing!==1) throw new Error('outgoing request not counted: '+JSON.stringify(r.body));
-// A sees the request and accepts
+if(!r.body.friends.length || r.body.friends[0].handle!=='Sam K') throw new Error('add-by-code should be instant friendship: '+JSON.stringify(r.body));
+// the code owner gets a courtesy note, NOT an accept chore
 r = await js(await call('GET','/social?device='+dev('a')));
-if(!r.body.requests.length || r.body.requests[0].handle!=='Jesse') throw new Error('incoming request missing: '+JSON.stringify(r.body));
-const jesseId = r.body.requests[0].id;
-r = await js(await call('POST','/social',{device:dev('a'), action:'accept', user:jesseId}));
-if(!r.body.friends.length || r.body.friends[0].handle!=='Jesse') throw new Error('accept failed: '+JSON.stringify(r.body));
+if(!r.body.friends.length || r.body.friends[0].handle!=='Jesse') throw new Error('friendship not mutual: '+JSON.stringify(r.body));
+if(r.body.requests.length) throw new Error('no request should remain after add-by-code');
+const fnote = r.body.inbox.find(m=>m.kind==='friend');
+if(!fnote || fnote.handle!=='Jesse') throw new Error('friend note missing: '+JSON.stringify(r.body.inbox));
+await call('POST','/social',{device:dev('a'), action:'seen', ids:[fnote.id]});
+// legacy pending rows (pre-instant-add) still resolve through accept
+r = await js(await call('POST','/social',{device:dev('9'), action:'claim', handle:'Lego'}));
+const legoId = users.find(u=>u.handle==='Lego').id, samId = users.find(u=>u.handle==='Sam K').id;
+friends.push({ a: legoId < samId ? legoId : samId, b: legoId < samId ? samId : legoId,
+  requester: legoId, status:'pending', created: 1 });
+r = await js(await call('GET','/social?device='+dev('a')));
+if(!r.body.requests.length || r.body.requests[0].handle!=='Lego') throw new Error('legacy request missing: '+JSON.stringify(r.body.requests));
+r = await js(await call('POST','/social',{device:dev('a'), action:'accept', user:legoId}));
+if(!r.body.friends.some(f=>f.handle==='Lego')) throw new Error('legacy accept failed: '+JSON.stringify(r.body.friends));
 // direct challenge B -> A (friend) and to a stranger (403)
 r = await js(await call('POST','/social',{device:dev('b'), action:'challenge', to:'deadbeef', set:'1.2.3.4.5.6', score:4, timeMs:9000}));
 if(r.status!==403) throw new Error('challenging a non-friend should 403');

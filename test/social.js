@@ -50,7 +50,9 @@ const server = http.createServer((req,res)=>{
         const b = JSON.parse(req.postData());
         actions.push(b);
         if(b.action==='claim') state.me = { handle:b.handle, code:'YW-ABC234' };
-        if(b.action==='add'){ state.outgoing = 1; }
+        if(b.action==='add'){   // instant friendship — no accept round-trip
+          state.friends = [...state.friends, {id:'f9', handle:'Zoe', w:0, l:0, t:0}];
+        }
         if(b.action==='accept'){ state.requests = []; state.friends = [{id:'f1', handle:'Jesse'}]; }
         if(b.action==='seen'){ state.inbox = state.inbox.filter(m=>!b.ids.includes(m.id)); }
         if(b.action==='challenge'){ /* recorded via actions */ }
@@ -116,12 +118,14 @@ const server = http.createServer((req,res)=>{
   if(!actions.some(a=>a.action==='accept' && a.user==='f1')) throw new Error('accept POST missing');
   console.log('friend request accept OK');
 
-  // 3) add by code posts the code
+  // 3) add by code posts the code and lands as an INSTANT friend
   await pg.$eval('#codeIn', e=>{ e.value='yw-zz88kk'; });
   await pg.click('#friendsCard button:has-text("+ Add")');
   await pg.waitForTimeout(300);
   if(!actions.some(a=>a.action==='add' && a.code==='yw-zz88kk')) throw new Error('add POST missing');
-  console.log('add-by-code OK');
+  card = await pg.$eval('#friendsCard', e=>e.innerText);
+  if(!/Zoe/.test(card)) throw new Error('instant friend not rendered: '+card.slice(0,200));
+  console.log('add-by-code: instant friend OK');
 
   // 4) inbox challenge -> Play launches THAT set with the beat score
   state.inbox = [{id:7, from:'f1', handle:'Jesse', kind:'challenge', payload:{set:'10.20.30.40.50.60', score:4, timeMs:12000}, created:1}];
@@ -212,10 +216,12 @@ const server = http.createServer((req,res)=>{
     me:{handle:'Sam', code:'YW-XXXXXX'},
     friends:[{id:'f2', handle:'Kim', w:0, l:0, t:0}, {id:'f1', handle:'Jesse', w:3, l:1, t:1}],
     requests:[], outgoing:0,
-    inbox:[{id:11, from:'f1', handle:'Jesse', kind:'result', payload:{score:5, timeMs:60000, w:'them'}, created:3}]
+    inbox:[{id:11, from:'f1', handle:'Jesse', kind:'result', payload:{score:5, timeMs:60000, w:'them'}, created:3},
+           {id:12, from:'f2', handle:'Kim', kind:'friend', payload:{}, created:4}]
   }));
   await pg.waitForTimeout(200);
   card = await pg.$eval('#friendsCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Kim used your code — you're friends now/.test(card)) throw new Error('friend note row missing: '+card.slice(0,300));
   if(!/⚔️ duels/i.test(card)) throw new Error('duels header missing: '+card.slice(0,240));
   if(!/👑 you 3–1 · 1 tie/.test(card)) throw new Error('duel record missing: '+card.slice(0,240));
   if(!(/Jesse[\s\S]*Kim/.test(await pg.$eval('#friendsCard', e=>e.innerText)))) throw new Error('duel sort wrong (Jesse should rank above Kim)');
