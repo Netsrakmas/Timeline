@@ -60,6 +60,21 @@ CREATE TABLE IF NOT EXISTS inbox (
 );
 CREATE INDEX IF NOT EXISTS idx_inbox_to ON inbox(to_user, seen, created DESC);
 
+-- head-to-head duel results: one row per answered inbox challenge (msg_id
+-- dedupes — the first reported result stands). Powers the friends leaderboard.
+CREATE TABLE IF NOT EXISTS duels (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  msg_id  INTEGER NOT NULL UNIQUE,  -- the inbox challenge this answers
+  a       TEXT NOT NULL,            -- challenger
+  b       TEXT NOT NULL,            -- opponent (who reported the result)
+  score_a INTEGER, score_b INTEGER,
+  time_a  INTEGER, time_b  INTEGER,
+  winner  TEXT NOT NULL,            -- user id of the winner, '' for a tie
+  created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_duels_a ON duels(a);
+CREATE INDEX IF NOT EXISTS idx_duels_b ON duels(b);
+
 -- external logins attached to a user (Google for now). A login is how the
 -- same account comes back on a new phone; a user can exist without one.
 CREATE TABLE IF NOT EXISTS logins (

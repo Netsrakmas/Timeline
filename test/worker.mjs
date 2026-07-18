@@ -10,6 +10,7 @@ const devices = []; // {device, user_id, created}
 const friends = []; // {a, b, requester, status, created}
 const inbox = [];   // {id, to_user, from_user, kind, payload, created, seen}
 const logins = [];  // {provider, subject, user_id, email, created}
+const duels = [];   // {msg_id, a, b, score_a, score_b, time_a, time_b, winner, created}
 let inboxSeq = 0;
 function fakeDB(){
   return { prepare(sql){ return { bind(...a){ return {
@@ -35,8 +36,11 @@ function fakeDB(){
       if(/^INSERT INTO friends/.test(sql)){ const [x,y,requester,created]=a; friends.push({a:x,b:y,requester,status:'pending',created}); return {}; }
       if(/^UPDATE friends SET status='accepted'/.test(sql)){ const [x,y]=a; const f=friends.find(r=>r.a===x&&r.b===y); if(f) f.status='accepted'; return {}; }
       if(/^DELETE FROM friends/.test(sql)){ const [x,y]=a; const i=friends.findIndex(r=>r.a===x&&r.b===y); if(i>=0) friends.splice(i,1); return {}; }
-      if(/^INSERT INTO inbox/.test(sql)){ const kind = sql.includes("'react'") ? 'react' : 'challenge';
+      if(/^INSERT INTO inbox/.test(sql)){ const kind = sql.includes("'react'") ? 'react' : sql.includes("'result'") ? 'result' : 'challenge';
         const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind,payload,created,seen:0}); return {}; }
+      if(/^INSERT OR IGNORE INTO duels/.test(sql)){ const [msg_id,x,y,score_a,score_b,time_a,time_b,winner,created]=a;
+        if(duels.some(d=>d.msg_id===msg_id)) return {meta:{changes:0}};
+        duels.push({msg_id,a:x,b:y,score_a,score_b,time_a,time_b,winner,created}); return {meta:{changes:1}}; }
       if(/^UPDATE inbox SET seen=1/.test(sql)){ const [id,to_user]=a; const m=inbox.find(r=>r.id===id&&r.to_user===to_user); if(m) m.seen=1; return {}; }
       if(/^INSERT INTO logins/.test(sql)){ const [subject,user_id,email,created]=a; logins.push({provider:'google',subject,user_id,email,created}); return {}; }
       throw new Error('unexpected run: '+sql);
@@ -61,6 +65,8 @@ function fakeDB(){
       if(/SELECT handle FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{handle:u.handle}:null; }
       if(/SELECT id FROM users WHERE handle_lc=/.test(sql)){ const u=users.find(x=>x.handle_lc===a[0]); return u?{id:u.id}:null; }
       if(/SELECT id, handle FROM users WHERE code=/.test(sql)){ const u=users.find(x=>x.code===a[0]); return u?{id:u.id,handle:u.handle}:null; }
+      if(/SELECT from_user, kind, payload FROM inbox WHERE id=/.test(sql)){
+        const m=inbox.find(r=>r.id===a[0]&&r.to_user===a[1]); return m?{from_user:m.from_user,kind:m.kind,payload:m.payload}:null; }
       if(/SELECT requester, status FROM friends/.test(sql)){ const f=friends.find(r=>r.a===a[0]&&r.b===a[1]); return f?{requester:f.requester,status:f.status}:null; }
       if(/SELECT status FROM friends/.test(sql)){ const f=friends.find(r=>r.a===a[0]&&r.b===a[1]); return f?{status:f.status}:null; }
       throw new Error('unexpected first: '+sql);
@@ -77,6 +83,9 @@ function fakeDB(){
       }
       if(/SELECT a, b, requester, status FROM friends/.test(sql)){
         return { results: friends.filter(r=>r.a===a[0]||r.b===a[0]).map(r=>({...r})) };
+      }
+      if(/SELECT a, b, winner FROM duels/.test(sql)){
+        return { results: duels.filter(d=>d.a===a[0]||d.b===a[0]).map(d=>({a:d.a,b:d.b,winner:d.winner})) };
       }
       if(/FROM inbox WHERE to_user=/.test(sql)){
         return { results: inbox.filter(m=>m.to_user===a[0]&&!m.seen).sort((x,y)=>y.created-x.created).slice(0,20)
@@ -259,4 +268,42 @@ const rx = r.body.inbox.find(m=>m.kind==='react');
 if(!rx || rx.handle!=='Jesse' || rx.payload.emoji!=='🔥') throw new Error('reaction not in inbox: '+JSON.stringify(r.body.inbox));
 console.log('reactions: whitelist, friends-only, inbox delivery ✓');
 
-console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social, auth)');
+// --- duels: reporting an inbox-challenge result records the head-to-head ---
+// msgId is B(Jesse)->A(Sam K) with score 4, timeMs 9000 (already marked seen —
+// results must still resolve seen messages)
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:msgId, score:99}));
+if(r.status!==400) throw new Error('out-of-range result score should 400');
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:12345, score:5}));
+if(r.status!==404) throw new Error('unknown message id should 404');
+r = await js(await call('POST','/social',{device:dev('b'), action:'result', id:msgId, score:5, timeMs:1000}));
+if(r.status!==404) throw new Error('only the recipient may report a result');
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:msgId, score:5, timeMs:8000}));
+if(r.status!==200) throw new Error('result report failed: '+JSON.stringify(r.body));
+let fJesse = r.body.friends.find(f=>f.handle==='Jesse');
+if(!fJesse || fJesse.w!==1 || fJesse.l!==0 || fJesse.t!==0) throw new Error('winner tally wrong: '+JSON.stringify(r.body.friends));
+r = await js(await call('GET','/social?device='+dev('b')));
+const res = r.body.inbox.find(m=>m.kind==='result');
+if(!res || res.handle!=='Sam K' || res.payload.score!==5 || res.payload.w!=='them') throw new Error('challenger result message wrong: '+JSON.stringify(r.body.inbox));
+let fSam = r.body.friends.find(f=>f.handle==='Sam K');
+if(!fSam || fSam.w!==0 || fSam.l!==1) throw new Error('loser tally wrong: '+JSON.stringify(r.body.friends));
+// duplicate report is a no-op: first result stands, no second inbox message
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:msgId, score:0, timeMs:99}));
+if(r.status!==200) throw new Error('duplicate report should still 200');
+fJesse = r.body.friends.find(f=>f.handle==='Jesse');
+if(fJesse.w!==1 || fJesse.l!==0) throw new Error('duplicate report changed the tally');
+r = await js(await call('GET','/social?device='+dev('b')));
+if(r.body.inbox.filter(m=>m.kind==='result').length!==1) throw new Error('duplicate report sent a second message');
+// equal score falls to the fastest time; equal everything is a tie
+r = await js(await call('POST','/social',{device:dev('b'), action:'challenge', to:aId, set:'2.3.4.5.6.7', score:4, timeMs:9000}));
+let m2 = (await js(await call('GET','/social?device='+dev('a')))).body.inbox.find(m=>m.kind==='challenge');
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:m2.id, score:4, timeMs:5000}));
+fJesse = r.body.friends.find(f=>f.handle==='Jesse');
+if(fJesse.w!==2 || fJesse.l!==0) throw new Error('tie-broken-by-time not a win: '+JSON.stringify(fJesse));
+r = await js(await call('POST','/social',{device:dev('b'), action:'challenge', to:aId, set:'3.4.5.6.7.8', score:4, timeMs:9000}));
+m2 = (await js(await call('GET','/social?device='+dev('a')))).body.inbox.find(m=>m.kind==='challenge');
+r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:m2.id, score:4, timeMs:9000}));
+fJesse = r.body.friends.find(f=>f.handle==='Jesse');
+if(fJesse.w!==2 || fJesse.l!==0 || fJesse.t!==1) throw new Error('dead-even duel not a tie: '+JSON.stringify(fJesse));
+console.log('duels: validation, recipient-only, winner/tie math, one-shot dedupe, challenger notified ✓');
+
+console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social, auth, duels)');

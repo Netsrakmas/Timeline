@@ -148,6 +148,36 @@ const server = http.createServer((req,res)=>{
   if(!sent || sent.to!=='f1' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
   console.log('direct-send button posts the set to the friend OK ·', JSON.stringify({to:sent.to, score:sent.score}));
 
+  // 5c) finishing an inbox challenge reports the duel result (msg id 7) —
+  // and a LOST duel gets no confetti
+  const resAct = actions.find(a=>a.action==='result');
+  if(!resAct || resAct.id!==7 || !Number.isFinite(resAct.score)) throw new Error('result POST wrong: '+JSON.stringify(resAct));
+  if(await pg.$('#confetti')) throw new Error('confetti on a lost duel');
+  console.log('duel result reported to the server (id 7), no confetti on a loss OK');
+
+  // 5d) a WON challenge bursts confetti; reduced motion suppresses it
+  await pg.evaluate(()=>{
+    document.getElementById('overlay').classList.remove('show');
+    S.mode='challenge'; S.current=null; S.lastReveal=null; S.reactTo=null;
+    S.players=[{name:'You', hits:5, timeMs:1000, results:[1,1,1,1,1], timeline:[]}];
+    S.challenge={idx:[11,12,13,14,15,16], beat:2, beatTime:null};
+    overlayRunOver();
+  });
+  await pg.waitForTimeout(300);
+  const bits = await pg.$$eval('#confetti i', els=>els.length).catch(()=>0);
+  if(!bits) throw new Error('no confetti on a won challenge');
+  await pg.emulateMedia({reducedMotion:'reduce'});
+  await pg.evaluate(()=>{
+    const c=document.getElementById('confetti'); if(c) c.remove();
+    document.getElementById('overlay').classList.remove('show');
+    S.challenge={idx:[21,22,23,24,25,26], beat:1, beatTime:null};
+    overlayRunOver();
+  });
+  await pg.waitForTimeout(200);
+  if(await pg.$('#confetti')) throw new Error('confetti despite prefers-reduced-motion');
+  await pg.emulateMedia({reducedMotion:'no-preference'});
+  console.log('confetti on a won duel, suppressed under reduced motion OK');
+
   // 5b) an incoming reaction renders in the friends card and dismisses
   state.inbox = [{id:9, from:'f1', handle:'Jesse', kind:'react', payload:{emoji:'😂', score:2}, created:2}];
   await pg.click('#sheet button:has-text("Done")');
@@ -160,6 +190,21 @@ const server = http.createServer((req,res)=>{
   card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(/Jesse reacted/.test(card)) throw new Error('dismissed reaction still shown');
   console.log('incoming reaction row + dismiss OK');
+
+  // 5e) friends card renders the duel leaderboard + a challenger result row
+  await pg.evaluate(()=>renderFriendsCard({
+    me:{handle:'Sam', code:'YW-XXXXXX'},
+    friends:[{id:'f2', handle:'Kim', w:0, l:0, t:0}, {id:'f1', handle:'Jesse', w:3, l:1, t:1}],
+    requests:[], outgoing:0,
+    inbox:[{id:11, from:'f1', handle:'Jesse', kind:'result', payload:{score:5, timeMs:60000, w:'them'}, created:3}]
+  }));
+  await pg.waitForTimeout(200);
+  card = await pg.$eval('#friendsCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/⚔️ duels/i.test(card)) throw new Error('duels header missing: '+card.slice(0,240));
+  if(!/👑 you 3–1 · 1 tie/.test(card)) throw new Error('duel record missing: '+card.slice(0,240));
+  if(!(/Jesse[\s\S]*Kim/.test(await pg.$eval('#friendsCard', e=>e.innerText)))) throw new Error('duel sort wrong (Jesse should rank above Kim)');
+  if(!/Jesse played your challenge — 5\/5 · they beat you/.test(card)) throw new Error('challenger result row missing: '+card.slice(0,300));
+  console.log('friends card: duel leaderboard sorted + challenger result row OK');
 
   await ctx.close();
 

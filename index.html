@@ -268,6 +268,10 @@
   .year-fix input.rev-yr{width:92px; height:46px; font-size:20px; text-align:center; -moz-appearance:textfield;}
   .year-fix input.rev-yr::-webkit-outer-spin-button, .year-fix input.rev-yr::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
   .winner-emoji{font-size:54px;}
+  #confetti{position:fixed; inset:0; pointer-events:none; z-index:55; overflow:hidden;}
+  #confetti i{position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
+    animation:confall linear forwards;}
+  @keyframes confall{to{transform:translateY(116vh) rotate(720deg); opacity:.7;}}
   .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--bad); color:#fff;
     padding:11px 16px; border-radius:11px; font-size:13.5px; max-width:90%; text-align:center; z-index:60;
     box-shadow:0 8px 30px rgba(0,0,0,.4); display:none;}
@@ -4400,7 +4404,7 @@ async function playInboxChal(id){
   const idx = String(m.payload && m.payload.set || "").split(".").map(Number).filter(n => Number.isFinite(n) && n >= 0);
   if(idx.length < 2){ toast("This challenge can't be played on this version."); return; }
   S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null };
-  const from = { user: m.from, handle: m.handle };
+  const from = { user: m.from, handle: m.handle, msgId: m.id };
   await startChallenge();
   S.reactTo = from;   // after startGame (which clears it) — offer a reaction on the results screen
 }
@@ -4412,6 +4416,24 @@ async function sendReact(to, emoji, score){
 async function dismissMsg(id){
   const r = await socialPost({ action:"seen", ids:[id] });
   if(r && r.ok) renderFriendsCard(r.body);
+}
+function confettiBurst(){
+  if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let host = document.getElementById("confetti");
+  if(host) host.remove();
+  host = document.createElement("div"); host.id = "confetti";
+  const colors = ["#FFC24B","#8CEBFF","#FF5C8A","#9D7BFF","#54E38E"];
+  for(let i = 0; i < 80; i++){
+    const p = document.createElement("i");
+    p.style.left = (Math.random()*100) + "vw";
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (1.7 + Math.random()*1.4) + "s";
+    p.style.animationDelay = (Math.random()*0.5) + "s";
+    p.style.transform = "rotate(" + Math.floor(Math.random()*360) + "deg)";
+    host.appendChild(p);
+  }
+  document.body.appendChild(host);
+  setTimeout(()=>{ host.remove(); }, 3800);
 }
 function friendsCardHTML(st){
   const prof = (st && st.me) || loadProfile();
@@ -4428,6 +4450,7 @@ function friendsCardHTML(st){
   }
   const inbox = (st && st.inbox || []).filter(m => m.kind === "challenge");
   const reacts = (st && st.inbox || []).filter(m => m.kind === "react");
+  const results = (st && st.inbox || []).filter(m => m.kind === "result");
   const reqs = st && st.requests || [];
   const fr = st && st.friends || [];
   return `<div class="card slim">
@@ -4439,6 +4462,15 @@ function friendsCardHTML(st){
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
         <button class="btn sm pink" style="flex:0 0 auto" onclick="playInboxChal(${m.id})">▶ Play</button>
       </div>`).join("")}
+      ${results.map(m=>{
+        const w = m.payload && m.payload.w, sc = m.payload && m.payload.score;
+        const verdict = w === "you" ? `<b style="color:var(--good)">you held it 🛡</b>`
+                      : w === "them" ? `<b style="color:var(--bad)">they beat you</b>`
+                      : `<b>dead even 🤝</b>`;
+        return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> played your challenge${sc != null ? ` — ${sc}/${RUN_LEN}` : ``} · ${verdict}</span>
+        <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
+      </div>`;}).join("")}
       ${reacts.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px"><b>${esc(m.handle)}</b> reacted ${esc(m.payload && m.payload.emoji || "👏")}${m.payload && m.payload.score != null ? ` to your challenge` : ``}</span>
         <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
@@ -4448,9 +4480,18 @@ function friendsCardHTML(st){
         <span style="flex:0 0 auto"><button class="btn sm" onclick="acceptFriend('${q.id}')" aria-label="Accept">✓</button>
           <button class="btn ghost sm" onclick="declineFriend('${q.id}')" aria-label="Decline">✕</button></span>
       </div>`).join("")}
-      <div class="muted" style="font-size:13px; margin-top:9px">${fr.length
+      ${fr.some(f => (f.w|0)+(f.l|0)+(f.t|0) > 0) ? `
+      <div class="eyebrow" style="color:var(--cyan); margin-top:11px">⚔️ duels</div>
+      ${[...fr].sort((x,y)=>(((y.w|0)+(y.l|0)+(y.t|0)) - ((x.w|0)+(x.l|0)+(x.t|0))) || ((y.w|0)-(x.w|0))).map(f=>{
+        const w = f.w|0, l = f.l|0, t = f.t|0, any = w+l+t > 0;
+        const col = !any ? "var(--muted)" : w > l ? "var(--good)" : l > w ? "var(--bad)" : "var(--muted)";
+        return `<div class="row" style="justify-content:space-between; align-items:center; font-size:13px; margin-top:5px">
+          <b>${esc(f.handle)}</b>
+          <span style="color:${col}">${any ? `${w > l ? "👑 " : ""}you ${w}–${l}${t ? ` · ${t} tie${t===1?"":"s"}` : ``}` : `—`}</span>
+        </div>`;}).join("")}`
+      : `<div class="muted" style="font-size:13px; margin-top:9px">${fr.length
         ? fr.map(f=>`<b>${esc(f.handle)}</b>`).join(" · ")
-        : `No friends yet — share your code, or add theirs:`}</div>
+        : `No friends yet — share your code, or add theirs:`}</div>`}
       <div class="row" style="gap:8px; margin-top:10px">
         <input id="codeIn" maxlength="9" placeholder="YW-XXXXXX" style="flex:1; text-transform:uppercase" aria-label="Friend code" />
         <button class="btn sm" style="flex:0 0 auto" onclick="addFriendCode(document.getElementById('codeIn').value)">+ Add</button>
@@ -5631,6 +5672,7 @@ function overlayRunOver(){
       return `<div style="font-size:14px; margin:5px 0">${pl===top?'🏆 ':''}<span style="color:${oc}; font-weight:700">● ${esc(pl.name)}</span> — <b>${pl.hits||0}/${RUN_LEN}</b> · ${fmtTime(pl.timeMs)} <span style="font-size:12px; letter-spacing:1px">${squares(pl)}</span></div>`;
     }).join("");
     buzz([0,30,40,30,40,90]);
+    confettiBurst();
     sheet.innerHTML = `
       <div class="winner-emoji">⚡</div>
       <div class="verdict good" style="margin-top:6px">${esc(top.name)} WINS</div>
@@ -5650,7 +5692,7 @@ function overlayRunOver(){
   const setIdx = (S.challenge && S.challenge.idx) || S.runCards;
   const mine = !(S.challenge && S.challenge.idx);   // own run (daily/turbo/fresh) vs an incoming link
   if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0, mine);
-  let streakLine = "", title = 'TURBO RUN';
+  let streakLine = "", title = 'TURBO RUN', duelWon = false;
   if(daily){
     title = 'DAILY #'+dailyNumber();
     const d = loadDaily();
@@ -5668,9 +5710,10 @@ function overlayRunOver(){
     const beatT = S.challenge && S.challenge.beatTime;
     const myT = me.timeMs||0;
     if(beat!=null){
-      if(score > beat) streakLine = `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 You beat their ${beat}/${RUN_LEN}!</div>`;
+      if(score > beat){ duelWon = true; streakLine = `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 You beat their ${beat}/${RUN_LEN}!</div>`; }
       else if(score < beat) streakLine = `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">They hold it — ${beat}/${RUN_LEN}</div>`;
       else if(beatT){   // equal score: fastest time decides
+        duelWon = myT < beatT;
         streakLine = myT < beatT
           ? `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 Tied at ${beat}/${RUN_LEN} — but you were faster! ⏱ ${fmtTime(myT)} vs ${fmtTime(beatT)}</div>`
           : myT > beatT
@@ -5679,11 +5722,16 @@ function overlayRunOver(){
       }
       else streakLine = `<div style="font-size:15px; margin:6px 0">🤝 Tied at ${beat}/${RUN_LEN}</div>`;
     }
+    // inbox challenge: record the duel server-side (first report stands) —
+    // this also drops a "they played it" message in the challenger's inbox
+    if(S.reactTo && S.reactTo.msgId && LB.url)
+      socialPost({ action:"result", id:S.reactTo.msgId, score, timeMs: me.timeMs||0 });
   } else {
     const best = loadBest();
     if(score > (best.turbo||0)){ best.turbo = score; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
   }
   buzz(perfect ? [0,30,40,30,40,90] : [0,25,40,25]);
+  if(duelWon) confettiBurst();   // you beat a real person — celebrate 🎉
   const canChallenge = S.runCards && S.runCards.length >= 2;
   sheet.innerHTML = `
     <div class="winner-emoji">${perfect ? '🏆' : daily ? '📅' : chal ? '🎯' : '⚡'}</div>

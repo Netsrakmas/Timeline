@@ -141,11 +141,24 @@ async function socialState(env, me, cors){
     const u = await env.DB.prepare("SELECT id, handle FROM users WHERE id=?1").bind(id).first();
     if(u) named[id] = u.handle;
   }
+  // head-to-head duel tallies per friend, from my perspective (w = my wins)
+  const drows = (await env.DB.prepare(
+    "SELECT a, b, winner FROM duels WHERE a=?1 OR b=?1"
+  ).bind(me.id).all()).results || [];
+  const tally = {};
+  for(const d of drows){
+    const other = d.a === me.id ? d.b : d.a;
+    const t = tally[other] || (tally[other] = { w: 0, l: 0, t: 0 });
+    if(d.winner === me.id) t.w++; else if(d.winner === other) t.l++; else t.t++;
+  }
   const friends = [], requests = []; let outgoing = 0;
   for(const r of rows){
     const other = r.a === me.id ? r.b : r.a;
     if(!(other in named)) continue;
-    if(r.status === "accepted") friends.push({ id: other, handle: named[other] });
+    if(r.status === "accepted"){
+      const t = tally[other] || { w: 0, l: 0, t: 0 };
+      friends.push({ id: other, handle: named[other], w: t.w, l: t.l, t: t.t });
+    }
     else if(r.requester === me.id) outgoing++;
     else requests.push({ id: other, handle: named[other] });
   }
@@ -252,6 +265,36 @@ async function handleSocialPost(env, b, cors){
     if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
     await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'react',?3,?4)")
       .bind(to, me.id, JSON.stringify({ emoji, score }), Date.now()).run();
+    return socialState(env, me, cors);
+  }
+
+  if(action === "result"){
+    // opponent finished an inbox challenge: record the duel (first report
+    // stands — msg_id is UNIQUE) and tell the challenger how it went
+    const msgId = parseInt(b.id, 10);
+    const score = parseInt(b.score, 10);
+    const timeMs = parseInt(b.timeMs, 10) || 0;
+    if(!Number.isFinite(msgId)) return json({ error: "bad id" }, 400, cors);
+    if(!Number.isFinite(score) || score < 0 || score > RUN_LEN) return json({ error: "bad score" }, 400, cors);
+    const m = await env.DB.prepare(
+      "SELECT from_user, kind, payload FROM inbox WHERE id=?1 AND to_user=?2"
+    ).bind(msgId, me.id).first();
+    if(!m || m.kind !== "challenge") return json({ error: "not found" }, 404, cors);
+    let pay = {}; try{ pay = JSON.parse(m.payload); }catch(e){}
+    const sa = Number.isFinite(parseInt(pay.score, 10)) ? parseInt(pay.score, 10) : null;
+    const ta = parseInt(pay.timeMs, 10) || 0;
+    // score first; equal scores fall to the fastest time; else a tie
+    const winner = sa == null ? "" :
+      score > sa ? me.id : score < sa ? m.from_user :
+      (ta && timeMs && timeMs !== ta) ? (timeMs < ta ? me.id : m.from_user) : "";
+    const ins = await env.DB.prepare(
+      "INSERT OR IGNORE INTO duels (msg_id, a, b, score_a, score_b, time_a, time_b, winner, created) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)"
+    ).bind(msgId, m.from_user, me.id, sa, score, ta, timeMs, winner, Date.now()).run();
+    if(ins.meta && ins.meta.changes === 0) return socialState(env, me, cors);   // already recorded
+    await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'result',?3,?4)")
+      .bind(m.from_user, me.id, JSON.stringify({
+        score, timeMs, w: winner === m.from_user ? "you" : winner === me.id ? "them" : "tie"
+      }), Date.now()).run();
     return socialState(env, me, cors);
   }
 
