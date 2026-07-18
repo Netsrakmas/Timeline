@@ -69,7 +69,8 @@ const server = http.createServer((req,res)=>{
 
   await pg.goto(base,{waitUntil:'load'});
   await pg.waitForTimeout(800);
-  await pg.evaluate(()=>{ LB.url='https://lb.test'; renderSetup(); });
+  // this context tests the social flows with Google OFF (clientId cleared)
+  await pg.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; renderSetup(); });
   await pg.waitForTimeout(500);
 
   // 1) no profile -> claim card
