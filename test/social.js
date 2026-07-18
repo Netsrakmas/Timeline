@@ -77,6 +77,9 @@ const server = http.createServer((req,res)=>{
   let card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(!/Claim a name/.test(card)) throw new Error('claim card missing: '+card.slice(0,120));
   if(/Played before|Google/.test(card)) throw new Error('Google UI must stay hidden while GAUTH.clientId is empty');
+  // typeless inputs must pick up the dark theme (UA default is white)
+  const inCss = await pg.$eval('#handleIn', e=>{ const s=getComputedStyle(e); return s.backgroundColor+'|'+s.borderRadius; });
+  if(/rgb\(255, 255, 255\)/.test(inCss) || !/10px/.test(inCss)) throw new Error('handle input not dark-themed: '+inCss);
   await pg.$eval('#handleIn', e=>{ e.value='Sam K'; });
   await pg.click('#friendsCard button:has-text("Claim")');
   await pg.waitForTimeout(400);
