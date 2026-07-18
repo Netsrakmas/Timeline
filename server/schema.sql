@@ -23,3 +23,39 @@ CREATE TABLE IF NOT EXISTS chals (
   PRIMARY KEY (setkey, device)
 );
 CREATE INDEX IF NOT EXISTS idx_chals_set ON chals(setkey, score DESC, time_ms ASC);
+
+-- social layer: a user is a claimed handle + a shareable friend code. A device
+-- token (the same anonymous token the boards use) links to at most one user;
+-- later real login (email/OAuth) attaches to users without touching this.
+CREATE TABLE IF NOT EXISTS users (
+  id        TEXT PRIMARY KEY,      -- random hex, server-generated
+  handle    TEXT NOT NULL,         -- display name as typed
+  handle_lc TEXT NOT NULL UNIQUE,  -- lowercased for uniqueness
+  code      TEXT NOT NULL UNIQUE,  -- friend code, e.g. YW-7F3KQ2
+  created   INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS devices (
+  device  TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+-- one row per pair; (a,b) is the sorted pair, requester says who asked
+CREATE TABLE IF NOT EXISTS friends (
+  a         TEXT NOT NULL,
+  b         TEXT NOT NULL,
+  requester TEXT NOT NULL,
+  status    TEXT NOT NULL,         -- 'pending' | 'accepted'
+  created   INTEGER NOT NULL,
+  PRIMARY KEY (a, b)
+);
+-- direct messages of structured kinds (no free text): challenges for now
+CREATE TABLE IF NOT EXISTS inbox (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  to_user   TEXT NOT NULL,
+  from_user TEXT NOT NULL,
+  kind      TEXT NOT NULL,         -- 'challenge'
+  payload   TEXT NOT NULL,         -- JSON: {set, score, timeMs}
+  created   INTEGER NOT NULL,
+  seen      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_to ON inbox(to_user, seen, created DESC);

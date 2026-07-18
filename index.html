@@ -290,7 +290,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.10.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.0.0-dev";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4299,6 +4299,111 @@ function saveNick(v){
   Object.entries(c).filter(([k,e])=>e.at).sort((a,b)=>b[1].at-a[1].at).slice(0,5)
     .forEach(([k,e])=>lbSubmitChal(k, e.s, Math.max(e.t||0, 500)));
 }
+/* ---------- social: profile, friends, direct challenges ----------
+   A profile is a claimed handle + friend code, keyed by the same anonymous
+   device token the boards use. No email, no password (yet) — real login can
+   attach to this later without migration. */
+let _social = null;   // last fetched social state
+function loadProfile(){ try{ return JSON.parse(store.get("tl_user")||"null"); }catch(e){ return null; } }
+function saveProfile(p){ store.set("tl_user", JSON.stringify(p)); }
+async function socialGet(){
+  if(!LB.url) return null;
+  try{
+    const r = await fetch(LB.url+"/social?device="+deviceId());
+    if(!r.ok) return null;
+    const b = await r.json();
+    if(b && b.me) saveProfile(b.me);
+    _social = b;
+    return b;
+  }catch(e){ return null; }
+}
+async function socialPost(data){
+  if(!LB.url) return null;
+  try{
+    const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ device: deviceId(), ...data }) });
+    const b = await r.json().catch(()=>null);
+    if(r.ok && b && b.me){ saveProfile(b.me); _social = b; }
+    return { ok: r.ok, status: r.status, body: b };
+  }catch(e){ return null; }
+}
+async function claimHandle(v){
+  const r = await socialPost({ action:"claim", handle:(v||"").trim() });
+  if(!r){ toast("No connection — try again in a moment."); return; }
+  if(!r.ok){ toast(r.status===409 ? "That name is taken — try another." : "3–20 letters or numbers, please."); return; }
+  store.set("tl_nick", r.body.me.handle);   // boards and profile share one name
+  const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
+  renderFriendsCard(r.body);
+  toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
+}
+async function addFriendCode(v){
+  const r = await socialPost({ action:"add", code:v });
+  if(!r){ toast("No connection."); return; }
+  if(!r.ok){ toast(r.status===404 ? "Code not found — check it with your friend." : "Couldn't add that code."); return; }
+  renderFriendsCard(r.body);
+  toast((r.body.friends||[]).length ? "Added! ⚔️" : "Request sent — they'll see it next time they open the game.");
+}
+async function acceptFriend(id){ const r = await socialPost({ action:"accept", user:id }); if(r && r.ok) renderFriendsCard(r.body); }
+async function declineFriend(id){ const r = await socialPost({ action:"decline", user:id }); if(r && r.ok) renderFriendsCard(r.body); }
+function copyCode(){
+  const p = loadProfile(); if(!p || !p.code) return;
+  try{ navigator.clipboard.writeText(p.code); toast("Code copied — send it to a friend 📋"); }
+  catch(e){ toast(p.code); }
+}
+async function sendChal(to, set, score, timeMs){
+  const r = await socialPost({ action:"challenge", to, set, score, timeMs });
+  toast(r && r.ok ? "Challenge sent ⚔️" : "Couldn't send — use the share link instead.");
+}
+async function playInboxChal(id){
+  const m = _social && _social.inbox && _social.inbox.find(x => x.id === id);
+  if(!m) return;
+  socialPost({ action:"seen", ids:[id] });   // fire and forget
+  const idx = String(m.payload && m.payload.set || "").split(".").map(Number).filter(n => Number.isFinite(n) && n >= 0);
+  if(idx.length < 2){ toast("This challenge can't be played on this version."); return; }
+  S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null };
+  await startChallenge();
+}
+function friendsCardHTML(st){
+  const prof = (st && st.me) || loadProfile();
+  if(!prof){
+    return `<div class="card slim">
+      <div class="eyebrow" style="color:var(--violet)">👥 friends</div>
+      <div class="muted" style="font-size:13.5px; margin-top:4px">Claim a name to add friends and challenge them directly.</div>
+      <div class="row" style="gap:8px; margin-top:10px">
+        <input id="handleIn" maxlength="20" value="${esc(lbNick())}" style="flex:1" aria-label="Your player name" />
+        <button class="btn sm primary" style="flex:0 0 auto" onclick="claimHandle(document.getElementById('handleIn').value)">Claim</button>
+      </div></div>`;
+  }
+  const inbox = (st && st.inbox || []).filter(m => m.kind === "challenge");
+  const reqs = st && st.requests || [];
+  const fr = st && st.friends || [];
+  return `<div class="card slim">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div class="eyebrow" style="color:var(--violet)">👥 friends</div>
+        <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="copyCode()" aria-label="Copy your friend code">code <b>${esc(prof.code||"")}</b> ⧉</button>
+      </div>
+      ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
+        <button class="btn sm pink" style="flex:0 0 auto" onclick="playInboxChal(${m.id})">▶ Play</button>
+      </div>`).join("")}
+      ${reqs.map(q=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px"><b>${esc(q.handle)}</b> wants to be friends</span>
+        <span style="flex:0 0 auto"><button class="btn sm" onclick="acceptFriend('${q.id}')" aria-label="Accept">✓</button>
+          <button class="btn ghost sm" onclick="declineFriend('${q.id}')" aria-label="Decline">✕</button></span>
+      </div>`).join("")}
+      <div class="muted" style="font-size:13px; margin-top:9px">${fr.length
+        ? fr.map(f=>`<b>${esc(f.handle)}</b>`).join(" · ")
+        : `No friends yet — share your code, or add theirs:`}</div>
+      <div class="row" style="gap:8px; margin-top:10px">
+        <input id="codeIn" maxlength="9" placeholder="YW-XXXXXX" style="flex:1; text-transform:uppercase" aria-label="Friend code" />
+        <button class="btn sm" style="flex:0 0 auto" onclick="addFriendCode(document.getElementById('codeIn').value)">+ Add</button>
+      </div></div>`;
+}
+function renderFriendsCard(st){
+  const el = document.getElementById("friendsCard");
+  if(el) el.innerHTML = LB.url ? friendsCardHTML(st) : "";
+}
+
 /* challenge-set boards: every finished run on a shared set reports to /chal,
    so the challenger SEES who played their set — no send-back link needed */
 async function lbSubmitChal(setkey, score, timeMs){
@@ -5039,6 +5144,8 @@ function renderSetup(){
       </div>
     </div>`}
 
+    <div id="friendsCard"></div>
+
     ${hasSavedGame() ? `
     <div class="card" style="border-color:var(--cyan)">
       <div class="eyebrow" style="color:var(--cyan)">resume</div>
@@ -5104,6 +5211,8 @@ function renderSetup(){
     if(el && b && b.total) el.innerHTML = chalOthersHTML(b);
   });
   chalNews();
+  renderFriendsCard(_social);                       // instant, from cache
+  if(LB.url) socialGet().then(st => { if(st) renderFriendsCard(st); });   // then fresh
 }
 
 function renderPlayers(){
@@ -5529,6 +5638,11 @@ function overlayRunOver(){
         style="width:150px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
     </div>` : ``}
     ${last ? flagBlockHTML(last.id, last.year) : ``}
+    ${(_social && _social.friends && _social.friends.length && setIdx && setIdx.length>=2) ? `
+      <div class="muted" style="font-size:12px; margin-top:12px">send this set straight to a friend:</div>
+      <div class="row" style="flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px">
+        ${_social.friends.slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
+      </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
     ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}

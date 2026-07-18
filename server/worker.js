@@ -58,6 +58,143 @@ async function board(env, day, device, cors){
 }
 
 const SET_RE = /^\d+(\.\d+){1,8}$/;   // pool indices joined with dots (anchor + up to 8)
+const DEVICE_RE = /^[a-f0-9]{16,64}$/i;
+
+/* ---------- social: users, friends, direct challenges ---------- */
+const HANDLE_RE = /^[\p{L}\p{N}][\p{L}\p{N} _\-.]{1,18}[\p{L}\p{N}]$/u;   // 3–20 chars, no edge junk
+function friendCode(){
+  const A = "ABCDEFGHJKMNPQRSTVWXYZ23456789";   // no 0/O/1/I/L/U lookalikes
+  let s = ""; for(let i=0;i<6;i++) s += A[Math.floor(Math.random()*A.length)];
+  return "YW-" + s;
+}
+function randId(){
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return [...b].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+const pair = (u1, u2) => u1 < u2 ? [u1, u2] : [u2, u1];
+
+async function userByDevice(env, device){
+  return env.DB.prepare(
+    "SELECT u.id, u.handle, u.code FROM devices d JOIN users u ON u.id = d.user_id WHERE d.device=?1"
+  ).bind(device).first();
+}
+async function socialState(env, me, cors){
+  const rows = (await env.DB.prepare(
+    "SELECT a, b, requester, status FROM friends WHERE a=?1 OR b=?1"
+  ).bind(me.id).all()).results || [];
+  const ids = [...new Set(rows.map(r => r.a === me.id ? r.b : r.a))];
+  const named = {};
+  for(const id of ids.slice(0, 100)){
+    const u = await env.DB.prepare("SELECT id, handle FROM users WHERE id=?1").bind(id).first();
+    if(u) named[id] = u.handle;
+  }
+  const friends = [], requests = []; let outgoing = 0;
+  for(const r of rows){
+    const other = r.a === me.id ? r.b : r.a;
+    if(!(other in named)) continue;
+    if(r.status === "accepted") friends.push({ id: other, handle: named[other] });
+    else if(r.requester === me.id) outgoing++;
+    else requests.push({ id: other, handle: named[other] });
+  }
+  const inbox = ((await env.DB.prepare(
+    "SELECT id, from_user, kind, payload, created FROM inbox WHERE to_user=?1 AND seen=0 ORDER BY created DESC LIMIT 20"
+  ).bind(me.id).all()).results || []).map(m => ({
+    id: m.id, from: m.from_user, handle: named[m.from_user] || "?", kind: m.kind,
+    payload: (()=>{ try{ return JSON.parse(m.payload); }catch(e){ return {}; } })(), created: m.created
+  }));
+  // inbox senders might not be resolved yet (named only covers friend rows)
+  for(const m of inbox){
+    if(m.handle === "?"){
+      const u = await env.DB.prepare("SELECT handle FROM users WHERE id=?1").bind(m.from).first();
+      if(u) m.handle = u.handle;
+    }
+  }
+  return json({ me: { handle: me.handle, code: me.code }, friends, requests, outgoing, inbox }, 200, cors);
+}
+async function handleSocialPost(env, b, cors){
+  const device = String(b.device || "");
+  if(!DEVICE_RE.test(device)) return json({ error: "bad device" }, 400, cors);
+  const action = String(b.action || "");
+  let me = await userByDevice(env, device);
+
+  if(action === "claim"){
+    const handle = String(b.handle || "").replace(/\s+/g, " ").trim();
+    if(!HANDLE_RE.test(handle)) return json({ error: "bad handle" }, 400, cors);
+    const taken = await env.DB.prepare("SELECT id FROM users WHERE handle_lc=?1").bind(handle.toLowerCase()).first();
+    if(me){
+      if(taken && taken.id !== me.id) return json({ error: "handle taken" }, 409, cors);
+      await env.DB.prepare("UPDATE users SET handle=?1, handle_lc=?2 WHERE id=?3")
+        .bind(handle, handle.toLowerCase(), me.id).run();
+      me.handle = handle;
+      return socialState(env, me, cors);
+    }
+    if(taken) return json({ error: "handle taken" }, 409, cors);
+    const id = randId(), code = friendCode();
+    await env.DB.prepare("INSERT INTO users (id, handle, handle_lc, code, created) VALUES (?1,?2,?3,?4,?5)")
+      .bind(id, handle, handle.toLowerCase(), code, Date.now()).run();
+    await env.DB.prepare("INSERT INTO devices (device, user_id, created) VALUES (?1,?2,?3) ON CONFLICT(device) DO UPDATE SET user_id=excluded.user_id")
+      .bind(device, id, Date.now()).run();
+    me = { id, handle, code };
+    return socialState(env, me, cors);
+  }
+
+  if(!me) return json({ error: "no profile" }, 401, cors);
+
+  if(action === "add"){
+    const code = String(b.code || "").trim().toUpperCase();
+    const other = await env.DB.prepare("SELECT id, handle FROM users WHERE code=?1").bind(code).first();
+    if(!other) return json({ error: "code not found" }, 404, cors);
+    if(other.id === me.id) return json({ error: "that is your own code" }, 400, cors);
+    const [a, bb] = pair(me.id, other.id);
+    const ex = await env.DB.prepare("SELECT requester, status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
+    if(ex){
+      if(ex.status === "pending" && ex.requester !== me.id)
+        await env.DB.prepare("UPDATE friends SET status='accepted' WHERE a=?1 AND b=?2").bind(a, bb).run();
+      // already friends / already asked: both fine, fall through to state
+    } else {
+      await env.DB.prepare("INSERT INTO friends (a, b, requester, status, created) VALUES (?1,?2,?3,'pending',?4)")
+        .bind(a, bb, me.id, Date.now()).run();
+    }
+    return socialState(env, me, cors);
+  }
+
+  if(action === "accept" || action === "decline" || action === "remove"){
+    const other = String(b.user || "");
+    const [a, bb] = pair(me.id, other);
+    if(action === "accept"){
+      const ex = await env.DB.prepare("SELECT requester, status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
+      if(ex && ex.status === "pending" && ex.requester !== me.id)
+        await env.DB.prepare("UPDATE friends SET status='accepted' WHERE a=?1 AND b=?2").bind(a, bb).run();
+    } else {
+      await env.DB.prepare("DELETE FROM friends WHERE a=?1 AND b=?2").bind(a, bb).run();
+    }
+    return socialState(env, me, cors);
+  }
+
+  if(action === "challenge"){
+    const to = String(b.to || "");
+    const set = String(b.set || "");
+    const score = parseInt(b.score, 10);
+    const timeMs = parseInt(b.timeMs, 10) || 0;
+    if(!SET_RE.test(set)) return json({ error: "bad set" }, 400, cors);
+    if(!Number.isFinite(score) || score < 0 || score > RUN_LEN) return json({ error: "bad score" }, 400, cors);
+    const [a, bb] = pair(me.id, to);
+    const fr = await env.DB.prepare("SELECT status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
+    if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
+    await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'challenge',?3,?4)")
+      .bind(to, me.id, JSON.stringify({ set, score, timeMs }), Date.now()).run();
+    return socialState(env, me, cors);
+  }
+
+  if(action === "seen"){
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(n => parseInt(n, 10)).filter(Number.isFinite).slice(0, 50);
+    for(const id of ids)
+      await env.DB.prepare("UPDATE inbox SET seen=1 WHERE id=?1 AND to_user=?2").bind(id, me.id).run();
+    return socialState(env, me, cors);
+  }
+
+  return json({ error: "bad action" }, 400, cors);
+}
 
 async function chalBoardResp(env, setkey, device, cors){
   const rows = (await env.DB.prepare(
@@ -126,6 +263,19 @@ export default {
         "ON CONFLICT(setkey, device) DO UPDATE SET nick=excluded.nick"
       ).bind(set, device, nick, score, timeMs, Date.now()).run();
       return chalBoardResp(env, set, device, cors);
+    }
+
+    if(url.pathname === "/social" && req.method === "GET"){
+      const device = (url.searchParams.get("device") || "").slice(0, 64);
+      if(!DEVICE_RE.test(device)) return json({ error: "bad device" }, 400, cors);
+      const me = await userByDevice(env, device);
+      if(!me) return json({ me: null }, 200, cors);
+      return socialState(env, me, cors);
+    }
+
+    if(url.pathname === "/social" && req.method === "POST"){
+      let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
+      return handleSocialPost(env, b, cors);
     }
 
     return json({ error: "not found" }, 404, cors);

@@ -5,6 +5,11 @@ const worker = (await import('/home/user/Timeline/server/worker.js')).default;
 
 const rows = [];    // {day, device, nick, score, time_ms, created}
 const chals = [];   // {setkey, device, nick, score, time_ms, created}
+const users = [];   // {id, handle, handle_lc, code, created}
+const devices = []; // {device, user_id, created}
+const friends = []; // {a, b, requester, status, created}
+const inbox = [];   // {id, to_user, from_user, kind, payload, created, seen}
+let inboxSeq = 0;
 function fakeDB(){
   return { prepare(sql){ return { bind(...a){ return {
     async run(){
@@ -22,6 +27,15 @@ function fakeDB(){
         else chals.push({setkey, device, nick, score, time_ms, created});
         return {};
       }
+      if(/^INSERT INTO users/.test(sql)){ const [id,handle,handle_lc,code,created]=a; users.push({id,handle,handle_lc,code,created}); return {}; }
+      if(/^INSERT INTO devices/.test(sql)){ const [device,user_id,created]=a;
+        const ex=devices.find(d=>d.device===device); if(ex) ex.user_id=user_id; else devices.push({device,user_id,created}); return {}; }
+      if(/^UPDATE users SET handle/.test(sql)){ const [handle,handle_lc,id]=a; const u=users.find(x=>x.id===id); if(u){u.handle=handle;u.handle_lc=handle_lc;} return {}; }
+      if(/^INSERT INTO friends/.test(sql)){ const [x,y,requester,created]=a; friends.push({a:x,b:y,requester,status:'pending',created}); return {}; }
+      if(/^UPDATE friends SET status='accepted'/.test(sql)){ const [x,y]=a; const f=friends.find(r=>r.a===x&&r.b===y); if(f) f.status='accepted'; return {}; }
+      if(/^DELETE FROM friends/.test(sql)){ const [x,y]=a; const i=friends.findIndex(r=>r.a===x&&r.b===y); if(i>=0) friends.splice(i,1); return {}; }
+      if(/^INSERT INTO inbox/.test(sql)){ const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind:'challenge',payload,created,seen:0}); return {}; }
+      if(/^UPDATE inbox SET seen=1/.test(sql)){ const [id,to_user]=a; const m=inbox.find(r=>r.id===id&&r.to_user===to_user); if(m) m.seen=1; return {}; }
       throw new Error('unexpected run: '+sql);
     },
     async first(){
@@ -33,6 +47,16 @@ function fakeDB(){
         return { n: rows.filter(r=>r.day===a[0]).length };
       if(/SELECT nick, score, time_ms, created FROM scores/.test(sql))
         return rows.find(r=>r.day===a[0] && r.device===a[1]) || null;
+      if(/SELECT u\.id, u\.handle, u\.code FROM devices/.test(sql)){
+        const d=devices.find(x=>x.device===a[0]); if(!d) return null;
+        const u=users.find(x=>x.id===d.user_id); return u?{id:u.id,handle:u.handle,code:u.code}:null;
+      }
+      if(/SELECT id, handle FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{id:u.id,handle:u.handle}:null; }
+      if(/SELECT handle FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{handle:u.handle}:null; }
+      if(/SELECT id FROM users WHERE handle_lc=/.test(sql)){ const u=users.find(x=>x.handle_lc===a[0]); return u?{id:u.id}:null; }
+      if(/SELECT id, handle FROM users WHERE code=/.test(sql)){ const u=users.find(x=>x.code===a[0]); return u?{id:u.id,handle:u.handle}:null; }
+      if(/SELECT requester, status FROM friends/.test(sql)){ const f=friends.find(r=>r.a===a[0]&&r.b===a[1]); return f?{requester:f.requester,status:f.status}:null; }
+      if(/SELECT status FROM friends/.test(sql)){ const f=friends.find(r=>r.a===a[0]&&r.b===a[1]); return f?{status:f.status}:null; }
       throw new Error('unexpected first: '+sql);
     },
     async all(){
@@ -44,6 +68,13 @@ function fakeDB(){
       if(/SELECT nick, score, time_ms, device FROM chals WHERE setkey=\?1 ORDER BY/.test(sql)){
         const s=[...chals.filter(r=>r.setkey===a[0])].sort((x,y)=> y.score-x.score || x.time_ms-y.time_ms || x.created-y.created);
         return { results: s.slice(0,50) };
+      }
+      if(/SELECT a, b, requester, status FROM friends/.test(sql)){
+        return { results: friends.filter(r=>r.a===a[0]||r.b===a[0]).map(r=>({...r})) };
+      }
+      if(/FROM inbox WHERE to_user=/.test(sql)){
+        return { results: inbox.filter(m=>m.to_user===a[0]&&!m.seen).sort((x,y)=>y.created-x.created).slice(0,20)
+          .map(m=>({id:m.id,from_user:m.from_user,kind:m.kind,payload:m.payload,created:m.created})) };
       }
       throw new Error('unexpected all: '+sql);
     },
@@ -118,4 +149,43 @@ if(r.body.total!==2 || !r.body.results.find(x=>x.you && x.nick==='Jesse')) throw
 if(r.body.results.some(x=>x.device)) throw new Error('device tokens must not leak in chal results');
 console.log('chal boards: validation, one-shot, ranking, you-flag, no device leak ✓');
 
-console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards)');
+// --- social: claim, friends, direct challenges ---
+r = await js(await call('POST','/social',{device:dev('a'), action:'claim', handle:'x'}));
+if(r.status!==400) throw new Error('short handle should be rejected');
+r = await js(await call('POST','/social',{device:dev('a'), action:'claim', handle:'Sam K'}));
+if(!r.body.me || r.body.me.handle!=='Sam K' || !/^YW-/.test(r.body.me.code)) throw new Error('claim failed: '+JSON.stringify(r.body));
+const codeA = r.body.me.code;
+r = await js(await call('POST','/social',{device:dev('b'), action:'claim', handle:'sam k'}));
+if(r.status!==409) throw new Error('case-insensitive handle collision not rejected');
+r = await js(await call('POST','/social',{device:dev('b'), action:'claim', handle:'Jesse'}));
+if(!r.body.me || r.body.me.handle!=='Jesse') throw new Error('second claim failed');
+// B adds A by code (self-add rejected first)
+r = await js(await call('POST','/social',{device:dev('b'), action:'add', code:r.body.me.code}));
+if(r.status!==400) throw new Error('adding your own code should fail');
+r = await js(await call('POST','/social',{device:dev('b'), action:'add', code:codeA}));
+if(r.body.outgoing!==1) throw new Error('outgoing request not counted: '+JSON.stringify(r.body));
+// A sees the request and accepts
+r = await js(await call('GET','/social?device='+dev('a')));
+if(!r.body.requests.length || r.body.requests[0].handle!=='Jesse') throw new Error('incoming request missing: '+JSON.stringify(r.body));
+const jesseId = r.body.requests[0].id;
+r = await js(await call('POST','/social',{device:dev('a'), action:'accept', user:jesseId}));
+if(!r.body.friends.length || r.body.friends[0].handle!=='Jesse') throw new Error('accept failed: '+JSON.stringify(r.body));
+// direct challenge B -> A (friend) and to a stranger (403)
+r = await js(await call('POST','/social',{device:dev('b'), action:'challenge', to:'deadbeef', set:'1.2.3.4.5.6', score:4, timeMs:9000}));
+if(r.status!==403) throw new Error('challenging a non-friend should 403');
+const aId = (await js(await call('GET','/social?device='+dev('b')))).body.friends[0].id;
+r = await js(await call('POST','/social',{device:dev('b'), action:'challenge', to:aId, set:'1.2.3.4.5.6', score:4, timeMs:9000}));
+if(r.status!==200) throw new Error('friend challenge failed: '+JSON.stringify(r.body));
+r = await js(await call('GET','/social?device='+dev('a')));
+if(!r.body.inbox.length || r.body.inbox[0].handle!=='Jesse' || r.body.inbox[0].payload.set!=='1.2.3.4.5.6') throw new Error('inbox challenge missing: '+JSON.stringify(r.body.inbox));
+const msgId = r.body.inbox[0].id;
+r = await js(await call('POST','/social',{device:dev('a'), action:'seen', ids:[msgId]}));
+if(r.body.inbox.length!==0) throw new Error('seen did not clear the inbox');
+// unregistered device: GET is a soft null, POST actions require a profile
+r = await js(await call('GET','/social?device='+dev('c')));
+if(r.body.me!==null) throw new Error('unknown device should get me:null');
+r = await js(await call('POST','/social',{device:dev('c'), action:'add', code:codeA}));
+if(r.status!==401) throw new Error('actions without a profile should 401');
+console.log('social: claim/uniqueness, friend request+accept, direct challenge inbox, seen, auth guards ✓');
+
+console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social)');
