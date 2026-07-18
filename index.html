@@ -77,6 +77,7 @@
   .card + .card{margin-top:16px;}
   /* the news card lives inside a wrapper div, so the sibling rule misses it */
   #chalNews .card{margin-bottom:16px;}
+  #friendsCard .card{margin-top:16px;}   /* same wrapper-div blind spot */
   label.fld{display:block; font-size:13px; color:var(--muted); margin:0 0 7px; letter-spacing:.02em;}
   input[type=text], input[type=number], input:not([type]){
     width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
@@ -300,7 +301,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.0.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.0.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 

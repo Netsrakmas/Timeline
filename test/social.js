@@ -77,6 +77,10 @@ const server = http.createServer((req,res)=>{
   let card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(!/Claim a name/.test(card)) throw new Error('claim card missing: '+card.slice(0,120));
   if(/Played before|Google/.test(card)) throw new Error('Google UI must stay hidden while GAUTH.clientId is empty');
+  // the wrapper div hides the card from the .card + .card sibling rule —
+  // it needs its own top margin to breathe under the challenge card
+  const fcM = await pg.$eval('#friendsCard .card', e=>getComputedStyle(e).marginTop);
+  if(fcM !== '16px') throw new Error('friends card missing top margin: '+fcM);
   // typeless inputs must pick up the dark theme (UA default is white)
   const inCss = await pg.$eval('#handleIn', e=>{ const s=getComputedStyle(e); return s.backgroundColor+'|'+s.borderRadius; });
   if(/rgb\(255, 255, 255\)/.test(inCss) || !/10px/.test(inCss)) throw new Error('handle input not dark-themed: '+inCss);
