@@ -124,6 +124,19 @@
   .chips .diff .dname{font-size:13.5px;}
   .card.slim{padding:13px 15px;}
   .nickbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
+  /* connection-trouble banner — unobtrusive, slides down from the top, auto-hides */
+  .netbanner{position:fixed; left:50%; top:calc(8px + env(safe-area-inset-top)); transform:translate(-50%,-140%);
+    z-index:20; display:flex; align-items:center; gap:8px; max-width:calc(100% - 24px);
+    background:rgba(90,30,45,.96); color:#FFE1E9; border:1px solid var(--bad); border-radius:999px;
+    padding:9px 16px; font-size:12.5px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,.5);
+    transition:transform .28s ease; pointer-events:none;}
+  .netbanner.show{transform:translate(-50%,0);}
+  .netdot{width:8px; height:8px; border-radius:50%; background:var(--bad); flex:0 0 auto; animation:netpulse 1s infinite;}
+  @keyframes netpulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+  .bufnote{margin-top:8px; font-size:12px; color:var(--muted); letter-spacing:.05em; opacity:0;
+    transition:opacity .2s; height:0; overflow:hidden;}
+  .bufnote.show{opacity:1; height:auto;}
+  @media (prefers-reduced-motion: reduce){ .netbanner{transition:none;} .netdot{animation:none;} }
   .sect{font-size:12px; letter-spacing:.28em; text-transform:uppercase; font-weight:700; margin:24px 2px 10px;}
   .nickbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
   .nickchip{font:inherit; font-size:13px; font-weight:600; color:var(--text); cursor:pointer;
@@ -277,7 +290,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.9.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.10.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4098,6 +4111,8 @@ const S = {
   current: null,     // hidden card in play
   pendingSlot: null,
   playing: false,
+  buffering: false,   // audio clip is stalling (waiting/stalled events)
+  netTrouble: false,  // lookups failing / browser reports offline
   checkingTrack: false,
   checkMessage: "",
   yearOverrides: {}, // {trackId: correctedYear}, persisted locally
@@ -4435,6 +4450,32 @@ function selectedSongs(){
 // and to stay under Apple's request rate limit (bursting ~100 lookups at once
 // gets most of them throttled to empty, which used to starve the deck).
 let bgRun = 0;   // bumped each game; background loaders stop when it changes
+
+/* ---------- connection watchdog ----------
+   A bad connection should read as "reconnecting", not as a broken/stuck game.
+   Signal = repeated empty lookups OR the browser reporting offline. A single
+   good lookup clears it, so it never lingers once the network is back. */
+let _netFails = 0;
+function isOffline(){ return (typeof navigator!=="undefined" && navigator.onLine === false); }
+function setNetTrouble(on){
+  if(S.netTrouble === on) return;
+  S.netTrouble = on;
+  let el = document.getElementById("netbanner");
+  if(!el && typeof document !== "undefined"){
+    el = document.createElement("div"); el.id = "netbanner"; el.className = "netbanner";
+    el.innerHTML = '<span class="netdot"></span> Connection trouble — reconnecting…';
+    document.body.appendChild(el);
+  }
+  if(el) el.classList.toggle("show", on);
+}
+function noteLookup(ok){
+  if(ok){ _netFails = 0; if(!isOffline()) setNetTrouble(false); }
+  else if(++_netFails >= 3) setNetTrouble(true);   // 3 empties in a row (each already retried) = real trouble
+}
+if(typeof window !== "undefined"){
+  window.addEventListener("offline", ()=> setNetTrouble(true));
+  window.addEventListener("online",  ()=>{ _netFails = 0; setNetTrouble(false); });
+}
 async function resolveBatch(slice){
   const hits = await Promise.all(slice.map(async sg => {
     let res = [];
@@ -4442,6 +4483,7 @@ async function resolveBatch(slice){
     // empty usually means a network hiccup (timeout) on a flaky connection —
     // one retry recovers it; costs nothing when the first call already worked
     if(!res.length){ try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){} }
+    noteLookup(res.length > 0);   // feed the connection watchdog
     return { sg, hit: pickBest(res, sg) };
   }));
   let added = 0;
@@ -4562,6 +4604,7 @@ function maskMediaSession(){
 function playClip(card){
   const a = aud(); if(!a || !card) return;
   wireAudio();
+  S.buffering = false; syncBuffer();
   try{
     if(vizEnabled) a.crossOrigin = "anonymous";   // keep clips CORS-clean once routed through WebAudio
     if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
@@ -4578,12 +4621,18 @@ function syncEq(){
   const eq=document.querySelector('.eq'); if(eq) eq.classList.toggle('paused', !S.playing);
   const b=document.getElementById('ppBtn'); if(b) b.innerHTML = S.playing ? '❚❚&nbsp; Pause' : '▶&nbsp; Play';
 }
+// the clip is stalling to buffer — say so, so stutter reads as "loading" not "broken"
+function syncBuffer(){
+  const n=document.getElementById('bufNote'); if(n) n.classList.toggle('show', !!S.buffering && !S.checkingTrack);
+}
 // some iTunes previews are broken/silent — detect the load failure and move on
 let autoSkips = 0;
 function wireAudio(){
   const a = aud(); if(!a || a._wired) return; a._wired = true;
-  a.addEventListener('playing', ()=>{ audioUnlocked=true; autoSkips=0; S.playing=true; syncEq(); startViz(); });
+  a.addEventListener('playing', ()=>{ audioUnlocked=true; autoSkips=0; S.playing=true; S.buffering=false; syncEq(); syncBuffer(); startViz(); });
   a.addEventListener('pause',   ()=>{ S.playing=false; syncEq(); stopViz(); });
+  a.addEventListener('waiting', ()=>{ S.buffering=true; syncBuffer(); });
+  a.addEventListener('stalled', ()=>{ S.buffering=true; syncBuffer(); });
   a.addEventListener('error',   onAudioFail);
 }
 function onAudioFail(){
@@ -4707,13 +4756,23 @@ async function nextTurn(){
   S.current = null;   // no stale card while we draw/wait — otherwise the slots stay
                       // tappable and a tap "re-places" last turn's card (ghost turn)
   let c = drawCard();
-  if(!c && S.loadingMore){
-    // background loader is still fetching — wait for more cards, don't end the game
-    S.checkingTrack = true; S.checkMessage = "Loading more songs…"; renderGame();
-    for(let t=0; t<60 && !c; t++){
+  if(!c && (S.loadingMore || S.netTrouble || isOffline())){
+    // no card ready — the loader is still fetching, or the connection dropped.
+    // Wait it out rather than ending the game; stay patient while we're offline
+    // (the clip loops, nobody's missing anything) and resume the moment a card
+    // lands or the network returns.
+    S.checkingTrack = true; renderGame();
+    for(let t=0; !c; t++){
+      const offline = S.netTrouble || isOffline();
+      S.checkMessage = offline ? "Waiting for connection…" : "Loading more songs…";
+      if(document.querySelector('.verify-state') && document.querySelector('.stage h2'))
+        document.querySelector('.stage p').textContent = S.checkMessage;
+      else renderGame();
       await new Promise(r => setTimeout(r, 400));
       c = drawCard();
-      if(!S.loadingMore) break;
+      // give up only when the loader is done AND we're not obviously offline —
+      // ~24s of grace when online, indefinite while offline (a reconnect resumes)
+      if(!c && !S.loadingMore && !offline && t >= 60) break;
     }
     S.checkingTrack = false; S.checkMessage = "";
   }
@@ -5238,6 +5297,7 @@ function renderGame(){
       <h2>${S.checkingTrack ? 'Checking track…' : (live ? 'Mystery track is playing' : '…')}</h2>
       <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.') : 'Listen, then drop it into your timeline where it belongs.'}</p>
       ${S.checkingTrack ? `<div class="verify-state">still checking</div>` : ''}
+      <div id="bufNote" class="bufnote ${S.buffering && !S.checkingTrack ?'show':''}">buffering…</div>
     </div>
 
     <div class="controls">
