@@ -222,11 +222,32 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(200);
   card = await pg.$eval('#friendsCard', e=>e.innerText.replace(/\s+/g,' '));
   if(!/Kim used your code — you're friends now/.test(card)) throw new Error('friend note row missing: '+card.slice(0,300));
-  if(!/⚔️ duels/i.test(card)) throw new Error('duels header missing: '+card.slice(0,240));
   if(!/👑 you 3–1 · 1 tie/.test(card)) throw new Error('duel record missing: '+card.slice(0,240));
-  if(!(/Jesse[\s\S]*Kim/.test(await pg.$eval('#friendsCard', e=>e.innerText)))) throw new Error('duel sort wrong (Jesse should rank above Kim)');
+  if(!(/Jesse[\s\S]*👑[\s\S]*Kim/.test(await pg.$eval('#friendsCard', e=>e.innerText)))) throw new Error('duel sort wrong (Jesse should rank above Kim)');
   if(!/Jesse played your challenge — 5\/5 · they beat you/.test(card)) throw new Error('challenger result row missing: '+card.slice(0,300));
-  console.log('friends card: duel leaderboard sorted + challenger result row OK');
+  if(!await pg.$('#friendsCard button[aria-label="Challenge Jesse"]')) throw new Error('per-friend challenge button missing');
+  console.log('friends card: duel leaderboard sorted + result row + ⚔️ buttons OK');
+
+  // 5f) tapping a friend's ⚔️ starts a fresh run and auto-sends the gauntlet
+  const nActs = actions.length;
+  await pg.click('#friendsCard button[aria-label="Challenge Jesse"]');
+  for(let i=1;i<=5;i++){
+    await pg.waitForSelector('.slot.active',{timeout:30000});
+    await pg.click('.slot.active');
+    await pg.waitForSelector('#overlay.show',{timeout:8000});
+    if(i===5) break;
+    await pg.click('#sheet .btn.primary');
+    await pg.waitForFunction(()=>!document.getElementById('overlay').classList.contains('show'), null, {timeout:8000}).catch(()=>{});
+    await pg.waitForTimeout(200);
+  }
+  await pg.waitForTimeout(500);
+  const autoChal = actions.slice(nActs).find(a=>a.action==='challenge');
+  if(!autoChal || autoChal.to!=='f1' || !/^\d+(\.\d+)+$/.test(autoChal.set) || autoChal.score==null)
+    throw new Error('friend challenge did not auto-send: '+JSON.stringify(autoChal));
+  const sheet2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Sent to Jesse — you set \d\/5/.test(sheet2)) throw new Error('sent line missing: '+sheet2.slice(0,260));
+  if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear in the direct-send row');
+  console.log('friend ⚔️ button: fresh run + auto-sent gauntlet OK');
 
   await ctx.close();
 
