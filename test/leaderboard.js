@@ -42,6 +42,12 @@ const server = http.createServer((req,res)=>{
   let chalOthers = [];   // extra players the stubbed /chal board reports
   await pg.route(/lb\.test/, route=>{
     const req = route.request();
+    if(/\/social/.test(req.url())){   // social state polls are not board traffic
+      route.fulfill({ contentType:'application/json',
+        body: JSON.stringify({ me:null, friends:[], requests:[], outgoing:0, inbox:[] }),
+        headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'} });
+      return;
+    }
     const isChal = /\/chal/.test(req.url());
     if(isChal){
       if(req.method()==='POST') chalPosts.push(JSON.parse(req.postData())); else chalGets.push(req.url());

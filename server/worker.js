@@ -79,11 +79,14 @@ const pair = (u1, u2) => u1 < u2 ? [u1, u2] : [u2, u1];
    the stable `sub` as the account key. */
 let _jwks = null, _jwksAt = 0;
 async function googleKeys(){
-  if(_jwks && Date.now() - _jwksAt < 3600e3) return _jwks;
-  const r = await fetch("https://www.googleapis.com/oauth2/v3/certs");
-  const b = await r.json();
-  _jwks = b.keys || []; _jwksAt = Date.now();
-  return _jwks;
+  if(_jwks && _jwks.length && Date.now() - _jwksAt < 3600e3) return _jwks;
+  try{
+    const r = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+    if(!r.ok) return _jwks || [];        // don't cache a failure for an hour
+    const b = await r.json();
+    if(b && Array.isArray(b.keys) && b.keys.length){ _jwks = b.keys; _jwksAt = Date.now(); }
+    return _jwks || [];
+  }catch(e){ return _jwks || []; }
 }
 function b64uToBytes(s){
   s = String(s).replace(/-/g, "+").replace(/_/g, "/");
@@ -205,6 +208,12 @@ async function handleSocialPost(env, b, cors){
     return socialState(env, me, cors);
   }
 
+  if(action === "state"){
+    // POST twin of GET /social — keeps the device token out of URL/proxy logs
+    if(!me) return json({ me: null }, 200, cors);
+    return socialState(env, me, cors);
+  }
+
   if(!me) return json({ error: "no profile" }, 401, cors);
 
   if(action === "add"){
@@ -247,7 +256,8 @@ async function handleSocialPost(env, b, cors){
     const to = String(b.to || "");
     const set = String(b.set || "");
     const score = parseInt(b.score, 10);
-    const timeMs = parseInt(b.timeMs, 10) || 0;
+    // clamp like /daily and /chal do — no negative/absurd times into the tie-break
+    const timeMs = Math.min(RUN_LEN * 70000, Math.max(0, parseInt(b.timeMs, 10) || 0));
     if(!SET_RE.test(set)) return json({ error: "bad set" }, 400, cors);
     if(!Number.isFinite(score) || score < 0 || score > RUN_LEN) return json({ error: "bad score" }, 400, cors);
     const [a, bb] = pair(me.id, to);
@@ -278,7 +288,7 @@ async function handleSocialPost(env, b, cors){
     // stands — msg_id is UNIQUE) and tell the challenger how it went
     const msgId = parseInt(b.id, 10);
     const score = parseInt(b.score, 10);
-    const timeMs = parseInt(b.timeMs, 10) || 0;
+    const timeMs = Math.min(RUN_LEN * 70000, Math.max(0, parseInt(b.timeMs, 10) || 0));
     if(!Number.isFinite(msgId)) return json({ error: "bad id" }, 400, cors);
     if(!Number.isFinite(score) || score < 0 || score > RUN_LEN) return json({ error: "bad score" }, 400, cors);
     const m = await env.DB.prepare(

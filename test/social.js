@@ -91,7 +91,8 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(400);
   card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(!/YW-ABC234/.test(card)) throw new Error('friend code not shown after claim: '+card.slice(0,160));
-  if(actions[0].action!=='claim' || actions[0].handle!=='Sam K') throw new Error('claim POST wrong: '+JSON.stringify(actions[0]));
+  const claimAct = actions.find(a=>a.action==='claim');
+  if(!claimAct || claimAct.handle!=='Sam K') throw new Error('claim POST wrong: '+JSON.stringify(claimAct));
   const chip = await pg.$eval('.nickchip', e=>e.textContent);
   if(!/Sam K/.test(chip)) throw new Error('nick chip did not adopt the handle: '+chip);
   console.log('claim: card + code + chip sync OK');
@@ -137,8 +138,10 @@ const server = http.createServer((req,res)=>{
   await pg.waitForSelector('.slot.active',{timeout:30000});
   const st = await pg.evaluate(()=>({mode:S.mode, beat:S.challenge && S.challenge.beat, idx:S.challenge && S.challenge.idx.join('.')}));
   if(st.mode!=='challenge' || st.beat!==4 || st.idx!=='10.20.30.40.50.60') throw new Error('inbox play state wrong: '+JSON.stringify(st));
-  if(!actions.some(a=>a.action==='seen' && a.ids && a.ids.includes(7))) throw new Error('seen POST missing');
-  console.log('inbox challenge plays the exact set (beat 4/5) + marked seen OK');
+  // NOT marked seen yet — the message is consumed on the results screen, so an
+  // aborted start (resolution failure) keeps the challenge for a retry
+  if(actions.some(a=>a.action==='seen' && a.ids && a.ids.includes(7))) throw new Error('challenge seen too early (before the run finished)');
+  console.log('inbox challenge plays the exact set (beat 4/5), not consumed early OK');
 
   // 5) finish the run; results offer direct-send buttons per friend
   for(let i=1;i<=5;i++){
@@ -172,8 +175,9 @@ const server = http.createServer((req,res)=>{
   // and a LOST duel gets no confetti
   const resAct = actions.find(a=>a.action==='result');
   if(!resAct || resAct.id!==7 || !Number.isFinite(resAct.score)) throw new Error('result POST wrong: '+JSON.stringify(resAct));
+  if(!actions.some(a=>a.action==='seen' && a.ids && a.ids.includes(7))) throw new Error('challenge not consumed (seen) at run end');
   if(await pg.$('#confetti')) throw new Error('confetti on a lost duel');
-  console.log('duel result reported to the server (id 7), no confetti on a loss OK');
+  console.log('duel result + seen reported at run end (id 7), no confetti on a loss OK');
 
   // 5d) a WON challenge bursts confetti; reduced motion suppresses it
   await pg.evaluate(()=>{
@@ -318,7 +322,7 @@ const server = http.createServer((req,res)=>{
     if(/\/social/.test(req.url()) && req.method()==='POST'){
       const b=JSON.parse(req.postData()); actions3.push(b);
       if(b.action==='claim') state3.me = { handle:b.handle, code:'YW-NEW111' };
-      if(b.action==='add') state3.outgoing = 1;
+      if(b.action==='add') state3.friends = [{id:'x1', handle:'Inviter', w:0, l:0, t:0}];   // instant friendship
     }
     route.fulfill({contentType:'application/json', body: JSON.stringify(state3),
       headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});

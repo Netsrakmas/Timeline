@@ -125,6 +125,14 @@ async function placeN(pg, n, collectTitles){
   const cardTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/Done —/.test(cardTxt)) throw new Error('daily card not in done state');
   console.log('daily: played-today lock OK');
+  // the lock survives a reload, and the startDaily guard holds
+  await pg.reload(); await pg.waitForTimeout(800);
+  const relock = await pg.$eval('#app', e=>e.innerText);
+  if(!/Done —/.test(relock)) throw new Error('daily lock lost after reload');
+  await pg.evaluate(()=>startDaily());
+  await pg.waitForTimeout(400);
+  if(!/Done —/.test(await pg.$eval('#app', e=>e.innerText))) throw new Error('startDaily guard broke after reload');
+  console.log('daily: lock survives reload + guard holds OK');
   // opening your OWN link must read as "your challenge", not as a played friend-challenge
   await pg.goto(base + chalHash, {waitUntil:'load'});
   await pg.reload();   // hash-only goto is a same-document navigation; a real link opens fresh

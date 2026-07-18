@@ -212,7 +212,12 @@ r = await js(await call('GET','/social?device='+dev('c')));
 if(r.body.me!==null) throw new Error('unknown device should get me:null');
 r = await js(await call('POST','/social',{device:dev('c'), action:'add', code:codeA}));
 if(r.status!==401) throw new Error('actions without a profile should 401');
-console.log('social: claim/uniqueness, friend request+accept, direct challenge inbox, seen, auth guards ✓');
+// POST action 'state' mirrors GET /social (keeps the device token out of URLs)
+r = await js(await call('POST','/social',{device:dev('c'), action:'state'}));
+if(r.status!==200 || r.body.me!==null) throw new Error('state for unknown device should be 200 me:null: '+JSON.stringify(r.body));
+r = await js(await call('POST','/social',{device:dev('a'), action:'state'}));
+if(!r.body.me || r.body.me.handle!=='Sam K') throw new Error('state for known device wrong: '+JSON.stringify(r.body.me));
+console.log('social: claim/uniqueness, instant add, POST state, direct challenge inbox, seen, auth guards ✓');
 
 // --- /auth: Google sign-in (self-signed JWT + stubbed JWKS) ---
 const kp = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256'}, true, ['sign','verify']);

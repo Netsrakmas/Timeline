@@ -1,8 +1,11 @@
-const CACHE_NAME = 'yearworm-3.2.2';
+const CACHE_NAME = 'yearworm-3.2.3';
 const ASSETS = ['./', './index.html', './manifest.json', './privacy.html', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+  // bypass the HTTP cache while filling ours — GitHub Pages serves max-age=600,
+  // so a plain addAll could seed a stale index.html as the offline copy
+  event.waitUntil(caches.open(CACHE_NAME).then(cache =>
+    cache.addAll(ASSETS.map(u => new Request(u, { cache: 'no-cache' })))));
   self.skipWaiting();
 });
 
@@ -18,5 +21,10 @@ self.addEventListener('fetch', event => {
   const req = event.request.mode === 'navigate'
     ? new Request(event.request, { cache: 'no-cache' })
     : event.request;
-  event.respondWith(fetch(req).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
+  // The index.html fallback is for NAVIGATIONS ONLY: handing HTML to a failed
+  // script/audio/API request makes offline launches "glitch" instead of the
+  // request failing fast like a normal dropped connection.
+  event.respondWith(fetch(req).catch(() => caches.match(event.request).then(cached =>
+    cached || (event.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())
+  )));
 });

@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" href="./icon-192.png" />
 <link rel="apple-touch-icon" href="./icon-180.png" />
 <title>Yearworm — hear the song, guess the year</title>
-<meta name="description" content="Free music party game: hear a 30-second preview and slot it into the timeline by release year. Daily challenge, pass & play with friends — no app, no account." />
+<meta name="description" content="Free music party game: hear a 30-second preview and slot it into the timeline by release year. Daily challenge, pass & play with friends — no app needed, no account required." />
 <link rel="canonical" href="https://playyearworm.com/" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Yearworm" />
@@ -78,6 +78,7 @@
   /* the news card lives inside a wrapper div, so the sibling rule misses it */
   #chalNews .card{margin-bottom:16px;}
   #friendsCard .card{margin-top:16px;}   /* same wrapper-div blind spot */
+  #friendsCard + .card{margin-top:16px;} /* …and the card FOLLOWING the wrapper (resume card) */
   label.fld{display:block; font-size:13px; color:var(--muted); margin:0 0 7px; letter-spacing:.02em;}
   input[type=text], input[type=number], input:not([type]){
     width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text);
@@ -252,7 +253,9 @@
     align-items:center; justify-content:center; padding:22px; z-index:50;}
   .overlay.show{display:flex;}
   .sheet{width:100%; max-width:420px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:24px; text-align:center;
+    max-height:88vh; max-height:88dvh; overflow-y:auto; -webkit-overflow-scrolling:touch;
     animation:pop .22s cubic-bezier(.2,.9,.3,1.3);}
+  .sheet:focus{outline:none;}
   @keyframes pop{from{transform:scale(.9); opacity:0}to{transform:scale(1); opacity:1}}
   .verdict{font-family:"Anton"; font-size:34px; letter-spacing:1px; margin-bottom:4px;}
   .verdict.good{color:var(--good);} .verdict.bad{color:var(--bad);}
@@ -275,13 +278,14 @@
   .gbtn{display:inline-flex; align-items:center; gap:9px; border:1px solid var(--line); border-radius:999px;
     padding:11px 18px; font-size:13.5px; font-weight:700; color:var(--text); background:var(--surface-2);}
   .greal{position:absolute; inset:0; opacity:.001; overflow:hidden; z-index:1;}
+  .gwrap:focus-within .gbtn{border-color:var(--gold);}   /* the invisible real button carries focus */
   #confetti{position:fixed; inset:0; pointer-events:none; z-index:55; overflow:hidden;}
   #confetti i{position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
     animation:confall linear forwards;}
   @keyframes confall{to{transform:translateY(116vh) rotate(720deg); opacity:.7;}}
   .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--bad); color:#fff;
     padding:11px 16px; border-radius:11px; font-size:13.5px; max-width:90%; text-align:center; z-index:60;
-    box-shadow:0 8px 30px rgba(0,0,0,.4); display:none;}
+    box-shadow:0 8px 30px rgba(0,0,0,.4); display:none; pointer-events:none;}
   .toast.show{display:block;}
   #errbar{display:none; position:fixed; top:0; left:0; right:0; z-index:70; background:#3A1418; color:#FFD9D9;
     border-bottom:1px solid var(--bad); padding:14px 16px; font-size:13.5px; line-height:1.55; white-space:pre-wrap; cursor:pointer;}
@@ -296,13 +300,14 @@
 <div id="app"></div>
 <audio id="aud" loop playsinline preload="auto"></audio>
 <audio id="pre" playsinline preload="auto" muted></audio><!-- warms next turn's clip; never plays -->
-<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
-<div class="toast" id="toast"></div>
-<div id="errbar" onclick="this.style.display='none'"></div>
+<div class="overlay" id="overlay"><div class="sheet" id="sheet" role="dialog" aria-modal="true" tabindex="-1"></div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="errbar" role="button" tabindex="0" onclick="this.style.display='none'"
+  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.style.display='none';}"></div>
 
 <script>
 "use strict";
-const BUILD = "3.2.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.2.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4194,7 +4199,12 @@ function seededSongs(seed, n){ return seededIdx(seed, n).map(i => stablePool()[i
 function dailySongs(n){ return seededSongs(dailyNumber() * 2654435761, n); }
 function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }catch(e){ return {}; } }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
-function dailyPlayedToday(){ return loadDaily().last === localDay(0); }
+function dailyPlayedToday(){
+  const d = loadDaily();
+  // the puzzle number rolls at UTC midnight but `last` is a LOCAL date — check
+  // both, or players west of UTC could replay the same seeded set with answers
+  return d.num === dailyNumber() || d.last === localDay(0);
+}
 /* every seeded song-set is ONE-SHOT per device — replaying with known answers
    is the real cheat (grinding fresh sets is just picking your proudest score) */
 function chalKey(idx){ return (idx||[]).join("."); }
@@ -4372,7 +4382,10 @@ function saveProfile(p){ store.set("tl_user", JSON.stringify(p)); }
 async function socialGet(){
   if(!LB.url) return null;
   try{
-    const r = await fetch(LB.url+"/social?device="+deviceId());
+    // POST, not GET: the device token is a bearer credential and must not
+    // end up in URL/proxy logs
+    const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ device: deviceId(), action:"state" }) });
     if(!r.ok) return null;
     const b = await r.json();
     if(b && b.me) saveProfile(b.me);
@@ -4398,7 +4411,7 @@ async function claimHandle(v){
   const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
   renderFriendsCard(r.body);
   toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
-  tryPendingAdd(r.body);   // came in via an invite link? send the request now
+  tryPendingAdd(r.body);   // came in via an invite link? add the friend now
 }
 async function addFriendCode(v){
   const r = await socialPost({ action:"add", code:v });
@@ -4412,7 +4425,7 @@ async function declineFriend(id){ const r = await socialPost({ action:"decline",
 function shareCode(){
   const p = loadProfile(); if(!p || !p.code) return;
   // an invite link: opening it pre-arms the code, and after claiming a name
-  // the friend request fires automatically (tryPendingAdd)
+  // the friendship lands automatically (tryPendingAdd → instant add-by-code)
   shareText(`Add me as a friend on Yearworm 🎧 — hear a song, place it by year.\nMy friend code: ${p.code}\n1 tap and we're linked:\nhttps://playyearworm.com/#add=${p.code}`);
 }
 const PENDING_ADD = "tl_pendingAdd";
@@ -4438,9 +4451,20 @@ async function challengeFriend(id){
 async function playInboxChal(id){
   const m = _social && _social.inbox && _social.inbox.find(x => x.id === id);
   if(!m) return;
-  socialPost({ action:"seen", ids:[id] });   // fire and forget
   const idx = String(m.payload && m.payload.set || "").split(".").map(Number).filter(n => Number.isFinite(n) && n >= 0);
-  if(idx.length < 2){ toast("This challenge can't be played on this version."); return; }
+  if(idx.length < 2){ socialPost({ action:"seen", ids:[id] }); toast("This challenge can't be played on this version."); return; }
+  const prev = chalPlayed(idx);
+  if(prev){
+    // one shot per set: this exact set was already played (e.g. the daily) —
+    // report the recorded run as the duel result instead of dead-ending
+    socialPost({ action:"result", id: m.id, score: prev.s, timeMs: prev.t||0 });
+    socialPost({ action:"seen", ids:[id] });
+    toast("You already played these songs — sent your "+prev.s+"/"+RUN_LEN+" back ⚔️");
+    socialGet().then(st => { if(st) renderFriendsCard(st); });
+    return;
+  }
+  // NOT marked seen here: if the start aborts (song resolution failed), the
+  // challenge stays in the inbox for a retry — it's consumed on the results screen
   S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null };
   const from = { user: m.from, handle: m.handle, msgId: m.id };
   await startChallenge();
@@ -4901,6 +4925,13 @@ function skipTrack(){
   if(!S.current) return;
   buzz(6);
   S.used.add(S.current.id);   // don't offer this one again
+  if(S.runCards && S.runCards.length){
+    // the dead song must not stay in the shared challenge link — the sender
+    // never actually played it, and it would push a real song past RUN_LEN+1
+    const i = poolIndexOf(S.current);
+    const at = i >= 0 ? S.runCards.lastIndexOf(i) : -1;
+    if(at >= 0) S.runCards.splice(at, 1);
+  }
   nextTurn();
 }
 // one toggle covers everything: resume after pause, AND the manual recovery
@@ -4946,8 +4977,9 @@ function saveGame(){
     if(!S.players || !S.players.length) return;
     store.set("tl_game", JSON.stringify({
       v:2, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
-      current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline})),
-      mode:S.mode, lives:S.lives, score:S.score, streak:S.streak, bestStreak:S.bestStreak
+      current:S.current, players:S.players.map(p=>({name:p.name, timeline:p.timeline, timeMs:p.timeMs||0})),
+      mode:S.mode, lives:S.lives, score:S.score, streak:S.streak, bestStreak:S.bestStreak,
+      sel:S.selectedIds   // lets resume restart the background deck loader
     }));
   }catch(e){}
 }
@@ -4975,10 +5007,22 @@ function resumeSaved(){
   S.deck = d.deck||[];
   S.used = new Set(d.used||[]);
   S.current = d.current||null;
-  S.players = (d.players||[]).map(p=>({name:p.name||"Player", timeline:p.timeline||[]}));
+  S.players = (d.players||[]).map(p=>({name:p.name||"Player", timeline:p.timeline||[], timeMs:p.timeMs||0}));
   S.mode = d.mode || "classic";
+  S.turbo = false;               // saved games are classic/survival — a turbo chip
+                                 // toggled while browsing setup must not leak in
   S.lives = (typeof d.lives==="number") ? d.lives : 0;
   S.score = d.score||0; S.streak = d.streak||0; S.bestStreak = d.bestStreak||0;
+  if(d.sel && d.sel.length) S.selectedIds = d.sel;
+  // rebuild the duplicate guard from what's already resolved, then restart the
+  // background loader — without it a resumed game "runs dry" long before target
+  const resolved = [...S.deck, ...S.players.flatMap(p=>p.timeline)];
+  S.deckSeen = new Set(resolved.map(c=>Number(String(c.id).replace(/^it/,""))).filter(Number.isFinite));
+  const myRun = ++bgRun;
+  S.loadingMore = false;
+  const have = new Set(resolved.map(c=>((c.name||"")+"|"+(c.artist||"")).toLowerCase()));
+  const rest = selectedSongs().filter(sg => !have.has(((sg.title||"")+"|"+(sg.artist||"")).toLowerCase()));
+  if(rest.length){ shuffle(rest); loadRest(rest, myRun); }
   unlockAudio();                 // this is a user tap → unlocks mobile audio
   renderGame();
   if(S.current) playClip(S.current);
@@ -4995,14 +5039,14 @@ function startGame(){
     // player's locked cards land on the same board (colored per player)
     const c = drawCard();
     const board = [];
-    if(c){ S.used.add(c.id); c.owner = -1; board.push(c); }
+    if(c){ S.used.add(c.id); c.owner = -1; c.wrong = false; board.push(c); }   // deck cards are reused across replays — clear a stale miss flag
     S.players.forEach(p => { p.timeline = board; });   // same array reference
   } else {
     // classic/survival: seed each player their own freebie reference card
     S.players.forEach(p=>{
       p.timeMs = 0;
       const c = drawCard();
-      if(c){ S.used.add(c.id); p.timeline = [c]; }
+      if(c){ S.used.add(c.id); c.wrong = false; p.timeline = [c]; }
     });
   }
   S.turn = 0;
@@ -5022,6 +5066,7 @@ function startGame(){
 }
 
 async function nextTurn(){
+  const myRun = bgRun;   // quitting (or a new game) invalidates this turn's wait loop
   S.pendingSlot = null;
   S.checkingTrack = false;
   S.checkMessage = "";
@@ -5035,6 +5080,7 @@ async function nextTurn(){
     // lands or the network returns.
     S.checkingTrack = true; renderGame();
     for(let t=0; !c; t++){
+      if(bgRun !== myRun) return;   // the game was quit/replaced mid-wait
       const offline = S.netTrouble || isOffline();
       S.checkMessage = offline ? "Waiting for connection…" : "Loading more songs…";
       if(document.querySelector('.verify-state') && document.querySelector('.stage h2'))
@@ -5042,12 +5088,14 @@ async function nextTurn(){
       else renderGame();
       await new Promise(r => setTimeout(r, 400));
       c = drawCard();
-      // give up only when the loader is done AND we're not obviously offline —
-      // ~24s of grace when online, indefinite while offline (a reconnect resumes)
-      if(!c && !S.loadingMore && !offline && t >= 60) break;
+      // give up only when the loader is done AND the browser isn't hard-offline:
+      // ~24s of grace when clean, ~60s when the lookup watchdog flagged trouble
+      // (rate-limiting can set netTrouble while online — that must not wait forever)
+      if(!c && !S.loadingMore && !isOffline() && t >= (S.netTrouble ? 150 : 60)) break;
     }
     S.checkingTrack = false; S.checkMessage = "";
   }
+  if(bgRun !== myRun) return;
   if(!c){
     if(isRun()){ overlayRunOver(); return; }   // ran dry mid-run: score what we have
     overlayGameOver(true); return;
@@ -5156,7 +5204,12 @@ function advance(){
 /* ---------- rendering ---------- */
 const app = () => document.getElementById("app");
 function val(id){ const el=document.getElementById(id); return el?el.value:""; }
-function esc(s){ return (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+function esc(s){ return (s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+// every overlay goes through here: dialog semantics + focus land in the sheet
+function showSheet(){
+  const o = document.getElementById("overlay"); if(o) o.classList.add("show");
+  const s = document.getElementById("sheet"); if(s){ try{ s.focus({preventScroll:true}); }catch(e){} }
+}
 
 let toastTimer;
 function toast(msg, sticky){
@@ -5274,8 +5327,8 @@ function renderSetup(){
             : `Today's ${RUN_LEN} songs — same for everyone${(dState.streak&&dState.last===localDay(-1))?` · streak 🔥${dState.streak}`:''}`}</div>
         </div>
         ${dailyDone
-          ? `<button class="btn sm" style="flex:0 0 auto">⚔️ Challenge</button>`
-          : `<button class="btn sm primary" style="flex:0 0 auto">▶ Play</button>`}
+          ? `<button aria-hidden="true" tabindex="-1" class="btn sm" style="flex:0 0 auto">⚔️ Challenge</button>`
+          : `<button aria-hidden="true" tabindex="-1" class="btn sm primary" style="flex:0 0 auto">▶ Play</button>`}
       </div>
     </div>
 
@@ -5289,7 +5342,7 @@ function renderSetup(){
             : `You already played these — <b style="color:var(--text)">${chalPlayed(S.challenge.idx).s}/${RUN_LEN}</b> ⏱ ${fmtTime(chalPlayed(S.challenge.idx).t)}. One shot per song set!`}</div>
           <div id="chalSetBoard"></div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto">${chalPlayed(S.challenge.idx).m ? '⚔️ Challenge' : '📤 Send result'}</button>
+        <button aria-hidden="true" tabindex="-1" class="btn sm" style="flex:0 0 auto">${chalPlayed(S.challenge.idx).m ? '⚔️ Challenge' : '📤 Send result'}</button>
       </div>
     </div>` : `
     <div class="card slim" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
@@ -5299,7 +5352,7 @@ function renderSetup(){
           <div class="muted" style="font-size:13.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
           <div id="chalSetBoard"></div>
         </div>
-        <button class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
+        <button aria-hidden="true" tabindex="-1" class="btn sm pink" style="flex:0 0 auto">▶ Play</button>
       </div>
     </div>`)) : `
     <div class="card slim" role="button" tabindex="0" style="cursor:pointer" onclick="startFreshChallenge()">
@@ -5308,7 +5361,7 @@ function renderSetup(){
           <div class="eyebrow" style="color:var(--cyan)">⚔️ challenge a friend</div>
           <div class="muted" style="font-size:13.5px; margin-top:4px">Play ${RUN_LEN} songs, send the score</div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto">▶ Go</button>
+        <button aria-hidden="true" tabindex="-1" class="btn sm" style="flex:0 0 auto">▶ Go</button>
       </div>
     </div>`}
 
@@ -5669,7 +5722,7 @@ function overlayReveal(correct, p){
     ${extra}
     <button class="btn primary" style="margin-top:14px" onclick="advance()">${btn}</button>
   `;
-  document.getElementById("overlay").classList.add("show");
+  showSheet();
 }
 
 function overlayGameOver(deckEmpty, winner){
@@ -5691,7 +5744,7 @@ function overlayGameOver(deckEmpty, winner){
       <button class="btn pink" onclick="playAgain()">Play again</button>
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
     `;
-    document.getElementById("overlay").classList.add("show");
+    showSheet();
     return;
   }
   const rankedC = [...S.players].sort((a,b)=>(b.timeline.length-a.timeline.length) || ((a.timeMs||0)-(b.timeMs||0)));
@@ -5707,7 +5760,7 @@ function overlayGameOver(deckEmpty, winner){
     <button class="btn pink" onclick="playAgain()">Play again</button>
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
   `;
-  document.getElementById("overlay").classList.add("show");
+  showSheet();
 }
 
 /* ---------- run results (turbo / daily / challenge) ---------- */
@@ -5747,14 +5800,16 @@ function overlayRunOver(){
       <button class="btn pink" onclick="playAgain()">⚡ Run it again</button>
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Back to menu</button>
     `;
-    document.getElementById("overlay").classList.add("show");
+    showSheet();
     return;
   }
 
   const score = me.hits||0;
   const perfect = score === RUN_LEN;
-  const setIdx = (S.challenge && S.challenge.idx) || S.runCards;
-  const mine = !(S.challenge && S.challenge.idx);   // own run (daily/turbo/fresh) vs an incoming link
+  // S.challenge only owns this result if this WAS a challenge run — a pending
+  // link left on setup must not hijack a later daily/turbo run's recording
+  const setIdx = (chal && S.challenge && S.challenge.idx) || S.runCards;
+  const mine = !(chal && S.challenge && S.challenge.idx);   // own run (daily/turbo/fresh) vs an incoming link
   if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0, mine);
   let streakLine = "", title = 'TURBO RUN', duelWon = false;
   if(daily){
@@ -5787,9 +5842,12 @@ function overlayRunOver(){
       else streakLine = `<div style="font-size:15px; margin:6px 0">🤝 Tied at ${beat}/${RUN_LEN}</div>`;
     }
     // inbox challenge: record the duel server-side (first report stands) —
-    // this also drops a "they played it" message in the challenger's inbox
-    if(S.reactTo && S.reactTo.msgId && LB.url)
+    // this also drops a "they played it" message in the challenger's inbox.
+    // Only NOW is the message consumed (seen); an aborted start keeps it.
+    if(S.reactTo && S.reactTo.msgId && LB.url){
       socialPost({ action:"result", id:S.reactTo.msgId, score, timeMs: me.timeMs||0 });
+      socialPost({ action:"seen", ids:[S.reactTo.msgId] });
+    }
   } else {
     const best = loadBest();
     if(score > (best.turbo||0)){ best.turbo = score; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
@@ -5835,7 +5893,7 @@ function overlayRunOver(){
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;
-  document.getElementById("overlay").classList.add("show");
+  showSheet();
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
   });
@@ -6132,9 +6190,14 @@ function playAgain(){
   closeOverlay();
   S.players.forEach(p=>p.timeline=[]);
   S.used=new Set(); S.current=null;
+  S.loadingMore = false;   // startGame kills the old loader; without this reset the
+                           // starvation wait would spin on "Loading more songs…" forever
   startGame();
 }
-function backToSetup(){ bgRun++; S.loadingMore=false; clearGame(); closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
+function backToSetup(){ bgRun++; S.loadingMore=false;
+  // runs are never saved — finishing one must not delete an unrelated saved classic game
+  if(!(S.mode==="daily" || S.mode==="challenge" || S.turbo)) clearGame();
+  closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
 
 /* ---------- boot ---------- */
 /* Arriving on a playable challenge link: don't make the guest hunt for the
@@ -6151,7 +6214,7 @@ function overlayChallengeInvite(){
       : `${RUN_LEN} songs, picked by a friend.`} One shot, the clock counts ⏱</div>
     <button class="btn primary" style="margin-top:16px" onclick="closeOverlay(); startChallenge();">▶ Accept challenge</button>
     <button class="btn ghost sm" style="margin-top:8px" onclick="closeOverlay()">Not now</button>`;
-  document.getElementById("overlay").classList.add("show");
+  showSheet();
 }
 function boot(){
   const add = (location.hash||"").match(/add=(YW-[A-Z0-9]{6})/i);
