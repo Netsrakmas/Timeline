@@ -79,7 +79,14 @@ let trackId = 1000;
   if (barPos === 'fixed' || barW < 300) { console.error('FAIL: in-game header is misplaced (position:'+barPos+', width:'+barW+') — .topbar collision'); process.exit(1); }
   console.log('in-game header layout OK (position:'+barPos+', width:'+barW+')');
 
+  // next turn's clip pre-buffers in the hidden #pre element while we think
+  // (may arrive a beat later while the background loader fills the deck)
+  await page.waitForFunction(() => S.nextPick && document.getElementById('pre').src === S.nextPick.previewUrl,
+    null, { timeout: 15000 }).catch(() => { console.error('FAIL: next clip never primed'); process.exit(1); });
+  console.log('next clip primed in the preloader OK');
+
   for (let round = 1; round <= 3; round++) {
+    const expected = await page.evaluate(() => S.nextPick && S.nextPick.id);
     await page.click('.slot.active');                          // place the card
     await page.waitForSelector('#overlay.show', { timeout: 5000 });
     const btn = await page.$eval('#sheet .btn.primary', e => e.textContent);
@@ -91,7 +98,10 @@ let trackId = 1000;
     console.log(`round ${round}: btn="${btn.trim()}" → turn:"${tn}" playing:${!st.paused} overlay:${overlayOpen?'OPEN':'closed'}`);
     if (st.paused) { console.error('FAIL: audio paused after advance (regression!)'); process.exit(1); }
     if (round === 1 && !/Pass to/.test(btn)) { console.error('FAIL: reveal button does not name next player'); process.exit(1); }
+    const nowId = await page.evaluate(() => S.current && S.current.id);
+    if (expected && nowId !== expected) { console.error('FAIL: primed card was not the one played ('+expected+' vs '+nowId+')'); process.exit(1); }
   }
+  console.log('primed card is the card that plays next OK');
   console.log('page errors:', errs.length ? errs : 'none');
   console.log('PASS ✓ — audio keeps playing across turn handoffs');
   await browser.close(); server.close();

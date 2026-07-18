@@ -295,13 +295,14 @@
 <body>
 <div id="app"></div>
 <audio id="aud" loop playsinline preload="auto"></audio>
+<audio id="pre" playsinline preload="auto" muted></audio><!-- warms next turn's clip; never plays -->
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
 <div id="errbar" onclick="this.style.display='none'"></div>
 
 <script>
 "use strict";
-const BUILD = "3.2.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.2.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4120,6 +4121,7 @@ const S = {
   turn: 0,
   target: 10,
   current: null,     // hidden card in play
+  nextPick: null,    // next turn's card, pre-chosen so its clip can buffer early
   pendingSlot: null,
   playing: false,
   buffering: false,   // audio clip is stalling (waiting/stalled events)
@@ -4766,6 +4768,8 @@ async function loadRest(list, myRun){
     // they'd kill the new game's starvation-wait mid-run (early "ran dry")
     if(bgRun !== myRun) return;
     await resolveBatch(list.slice(i, i+BATCH));
+    // the deck may have been too thin to pre-pick a next card — retry now
+    if(bgRun === myRun && !S.nextPick && S.current) primeNext();
     await new Promise(r => setTimeout(r, DELAY));
   }
   if(bgRun === myRun) S.loadingMore = false;
@@ -4911,10 +4915,27 @@ function togglePlay(){
 /* ---------- game logic ---------- */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function drawCard(){
+  // a pre-picked (and pre-buffered) card wins, if it's still playable
+  if(S.nextPick && !S.used.has(S.nextPick.id) && !inAnyTimeline(S.nextPick.id)){
+    const c = S.nextPick; S.nextPick = null; return c;
+  }
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id));
   if(avail.length===0) return null;
   if(S.mode==="daily" || S.mode==="challenge") return avail[0];   // deck order IS the seeded order
   return avail[Math.floor(Math.random()*avail.length)];
+}
+// pick next turn's card NOW and warm its clip in the hidden preloader, so the
+// turn handoff doesn't start with a cold download (noticeable in pass & play)
+function primeNext(){
+  const cur = S.current && S.current.id;
+  const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id) && c.id !== cur);
+  S.nextPick = !avail.length ? null
+    : (S.mode==="daily" || S.mode==="challenge") ? avail[0]
+    : avail[Math.floor(Math.random()*avail.length)];
+  const p = document.getElementById("pre");
+  if(p && S.nextPick && p.src !== S.nextPick.previewUrl){
+    try{ p.src = S.nextPick.previewUrl; p.load(); }catch(e){}
+  }
 }
 function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id===id)); }
 
@@ -4967,6 +4988,7 @@ function startGame(){
   bgRun++;   // invalidate any background loader from a previous game
   S.reactTo = null;   // reactions only belong to a run started from the inbox
   S.chalTarget = null; // auto-send only belongs to a run started via a friend's ⚔️
+  S.nextPick = null;   // pre-buffered card belongs to the previous game's deck
   if(S.mode!=="daily" && S.mode!=="challenge") shuffle(S.deck);   // seeded runs: the order IS the puzzle
   if(isRun()){
     // runs play on ONE shared timeline: a single neutral anchor, and every
@@ -5040,6 +5062,7 @@ async function nextTurn(){
   renderGame();
   playClip(c);
   renderGame();
+  primeNext();   // after the live clip's request is on its way
 }
 
 function sortedTimeline(p){ return [...p.timeline].sort((a,b)=>a.year-b.year); }
