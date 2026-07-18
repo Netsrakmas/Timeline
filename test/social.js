@@ -94,6 +94,15 @@ const server = http.createServer((req,res)=>{
   if(!/Sam K/.test(chip)) throw new Error('nick chip did not adopt the handle: '+chip);
   console.log('claim: card + code + chip sync OK');
 
+  // 1b) the code button SHARES an invite link (app share, not just clipboard)
+  await pg.evaluate(()=>{ navigator.share = t=>{ window.__shared=(t&&t.text)||String(t); return Promise.resolve(); }; });
+  await pg.click('#friendsCard button[aria-label="Share your friend code"]');
+  await pg.waitForTimeout(200);
+  const codeShared = await pg.evaluate(()=>window.__shared);
+  if(!codeShared || !/YW-ABC234/.test(codeShared) || !/#add=YW-ABC234/.test(codeShared))
+    throw new Error('code share text wrong: '+codeShared);
+  console.log('friend code: share sheet with invite link OK');
+
   // 2) incoming friend request -> accept
   state.requests = [{id:'f1', handle:'Jesse'}];
   await pg.evaluate(()=>socialGet().then(st=>renderFriendsCard(st)));
@@ -264,6 +273,45 @@ const server = http.createServer((req,res)=>{
   if(!/Tim/.test(chip2)) throw new Error('chip did not adopt restored handle: '+chip2);
   console.log('Google sign-in: hidden-until-configured, button mounts, /auth restores account + linked badge OK');
   await ctx2.close();
+
+  // 7) opening an invite link (#add=CODE) arms the code; claiming a name
+  // then fires the friend request automatically
+  const ctx3 = await browser.newContext({viewport:{width:540,height:1400},hasTouch:true,serviceWorkers:'block'});
+  const pg3 = await ctx3.newPage();
+  pg3.on('pageerror',e=>console.log('PAGEERROR:',e.message));
+  const actions3 = [];
+  const state3 = { me:null, friends:[], requests:[], outgoing:0, inbox:[] };
+  await pg3.route(/itunes\.apple\.com/, route=>{
+    const u=new URL(route.request().url());const cb=u.searchParams.get('callback');
+    route.fulfill({contentType:'text/javascript',body:`${cb}({"resultCount":0,"results":[]})`});
+  });
+  await pg3.route(/lb\.test/, route=>{
+    const req=route.request();
+    if(/\/social/.test(req.url()) && req.method()==='POST'){
+      const b=JSON.parse(req.postData()); actions3.push(b);
+      if(b.action==='claim') state3.me = { handle:b.handle, code:'YW-NEW111' };
+      if(b.action==='add') state3.outgoing = 1;
+    }
+    route.fulfill({contentType:'application/json', body: JSON.stringify(state3),
+      headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});
+  });
+  await pg3.goto(base+'#add=YW-ZZ77KK',{waitUntil:'load'});
+  await pg3.waitForTimeout(700);
+  const armed = await pg3.evaluate(()=>({ pend: store.get('tl_pendingAdd'), hash: location.hash }));
+  if(armed.pend!=='YW-ZZ77KK') throw new Error('invite code not armed: '+JSON.stringify(armed));
+  if(/add=/.test(armed.hash)) throw new Error('invite hash not cleaned: '+armed.hash);
+  await pg3.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; renderSetup(); });
+  await pg3.waitForTimeout(500);
+  if(actions3.some(a=>a.action==='add')) throw new Error('add fired before a profile exists');
+  await pg3.$eval('#handleIn', e=>{ e.value='Frodo'; });
+  await pg3.click('#friendsCard button:has-text("Claim")');
+  await pg3.waitForTimeout(500);
+  const addAct = actions3.find(a=>a.action==='add');
+  if(!addAct || addAct.code!=='YW-ZZ77KK') throw new Error('pending add did not fire after claim: '+JSON.stringify(actions3));
+  const pendAfter = await pg3.evaluate(()=>store.get('tl_pendingAdd'));
+  if(pendAfter) throw new Error('pending code not cleared after add');
+  console.log('invite link: arms code, hash cleaned, auto-adds after claim OK');
+  await ctx3.close();
 
   console.log('SOCIAL TEST PASS ✓');
   await browser.close(); server.close();

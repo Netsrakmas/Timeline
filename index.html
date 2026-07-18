@@ -301,7 +301,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.0.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4396,6 +4396,7 @@ async function claimHandle(v){
   const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
   renderFriendsCard(r.body);
   toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
+  tryPendingAdd(r.body);   // came in via an invite link? send the request now
 }
 async function addFriendCode(v){
   const r = await socialPost({ action:"add", code:v });
@@ -4406,10 +4407,20 @@ async function addFriendCode(v){
 }
 async function acceptFriend(id){ const r = await socialPost({ action:"accept", user:id }); if(r && r.ok) renderFriendsCard(r.body); }
 async function declineFriend(id){ const r = await socialPost({ action:"decline", user:id }); if(r && r.ok) renderFriendsCard(r.body); }
-function copyCode(){
+function shareCode(){
   const p = loadProfile(); if(!p || !p.code) return;
-  try{ navigator.clipboard.writeText(p.code); toast("Code copied — send it to a friend 📋"); }
-  catch(e){ toast(p.code); }
+  // an invite link: opening it pre-arms the code, and after claiming a name
+  // the friend request fires automatically (tryPendingAdd)
+  shareText(`Add me as a friend on Yearworm 🎧 — hear a song, place it by year.\nMy friend code: ${p.code}\n1 tap and we're linked:\nhttps://playyearworm.com/#add=${p.code}`);
+}
+const PENDING_ADD = "tl_pendingAdd";
+function tryPendingAdd(st){
+  const code = store.get(PENDING_ADD);
+  if(!code) return;
+  const own = loadProfile();
+  if(own && own.code === code){ store.del(PENDING_ADD); return; }   // own invite link
+  if(st && st.me){ store.del(PENDING_ADD); addFriendCode(code); }
+  else toast("Friend invite received ⚔️ — claim a name to add them.");
 }
 async function sendChal(to, set, score, timeMs){
   const r = await socialPost({ action:"challenge", to, set, score, timeMs });
@@ -4474,7 +4485,7 @@ function friendsCardHTML(st){
   return `<div class="card slim">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div class="eyebrow" style="color:var(--violet)">👥 friends</div>
-        <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="copyCode()" aria-label="Copy your friend code">code <b>${esc(prof.code||"")}</b> ⧉</button>
+        <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="shareCode()" aria-label="Share your friend code">code <b>${esc(prof.code||"")}</b> 📤</button>
       </div>
       ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
@@ -5334,7 +5345,7 @@ function renderSetup(){
   });
   chalNews();
   renderFriendsCard(_social);                       // instant, from cache
-  if(LB.url) socialGet().then(st => { if(st) renderFriendsCard(st); });   // then fresh
+  if(LB.url) socialGet().then(st => { if(st){ renderFriendsCard(st); tryPendingAdd(st); } });   // then fresh
 }
 
 function renderPlayers(){
@@ -6101,6 +6112,12 @@ function overlayChallengeInvite(){
   document.getElementById("overlay").classList.add("show");
 }
 function boot(){
+  const add = (location.hash||"").match(/add=(YW-[A-Z0-9]{6})/i);
+  if(add){
+    store.set(PENDING_ADD, add[1].toUpperCase());
+    track("open-invite-link");
+    try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  }
   S.challenge = parseChallengeHash();
   if(S.challenge) track("open-challenge-link");   // a shared link actually landed
   try{ S.yearOverrides = JSON.parse(store.get("tl_years")||"{}"); }catch(e){ S.yearOverrides = {}; }
