@@ -35,7 +35,8 @@ function fakeDB(){
       if(/^INSERT INTO friends/.test(sql)){ const [x,y,requester,created]=a; friends.push({a:x,b:y,requester,status:'pending',created}); return {}; }
       if(/^UPDATE friends SET status='accepted'/.test(sql)){ const [x,y]=a; const f=friends.find(r=>r.a===x&&r.b===y); if(f) f.status='accepted'; return {}; }
       if(/^DELETE FROM friends/.test(sql)){ const [x,y]=a; const i=friends.findIndex(r=>r.a===x&&r.b===y); if(i>=0) friends.splice(i,1); return {}; }
-      if(/^INSERT INTO inbox/.test(sql)){ const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind:'challenge',payload,created,seen:0}); return {}; }
+      if(/^INSERT INTO inbox/.test(sql)){ const kind = sql.includes("'react'") ? 'react' : 'challenge';
+        const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind,payload,created,seen:0}); return {}; }
       if(/^UPDATE inbox SET seen=1/.test(sql)){ const [id,to_user]=a; const m=inbox.find(r=>r.id===id&&r.to_user===to_user); if(m) m.seen=1; return {}; }
       if(/^INSERT INTO logins/.test(sql)){ const [subject,user_id,email,created]=a; logins.push({provider:'google',subject,user_id,email,created}); return {}; }
       throw new Error('unexpected run: '+sql);
@@ -245,5 +246,17 @@ r = await js(await call2('POST','/auth',{device:'f'.repeat(32), credential: tok3
 if(r.body.me.handle!=='Tim 2') throw new Error('handle dedup failed: '+JSON.stringify(r.body.me));
 globalThis.fetch = realFetch;
 console.log('auth: 503-off, JWT checks (garbage/aud/expiry), create-from-Google, restore-on-new-device, link-to-profile, handle dedup ✓');
+
+// --- reactions: whitelist only, friends only, lands in the inbox ---
+r = await js(await call('POST','/social',{device:dev('b'), action:'react', to:aId, emoji:'lol', score:3}));
+if(r.status!==400) throw new Error('non-whitelisted reaction should 400');
+r = await js(await call('POST','/social',{device:dev('b'), action:'react', to:'deadbeef', emoji:'🔥', score:3}));
+if(r.status!==403) throw new Error('reacting to a non-friend should 403');
+r = await js(await call('POST','/social',{device:dev('b'), action:'react', to:aId, emoji:'🔥', score:3}));
+if(r.status!==200) throw new Error('friend reaction failed: '+JSON.stringify(r.body));
+r = await js(await call('GET','/social?device='+dev('a')));
+const rx = r.body.inbox.find(m=>m.kind==='react');
+if(!rx || rx.handle!=='Jesse' || rx.payload.emoji!=='🔥') throw new Error('reaction not in inbox: '+JSON.stringify(r.body.inbox));
+console.log('reactions: whitelist, friends-only, inbox delivery ✓');
 
 console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social, auth)');

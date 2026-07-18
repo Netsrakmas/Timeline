@@ -133,11 +133,33 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(500);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/straight to a friend/.test(sheet) || !/⚔️ Jesse/.test(sheet)) throw new Error('direct-send buttons missing: '+sheet.slice(0,240));
+  // 5a) this run came from Jesse's inbox challenge -> reaction row present
+  if(!/react to Jesse/.test(sheet)) throw new Error('reaction row missing: '+sheet.slice(0,240));
+  await pg.click('#reactRow button:has-text("🔥")');
+  await pg.waitForTimeout(300);
+  const rAct = actions.find(a=>a.action==='react');
+  if(!rAct || rAct.to!=='f1' || rAct.emoji!=='🔥') throw new Error('react POST wrong: '+JSON.stringify(rAct));
+  const disabled = await pg.$$eval('#reactRow button', bs=>bs.every(b=>b.disabled));
+  if(!disabled) throw new Error('reaction buttons should lock after one send');
+  console.log('reaction row: sends 🔥 to Jesse once OK');
   await pg.click('#sheet button:has-text("⚔️ Jesse")');
   await pg.waitForTimeout(300);
   const sent = actions.find(a=>a.action==='challenge');
   if(!sent || sent.to!=='f1' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
   console.log('direct-send button posts the set to the friend OK ·', JSON.stringify({to:sent.to, score:sent.score}));
+
+  // 5b) an incoming reaction renders in the friends card and dismisses
+  state.inbox = [{id:9, from:'f1', handle:'Jesse', kind:'react', payload:{emoji:'😂', score:2}, created:2}];
+  await pg.click('#sheet button:has-text("Done")');
+  await pg.waitForTimeout(600);
+  card = await pg.$eval('#friendsCard', e=>e.innerText);
+  if(!/Jesse reacted 😂 to your challenge/.test(card)) throw new Error('reaction inbox row missing: '+card.slice(0,220));
+  await pg.click('#friendsCard button[aria-label="Dismiss"]');
+  await pg.waitForTimeout(300);
+  if(!actions.some(a=>a.action==='seen' && a.ids && a.ids.includes(9))) throw new Error('dismiss seen POST missing');
+  card = await pg.$eval('#friendsCard', e=>e.innerText);
+  if(/Jesse reacted/.test(card)) throw new Error('dismissed reaction still shown');
+  console.log('incoming reaction row + dismiss OK');
 
   await ctx.close();
 

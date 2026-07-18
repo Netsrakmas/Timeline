@@ -4400,7 +4400,18 @@ async function playInboxChal(id){
   const idx = String(m.payload && m.payload.set || "").split(".").map(Number).filter(n => Number.isFinite(n) && n >= 0);
   if(idx.length < 2){ toast("This challenge can't be played on this version."); return; }
   S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null };
+  const from = { user: m.from, handle: m.handle };
   await startChallenge();
+  S.reactTo = from;   // after startGame (which clears it) — offer a reaction on the results screen
+}
+const REACT_EMOJI = ["🔥","😱","😂","👏","🎯","GG"];
+async function sendReact(to, emoji, score){
+  const r = await socialPost({ action:"react", to, emoji, score });
+  toast(r && r.ok ? "Sent " + emoji : "Couldn't send that — no connection?");
+}
+async function dismissMsg(id){
+  const r = await socialPost({ action:"seen", ids:[id] });
+  if(r && r.ok) renderFriendsCard(r.body);
 }
 function friendsCardHTML(st){
   const prof = (st && st.me) || loadProfile();
@@ -4416,6 +4427,7 @@ function friendsCardHTML(st){
       <div id="gsiBtn" style="margin-top:6px"></div>` : ``}</div>`;
   }
   const inbox = (st && st.inbox || []).filter(m => m.kind === "challenge");
+  const reacts = (st && st.inbox || []).filter(m => m.kind === "react");
   const reqs = st && st.requests || [];
   const fr = st && st.friends || [];
   return `<div class="card slim">
@@ -4426,6 +4438,10 @@ function friendsCardHTML(st){
       ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
         <button class="btn sm pink" style="flex:0 0 auto" onclick="playInboxChal(${m.id})">▶ Play</button>
+      </div>`).join("")}
+      ${reacts.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px"><b>${esc(m.handle)}</b> reacted ${esc(m.payload && m.payload.emoji || "👏")}${m.payload && m.payload.score != null ? ` to your challenge` : ``}</span>
+        <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
       </div>`).join("")}
       ${reqs.map(q=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px"><b>${esc(q.handle)}</b> wants to be friends</span>
@@ -4868,6 +4884,7 @@ function resumeSaved(){
 
 function startGame(){
   bgRun++;   // invalidate any background loader from a previous game
+  S.reactTo = null;   // reactions only belong to a run started from the inbox
   if(S.mode!=="daily" && S.mode!=="challenge") shuffle(S.deck);   // seeded runs: the order IS the puzzle
   if(isRun()){
     // runs play on ONE shared timeline: a single neutral anchor, and every
@@ -5684,6 +5701,11 @@ function overlayRunOver(){
         style="width:150px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
     </div>` : ``}
     ${last ? flagBlockHTML(last.id, last.year) : ``}
+    ${S.reactTo ? `
+      <div class="muted" style="font-size:12px; margin-top:12px">react to <b>${esc(S.reactTo.handle)}</b>:</div>
+      <div class="row" style="gap:6px; justify-content:center; margin-top:6px" id="reactRow">
+        ${REACT_EMOJI.map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
+      </div>` : ``}
     ${(_social && _social.friends && _social.friends.length && setIdx && setIdx.length>=2) ? `
       <div class="muted" style="font-size:12px; margin-top:12px">send this set straight to a friend:</div>
       <div class="row" style="flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px">

@@ -240,6 +240,21 @@ async function handleSocialPost(env, b, cors){
     return socialState(env, me, cors);
   }
 
+  if(action === "react"){
+    // structured reactions only — a fixed emoji set, no free text ever
+    const REACTIONS = ["🔥","😱","😂","👏","🎯","GG"];
+    const to = String(b.to || "");
+    const emoji = String(b.emoji || "");
+    const score = Number.isFinite(parseInt(b.score, 10)) ? parseInt(b.score, 10) : null;
+    if(!REACTIONS.includes(emoji)) return json({ error: "bad reaction" }, 400, cors);
+    const [a, bb] = pair(me.id, to);
+    const fr = await env.DB.prepare("SELECT status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
+    if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
+    await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'react',?3,?4)")
+      .bind(to, me.id, JSON.stringify({ emoji, score }), Date.now()).run();
+    return socialState(env, me, cors);
+  }
+
   if(action === "seen"){
     const ids = (Array.isArray(b.ids) ? b.ids : []).map(n => parseInt(n, 10)).filter(Number.isFinite).slice(0, 50);
     for(const id of ids)
