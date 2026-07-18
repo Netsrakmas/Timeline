@@ -72,6 +72,13 @@ let trackId = 1000;
   const p1 = await turnName();
   console.log('turn 1:', p1, '| audio:', JSON.stringify(await audioState()));
 
+  // regression guard: the in-game header (.topbar) must NOT be fixed-positioned.
+  // A nickchip CSS class collision once pinned it top-right, wrecking the header.
+  const barPos = await page.$eval('.topbar', e => getComputedStyle(e).position);
+  const barW = await page.$eval('.topbar', e => Math.round(e.getBoundingClientRect().width));
+  if (barPos === 'fixed' || barW < 300) { console.error('FAIL: in-game header is misplaced (position:'+barPos+', width:'+barW+') — .topbar collision'); process.exit(1); }
+  console.log('in-game header layout OK (position:'+barPos+', width:'+barW+')');
+
   for (let round = 1; round <= 3; round++) {
     await page.click('.slot.active');                          // place the card
     await page.waitForSelector('#overlay.show', { timeout: 5000 });

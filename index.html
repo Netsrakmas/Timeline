@@ -123,9 +123,9 @@
   .chips .diff{flex:0 0 auto; width:auto; border-radius:999px; padding:10px 14px;}
   .chips .diff .dname{font-size:13.5px;}
   .card.slim{padding:13px 15px;}
-  .topbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
+  .nickbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
   .sect{font-size:12px; letter-spacing:.28em; text-transform:uppercase; font-weight:700; margin:24px 2px 10px;}
-  .topbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
+  .nickbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
   .nickchip{font:inherit; font-size:13px; font-weight:600; color:var(--text); cursor:pointer;
     background:rgba(19,26,53,.88); border:1px solid var(--line); border-radius:999px;
     padding:8px 14px; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.4);}
@@ -277,7 +277,7 @@
 
 <script>
 "use strict";
-const BUILD = "2.9.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "2.9.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4261,7 +4261,7 @@ function nickChipHTML(){
   return `<button class="nickchip" onclick="editNickTop()" aria-label="Your player name — tap to edit">🎧 ${esc(lbNick())} <span style="opacity:.6">✎</span></button>`;
 }
 function editNickTop(){
-  const bar = document.getElementById("topbar"); if(!bar) return;
+  const bar = document.getElementById("nickbar"); if(!bar) return;
   bar.innerHTML = `<input id="nickTop" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name"
     style="width:180px; font-size:13.5px; padding:8px 12px; text-align:center"
     onblur="saveNickTop(this.value)" onkeydown="if(event.key==='Enter')this.blur()" />`;
@@ -4271,7 +4271,7 @@ function saveNickTop(v){
   const before = lbNick();
   saveNick(v);
   if(lbNick() !== before) toast("Name saved — " + lbNick());
-  const bar = document.getElementById("topbar"); if(bar) bar.innerHTML = nickChipHTML();
+  const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
 }
 function saveNick(v){
   store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,20));
@@ -4439,6 +4439,9 @@ async function resolveBatch(slice){
   const hits = await Promise.all(slice.map(async sg => {
     let res = [];
     try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){}
+    // empty usually means a network hiccup (timeout) on a flaky connection —
+    // one retry recovers it; costs nothing when the first call already worked
+    if(!res.length){ try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){} }
     return { sg, hit: pickBest(res, sg) };
   }));
   let added = 0;
@@ -4923,7 +4926,7 @@ function renderSetup(){
     }
   }
   app().innerHTML = `
-    ${LB.url ? `<div class="topbar" id="topbar">${nickChipHTML()}</div>` : ``}
+    ${LB.url ? `<div class="nickbar" id="nickbar">${nickChipHTML()}</div>` : ``}
     <div class="eyebrow">drop the needle · guess the year</div>
     <h1 class="brand">Yearworm</h1>
     <div class="tag">Hear a song, drop it on your timeline by year.</div>
@@ -5606,8 +5609,11 @@ async function onStart(){
   S.deck = [];
   S.deckSeen = new Set();
   S.loadingMore = false;
-  const FIRST = Math.min(songs.length, S.players.length + 4);   // headroom for failed lookups
+  // MIN starts the game fast (good connection stops here); FIRST is how far we'll
+  // grind on a SLOW connection before starting, so the early game has cushion
+  // instead of starving after a few placements.
   const MIN = Math.min(songs.length, S.players.length + 1);     // seeds + the first mystery track
+  const FIRST = Math.min(songs.length, (S.players.length * 3) + 6);
   renderLoading(0, FIRST);
   const got = await resolveInitial(songs.slice(0, FIRST), (d,t)=>renderLoading(d,t),
     ()=> S.deck.length >= MIN);   // start as soon as the minimum is in — rest streams in below
