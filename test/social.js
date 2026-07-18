@@ -244,6 +244,10 @@ const server = http.createServer((req,res)=>{
   await pg2.waitForTimeout(400);
   let c2 = await pg2.$eval('#friendsCard', e=>e.innerText);
   if(!/Played before on another phone/.test(c2)) throw new Error('sign-in hint missing on claim card: '+c2.slice(0,160));
+  // our themed pill carries the look; Google's real button overlays it invisibly
+  if(!await pg2.$('#gsiBtn .gbtn')) throw new Error('themed google pill missing');
+  const gOp = await pg2.$eval('#gsiBtn .greal', e=>getComputedStyle(e).opacity);
+  if(parseFloat(gOp) > 0.05) throw new Error('real google button should be invisible, opacity='+gOp);
   const hasBtn = await pg2.$('#gsiBtn #fakeGsi');
   if(!hasBtn) throw new Error('Google button not mounted');
   await pg2.click('#fakeGsi');
