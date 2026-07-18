@@ -180,6 +180,15 @@ async function placeN(pg, n, collectTitles){
     throw new Error('challenge songs differ from the shared run');
   }
   console.log('challenge roundtrip: same songs + verdict OK');
+  // answering a link: the share button sends a RESULT, not a fresh gauntlet
+  if(!/Send your result back/.test(sheet)) throw new Error('result-back button missing: '+sheet.slice(0,240));
+  await pg.click('#sheet button:has-text("Send your result back")');
+  await pg.waitForTimeout(300);
+  const replyTxt = await pg.evaluate(()=>window.__shared);
+  if(!replyTxt || !/I played your Yearworm challenge/.test(replyTxt) || !/#c=[\d.]+&s=\d/.test(replyTxt))
+    throw new Error('reply share text wrong: '+replyTxt);
+  if(/beat me on the SAME/i.test(replyTxt)) throw new Error('reply text still reads as a challenge');
+  console.log('send-result-back: reply-flavored share text OK');
   // back on setup: the link carries the challenger's score and we've played —
   // that's a RESULT card (verdict vs their score), with rematch + send-back.
   // No Play button anywhere on it = the one-shot lock still holds.
@@ -192,7 +201,13 @@ async function placeN(pg, n, collectTitles){
   await pg.reload(); await pg.waitForTimeout(700);
   lockTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/challenge result/i.test(lockTxt)) throw new Error('result card lost after reload');
-  console.log('challenge result card: verdict + rematch shown, lock holds (incl. reload)');
+  // the result card's send-back is reply-flavored too (recipient side)
+  await pg.click('#app button:has-text("Send result")');
+  await pg.waitForTimeout(300);
+  const replyTxt2 = await pg.evaluate(()=>window.__shared);
+  if(!replyTxt2 || !/I played your Yearworm challenge/.test(replyTxt2))
+    throw new Error('result-card send-back not reply-flavored: '+replyTxt2);
+  console.log('challenge result card: verdict + rematch shown, lock holds (incl. reload), reply-flavored send-back');
   await ctx.close();
 
   // --- fresh self-made challenge: create, play, share, card resets ---

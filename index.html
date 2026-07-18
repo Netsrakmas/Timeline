@@ -5760,7 +5760,7 @@ function overlayRunOver(){
         ${_social.friends.slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
       </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
-    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">🔗 Challenge a friend on these songs</button>` : ``}
+    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : '🔗 Challenge a friend on these songs'}</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;
@@ -5783,16 +5783,30 @@ function shareDaily(){
 }
 function shareChallenge(score){
   if(!S.runCards || S.runCards.length < 2) return;
-  shareChallengeIdx(S.runCards, score, Math.round((S.players[0].timeMs||0)/1000));
+  const tSec = Math.round((S.players[0].timeMs||0)/1000);
+  if(S.challenge && S.challenge.beat != null)   // answering someone's link: send the RESULT, not a fresh gauntlet
+    shareResultBack(S.runCards, score, tSec, S.challenge.beat);
+  else shareChallengeIdx(S.runCards, score, tSec);
 }
 function shareChallengeIdx(idx, score, tSec){
   const url = "https://playyearworm.com/#c=" + idx.join(".")
             + (score!=null ? "&s="+score : "") + (tSec ? "&t="+tSec : "");
   shareText(`I scored ${score}/${RUN_LEN}${tSec?` in ${fmtTime(tSec*1000)}`:""} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
 }
+// reply flavor: same link (still playable/forwardable), but the message reads
+// as a result, not as a new challenge — the sender already lost/won/tied
+function shareResultBack(idx, score, tSec, beat){
+  const url = "https://playyearworm.com/#c=" + idx.join(".") + "&s=" + score + (tSec ? "&t="+tSec : "");
+  const verdict = score > beat ? `I beat your ${beat}/${RUN_LEN} 🏆`
+                : score < beat ? `your ${beat}/${RUN_LEN} holds 👑`
+                : `tied at ${beat}/${RUN_LEN} 🤝`;
+  shareText(`I played your Yearworm challenge 🎧 — ${score}/${RUN_LEN}${tSec?` in ${fmtTime(tSec*1000)}`:""}, ${verdict}\nOpen for the verdict (or pass it on):\n${url}`);
+}
 function shareChallengeBack(){
   const prev = S.challenge && chalPlayed(S.challenge.idx);
-  if(prev) shareChallengeIdx(S.challenge.idx, prev.s, Math.round((prev.t||0)/1000));
+  if(!prev) return;
+  if(S.challenge.beat != null && !prev.m) shareResultBack(S.challenge.idx, prev.s, Math.round((prev.t||0)/1000), S.challenge.beat);
+  else shareChallengeIdx(S.challenge.idx, prev.s, Math.round((prev.t||0)/1000));
 }
 function shareText(text){
   if(navigator.share){ navigator.share({ text }).catch(()=>{}); }
