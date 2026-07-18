@@ -4304,6 +4304,45 @@ function saveNick(v){
    device token the boards use. No email, no password (yet) — real login can
    attach to this later without migration. */
 let _social = null;   // last fetched social state
+/* Google sign-in — hidden until the owner's OAuth Web client id is set here
+   AND in server/wrangler.toml (GOOGLE_CLIENT_ID). Public value, not a secret. */
+const GAUTH = { clientId: "" };
+let _gisLoading = false;
+function loadGIS(cb){
+  if(!GAUTH.clientId) return;
+  if(window.google && window.google.accounts){ cb(); return; }
+  if(_gisLoading) return;
+  _gisLoading = true;
+  const s = document.createElement("script");
+  s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+  s.onload = ()=>{ _gisLoading = false; cb(); };
+  s.onerror = ()=>{ _gisLoading = false; };   // offline: the button simply doesn't render
+  document.head.appendChild(s);
+}
+function mountGoogleBtn(){
+  const host = document.getElementById("gsiBtn");
+  if(!host || !GAUTH.clientId) return;
+  loadGIS(()=>{
+    try{
+      google.accounts.id.initialize({ client_id: GAUTH.clientId, callback: onGoogleCred });
+      google.accounts.id.renderButton(host, { theme: "outline", size: "medium", shape: "pill", text: "signin_with" });
+    }catch(e){}
+  });
+}
+async function onGoogleCred(resp){
+  if(!resp || !resp.credential || !LB.url) return;
+  try{
+    const r = await fetch(LB.url+"/auth", { method:"POST", headers:{ "content-type":"application/json" },
+      body: JSON.stringify({ device: deviceId(), credential: resp.credential }) });
+    const b = await r.json().catch(()=>null);
+    if(!r.ok || !b || !b.me){ toast("Sign-in didn't work — try again in a moment."); return; }
+    saveProfile(b.me); _social = b;
+    store.set("tl_nick", b.me.handle);
+    const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
+    renderFriendsCard(b);
+    toast("Signed in — welcome, "+b.me.handle+"!");
+  }catch(e){ toast("Sign-in didn't work — no connection."); }
+}
 function loadProfile(){ try{ return JSON.parse(store.get("tl_user")||"null"); }catch(e){ return null; } }
 function saveProfile(p){ store.set("tl_user", JSON.stringify(p)); }
 async function socialGet(){
@@ -4372,7 +4411,9 @@ function friendsCardHTML(st){
       <div class="row" style="gap:8px; margin-top:10px">
         <input id="handleIn" maxlength="20" value="${esc(lbNick())}" style="flex:1" aria-label="Your player name" />
         <button class="btn sm primary" style="flex:0 0 auto" onclick="claimHandle(document.getElementById('handleIn').value)">Claim</button>
-      </div></div>`;
+      </div>
+      ${GAUTH.clientId ? `<div class="muted" style="font-size:12px; margin-top:10px">Played before on another phone?</div>
+      <div id="gsiBtn" style="margin-top:6px"></div>` : ``}</div>`;
   }
   const inbox = (st && st.inbox || []).filter(m => m.kind === "challenge");
   const reqs = st && st.requests || [];
@@ -4397,11 +4438,16 @@ function friendsCardHTML(st){
       <div class="row" style="gap:8px; margin-top:10px">
         <input id="codeIn" maxlength="9" placeholder="YW-XXXXXX" style="flex:1; text-transform:uppercase" aria-label="Friend code" />
         <button class="btn sm" style="flex:0 0 auto" onclick="addFriendCode(document.getElementById('codeIn').value)">+ Add</button>
-      </div></div>`;
+      </div>
+      ${GAUTH.clientId ? (prof.linked
+        ? `<div class="muted" style="font-size:12px; margin-top:9px">✓ Google-linked — your name &amp; friends survive a new phone</div>`
+        : `<div class="muted" style="font-size:12px; margin-top:10px">🔐 Link Google so your account survives a new phone:</div>
+           <div id="gsiBtn" style="margin-top:6px"></div>`) : ``}</div>`;
 }
 function renderFriendsCard(st){
   const el = document.getElementById("friendsCard");
   if(el) el.innerHTML = LB.url ? friendsCardHTML(st) : "";
+  mountGoogleBtn();
 }
 
 /* challenge-set boards: every finished run on a shared set reports to /chal,

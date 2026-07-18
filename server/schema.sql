@@ -59,3 +59,14 @@ CREATE TABLE IF NOT EXISTS inbox (
   seen      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_inbox_to ON inbox(to_user, seen, created DESC);
+
+-- external logins attached to a user (Google for now). A login is how the
+-- same account comes back on a new phone; a user can exist without one.
+CREATE TABLE IF NOT EXISTS logins (
+  provider TEXT NOT NULL,          -- 'google'
+  subject  TEXT NOT NULL,          -- provider's stable user id (Google sub)
+  user_id  TEXT NOT NULL,
+  email    TEXT,                   -- optional, for support/recovery only
+  created  INTEGER NOT NULL,
+  PRIMARY KEY (provider, subject)
+);

@@ -73,6 +73,59 @@ function randId(){
 }
 const pair = (u1, u2) => u1 < u2 ? [u1, u2] : [u2, u1];
 
+/* ---------- Google Sign-In (dark until GOOGLE_CLIENT_ID is set) ----------
+   The client sends the Google ID token (a JWT); we verify it against
+   Google's published keys — signature, issuer, audience, expiry — and use
+   the stable `sub` as the account key. */
+let _jwks = null, _jwksAt = 0;
+async function googleKeys(){
+  if(_jwks && Date.now() - _jwksAt < 3600e3) return _jwks;
+  const r = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+  const b = await r.json();
+  _jwks = b.keys || []; _jwksAt = Date.now();
+  return _jwks;
+}
+function b64uToBytes(s){
+  s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  while(s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function verifyGoogleToken(cred, clientId){
+  const parts = String(cred || "").split(".");
+  if(parts.length !== 3) return null;
+  let header, payload;
+  try{
+    header = JSON.parse(new TextDecoder().decode(b64uToBytes(parts[0])));
+    payload = JSON.parse(new TextDecoder().decode(b64uToBytes(parts[1])));
+  }catch(e){ return null; }
+  if(header.alg !== "RS256") return null;
+  if(payload.aud !== clientId) return null;
+  if(payload.iss !== "accounts.google.com" && payload.iss !== "https://accounts.google.com") return null;
+  if(!payload.exp || payload.exp * 1000 < Date.now()) return null;
+  const jwk = (await googleKeys()).find(k => k.kid === header.kid);
+  if(!jwk) return null;
+  try{
+    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key,
+      b64uToBytes(parts[2]), new TextEncoder().encode(parts[0] + "." + parts[1]));
+    return ok ? payload : null;
+  }catch(e){ return null; }
+}
+async function freeHandle(env, base){
+  base = String(base || "").replace(/[^\p{L}\p{N} _\-.]/gu, "").replace(/\s+/g, " ").trim().slice(0, 16);
+  if(base.length < 3) base = "Player";
+  for(let n = 0; n < 100; n++){
+    const h = n === 0 ? base : base + " " + (n + 1);
+    if(!HANDLE_RE.test(h)) continue;
+    const taken = await env.DB.prepare("SELECT id FROM users WHERE handle_lc=?1").bind(h.toLowerCase()).first();
+    if(!taken) return h;
+  }
+  return "Player " + Math.floor(Math.random() * 100000);
+}
+
 async function userByDevice(env, device){
   return env.DB.prepare(
     "SELECT u.id, u.handle, u.code FROM devices d JOIN users u ON u.id = d.user_id WHERE d.device=?1"
@@ -109,7 +162,8 @@ async function socialState(env, me, cors){
       if(u) m.handle = u.handle;
     }
   }
-  return json({ me: { handle: me.handle, code: me.code }, friends, requests, outgoing, inbox }, 200, cors);
+  const linked = await env.DB.prepare("SELECT user_id FROM logins WHERE user_id=?1 LIMIT 1").bind(me.id).first();
+  return json({ me: { handle: me.handle, code: me.code, linked: !!linked }, friends, requests, outgoing, inbox }, 200, cors);
 }
 async function handleSocialPost(env, b, cors){
   const device = String(b.device || "");
@@ -276,6 +330,42 @@ export default {
     if(url.pathname === "/social" && req.method === "POST"){
       let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
       return handleSocialPost(env, b, cors);
+    }
+
+    if(url.pathname === "/auth" && req.method === "POST"){
+      let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
+      const device = String(b.device || "");
+      if(!DEVICE_RE.test(device)) return json({ error: "bad device" }, 400, cors);
+      if(!env.GOOGLE_CLIENT_ID) return json({ error: "login not configured" }, 503, cors);
+      const tok = await verifyGoogleToken(b.credential, env.GOOGLE_CLIENT_ID);
+      if(!tok || !tok.sub) return json({ error: "invalid token" }, 401, cors);
+      const sub = String(tok.sub);
+      const existing = await env.DB.prepare("SELECT user_id FROM logins WHERE provider='google' AND subject=?1").bind(sub).first();
+      let me = await userByDevice(env, device);
+      if(existing){
+        // returning player (possibly on a new phone): this device becomes theirs
+        const u = await env.DB.prepare("SELECT id, handle, code FROM users WHERE id=?1").bind(existing.user_id).first();
+        if(!u) return json({ error: "account missing" }, 500, cors);
+        await env.DB.prepare("INSERT INTO devices (device, user_id, created) VALUES (?1,?2,?3) ON CONFLICT(device) DO UPDATE SET user_id=excluded.user_id")
+          .bind(device, u.id, Date.now()).run();
+        me = u;
+      } else if(me){
+        // first sign-in: attach Google to the profile this device already has
+        await env.DB.prepare("INSERT INTO logins (provider, subject, user_id, email, created) VALUES ('google',?1,?2,?3,?4)")
+          .bind(sub, me.id, tok.email || null, Date.now()).run();
+      } else {
+        // brand-new player signing in before claiming: make them an account
+        const handle = await freeHandle(env, tok.given_name || tok.name);
+        const id = randId(), code = friendCode();
+        await env.DB.prepare("INSERT INTO users (id, handle, handle_lc, code, created) VALUES (?1,?2,?3,?4,?5)")
+          .bind(id, handle, handle.toLowerCase(), code, Date.now()).run();
+        await env.DB.prepare("INSERT INTO devices (device, user_id, created) VALUES (?1,?2,?3) ON CONFLICT(device) DO UPDATE SET user_id=excluded.user_id")
+          .bind(device, id, Date.now()).run();
+        await env.DB.prepare("INSERT INTO logins (provider, subject, user_id, email, created) VALUES ('google',?1,?2,?3,?4)")
+          .bind(sub, id, tok.email || null, Date.now()).run();
+        me = { id, handle, code };
+      }
+      return socialState(env, me, cors);
     }
 
     return json({ error: "not found" }, 404, cors);

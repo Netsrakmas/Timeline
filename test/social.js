@@ -75,6 +75,7 @@ const server = http.createServer((req,res)=>{
   // 1) no profile -> claim card
   let card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(!/Claim a name/.test(card)) throw new Error('claim card missing: '+card.slice(0,120));
+  if(/Played before|Google/.test(card)) throw new Error('Google UI must stay hidden while GAUTH.clientId is empty');
   await pg.$eval('#handleIn', e=>{ e.value='Sam K'; });
   await pg.click('#friendsCard button:has-text("Claim")');
   await pg.waitForTimeout(400);
@@ -136,6 +137,54 @@ const server = http.createServer((req,res)=>{
   const sent = actions.find(a=>a.action==='challenge');
   if(!sent || sent.to!=='f1' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
   console.log('direct-send button posts the set to the friend OK ·', JSON.stringify({to:sent.to, score:sent.score}));
+
+  await ctx.close();
+
+  // 6) Google sign-in — fake GIS button + stubbed /auth restores the account
+  const ctx2 = await browser.newContext({viewport:{width:540,height:1400},hasTouch:true,serviceWorkers:'block'});
+  const pg2 = await ctx2.newPage();
+  pg2.on('pageerror',e=>console.log('PAGEERROR:',e.message));
+  const authPosts = [];
+  const state2 = { me:null, friends:[], requests:[], outgoing:0, inbox:[] };
+  await pg2.route(/itunes\.apple\.com/, route=>{
+    const u=new URL(route.request().url());const cb=u.searchParams.get('callback');
+    route.fulfill({contentType:'text/javascript',body:`${cb}({"resultCount":0,"results":[]})`});
+  });
+  await pg2.route(/lb\.test/, route=>{
+    const req=route.request();
+    if(/\/auth/.test(req.url()) && req.method()==='POST'){
+      authPosts.push(JSON.parse(req.postData()));
+      state2.me = { handle:'Tim', code:'YW-TTT222', linked:true };
+    }
+    route.fulfill({contentType:'application/json', body: JSON.stringify(state2),
+      headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});
+  });
+  await pg2.addInitScript(()=>{
+    window.google = { accounts: { id: {
+      initialize(o){ window.__gcb = o.callback; },
+      renderButton(el){ const b=document.createElement('button'); b.id='fakeGsi';
+        b.textContent='Sign in with Google'; b.onclick=()=>window.__gcb({credential:'FAKE.JWT.TOK'});
+        el.appendChild(b); }
+    }}};
+  });
+  await pg2.goto(base,{waitUntil:'load'});
+  await pg2.waitForTimeout(700);
+  await pg2.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId='test-client'; renderSetup(); });
+  await pg2.waitForTimeout(400);
+  let c2 = await pg2.$eval('#friendsCard', e=>e.innerText);
+  if(!/Played before on another phone/.test(c2)) throw new Error('sign-in hint missing on claim card: '+c2.slice(0,160));
+  const hasBtn = await pg2.$('#gsiBtn #fakeGsi');
+  if(!hasBtn) throw new Error('Google button not mounted');
+  await pg2.click('#fakeGsi');
+  await pg2.waitForTimeout(400);
+  if(authPosts.length!==1 || authPosts[0].credential!=='FAKE.JWT.TOK' || !/^[a-f0-9]{32}$/.test(authPosts[0].device))
+    throw new Error('auth POST wrong: '+JSON.stringify(authPosts));
+  c2 = await pg2.$eval('#friendsCard', e=>e.innerText);
+  if(!/YW-TTT222/.test(c2) || !/Google-linked/.test(c2)) throw new Error('restored account not shown: '+c2.slice(0,200));
+  const chip2 = await pg2.$eval('.nickchip', e=>e.textContent);
+  if(!/Tim/.test(chip2)) throw new Error('chip did not adopt restored handle: '+chip2);
+  console.log('Google sign-in: hidden-until-configured, button mounts, /auth restores account + linked badge OK');
+  await ctx2.close();
 
   console.log('SOCIAL TEST PASS ✓');
   await browser.close(); server.close();

@@ -9,6 +9,7 @@ const users = [];   // {id, handle, handle_lc, code, created}
 const devices = []; // {device, user_id, created}
 const friends = []; // {a, b, requester, status, created}
 const inbox = [];   // {id, to_user, from_user, kind, payload, created, seen}
+const logins = [];  // {provider, subject, user_id, email, created}
 let inboxSeq = 0;
 function fakeDB(){
   return { prepare(sql){ return { bind(...a){ return {
@@ -36,6 +37,7 @@ function fakeDB(){
       if(/^DELETE FROM friends/.test(sql)){ const [x,y]=a; const i=friends.findIndex(r=>r.a===x&&r.b===y); if(i>=0) friends.splice(i,1); return {}; }
       if(/^INSERT INTO inbox/.test(sql)){ const [to_user,from_user,payload,created]=a; inbox.push({id:++inboxSeq,to_user,from_user,kind:'challenge',payload,created,seen:0}); return {}; }
       if(/^UPDATE inbox SET seen=1/.test(sql)){ const [id,to_user]=a; const m=inbox.find(r=>r.id===id&&r.to_user===to_user); if(m) m.seen=1; return {}; }
+      if(/^INSERT INTO logins/.test(sql)){ const [subject,user_id,email,created]=a; logins.push({provider:'google',subject,user_id,email,created}); return {}; }
       throw new Error('unexpected run: '+sql);
     },
     async first(){
@@ -51,7 +53,10 @@ function fakeDB(){
         const d=devices.find(x=>x.device===a[0]); if(!d) return null;
         const u=users.find(x=>x.id===d.user_id); return u?{id:u.id,handle:u.handle,code:u.code}:null;
       }
+      if(/SELECT id, handle, code FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{id:u.id,handle:u.handle,code:u.code}:null; }
       if(/SELECT id, handle FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{id:u.id,handle:u.handle}:null; }
+      if(/SELECT user_id FROM logins WHERE provider='google' AND subject=/.test(sql)){ const l=logins.find(x=>x.subject===a[0]); return l?{user_id:l.user_id}:null; }
+      if(/SELECT user_id FROM logins WHERE user_id=/.test(sql)){ const l=logins.find(x=>x.user_id===a[0]); return l?{user_id:l.user_id}:null; }
       if(/SELECT handle FROM users WHERE id=/.test(sql)){ const u=users.find(x=>x.id===a[0]); return u?{handle:u.handle}:null; }
       if(/SELECT id FROM users WHERE handle_lc=/.test(sql)){ const u=users.find(x=>x.handle_lc===a[0]); return u?{id:u.id}:null; }
       if(/SELECT id, handle FROM users WHERE code=/.test(sql)){ const u=users.find(x=>x.code===a[0]); return u?{id:u.id,handle:u.handle}:null; }
@@ -188,4 +193,57 @@ r = await js(await call('POST','/social',{device:dev('c'), action:'add', code:co
 if(r.status!==401) throw new Error('actions without a profile should 401');
 console.log('social: claim/uniqueness, friend request+accept, direct challenge inbox, seen, auth guards ✓');
 
-console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social)');
+// --- /auth: Google sign-in (self-signed JWT + stubbed JWKS) ---
+const kp = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256'}, true, ['sign','verify']);
+const pubJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+pubJwk.kid = 'testkid'; pubJwk.alg = 'RS256'; pubJwk.use = 'sig';
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (u, o) => {
+  if(String(u).includes('googleapis.com/oauth2/v3/certs'))
+    return new Response(JSON.stringify({keys:[pubJwk]}), {headers:{'content-type':'application/json'}});
+  return realFetch(u, o);
+};
+const b64u = buf => Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+async function forge(payload, kid){
+  const h = b64u(JSON.stringify({alg:'RS256', kid: kid||'testkid'}));
+  const p = b64u(JSON.stringify(payload));
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', kp.privateKey, new TextEncoder().encode(h+'.'+p));
+  return h+'.'+p+'.'+b64u(sig);
+}
+const env2 = { DB: env.DB, GOOGLE_CLIENT_ID: 'test-client' };
+const call2 = (method, path, body) => worker.fetch(new Request('https://api.test'+path, {
+  method, body: JSON.stringify(body), headers: {'Origin':'https://playyearworm.com','CF-Connecting-IP':'9.9.9.'+Math.floor(Math.random()*250)}
+}), env2);
+const nowSec = Math.floor(Date.now()/1000);
+
+// disabled without a client id
+r = await js(await call('POST','/auth',{device:dev('d'), credential:'x.y.z'}));
+if(r.status!==503) throw new Error('auth without client id should 503');
+// garbage + wrong aud + expired all rejected
+r = await js(await call2('POST','/auth',{device:dev('d'), credential:'not.a.jwt'}));
+if(r.status!==401) throw new Error('garbage credential should 401');
+r = await js(await call2('POST','/auth',{device:dev('d'), credential: await forge({iss:'https://accounts.google.com', aud:'OTHER', sub:'g1', exp:nowSec+600})}));
+if(r.status!==401) throw new Error('wrong audience should 401');
+r = await js(await call2('POST','/auth',{device:dev('d'), credential: await forge({iss:'https://accounts.google.com', aud:'test-client', sub:'g1', exp:nowSec-10})}));
+if(r.status!==401) throw new Error('expired token should 401');
+
+// fresh device, unknown sub -> account created from the Google name
+const tok1 = await forge({iss:'https://accounts.google.com', aud:'test-client', sub:'g1', exp:nowSec+600, given_name:'Tim'});
+r = await js(await call2('POST','/auth',{device:dev('d'), credential: tok1}));
+if(r.status!==200 || !r.body.me || r.body.me.handle!=='Tim' || !r.body.me.linked) throw new Error('fresh sign-in failed: '+JSON.stringify(r.body));
+const timCode = r.body.me.code;
+// same Google account on ANOTHER device -> same account restored (same code)
+r = await js(await call2('POST','/auth',{device:dev('e'), credential: tok1}));
+if(r.body.me.code!==timCode || r.body.me.handle!=='Tim') throw new Error('account not restored on second device: '+JSON.stringify(r.body.me));
+// device with an existing claimed profile links a NEW sub to that profile
+const tok2 = await forge({iss:'https://accounts.google.com', aud:'test-client', sub:'g2', exp:nowSec+600, given_name:'Sam'});
+r = await js(await call2('POST','/auth',{device:dev('a'), credential: tok2}));
+if(r.body.me.handle!=='Sam K' || !r.body.me.linked) throw new Error('link-to-existing failed: '+JSON.stringify(r.body.me));
+// name collision on auto-handle: another Google Tim gets 'Tim 2'
+const tok3 = await forge({iss:'https://accounts.google.com', aud:'test-client', sub:'g3', exp:nowSec+600, given_name:'Tim'});
+r = await js(await call2('POST','/auth',{device:'f'.repeat(32), credential: tok3}));
+if(r.body.me.handle!=='Tim 2') throw new Error('handle dedup failed: '+JSON.stringify(r.body.me));
+globalThis.fetch = realFetch;
+console.log('auth: 503-off, JWT checks (garbage/aud/expiry), create-from-Google, restore-on-new-device, link-to-profile, handle dedup ✓');
+
+console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social, auth)');

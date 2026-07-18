@@ -3,6 +3,11 @@ main = "worker.js"
 compatibility_date = "2026-07-01"
 account_id = "068a305342a3734354d0697da0dec1a5"
 
+[vars]
+# Google OAuth Web client id (public). Empty = /auth disabled; fill in the
+# owner's xxxx.apps.googleusercontent.com to enable Google sign-in.
+GOOGLE_CLIENT_ID = ""
+
 [[d1_databases]]
 binding = "DB"
 database_name = "yearworm"
