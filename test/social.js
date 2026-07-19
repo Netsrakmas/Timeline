@@ -104,7 +104,14 @@ const server = http.createServer((req,res)=>{
   const codeShared = await pg.evaluate(()=>window.__shared);
   if(!codeShared || !/YW-ABC234/.test(codeShared) || !/#add=YW-ABC234/.test(codeShared))
     throw new Error('code share text wrong: '+codeShared);
-  console.log('friend code: share sheet with invite link OK');
+  // with zero friends the card leads with a BIG invite button (same share)
+  if(!/Invite a friend/.test(await pg.$eval('#friendsCard', e=>e.innerText))) throw new Error('empty-state invite button missing');
+  await pg.evaluate(()=>{ window.__shared=null; });
+  await pg.click('#friendsCard button:has-text("Invite a friend")');
+  await pg.waitForTimeout(200);
+  const invShared = await pg.evaluate(()=>window.__shared);
+  if(!invShared || !/#add=YW-ABC234/.test(invShared)) throw new Error('invite button share wrong: '+invShared);
+  console.log('friend code: share sheet with invite link (chip + big empty-state button) OK');
 
   // 2) incoming friend request -> accept
   state.requests = [{id:'f1', handle:'Jesse'}];

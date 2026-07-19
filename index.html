@@ -316,7 +316,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.4.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4623,8 +4623,10 @@ function friendsCardHTML(st){
             <button class="btn sm" style="padding:6px 11px" onclick="challengeFriend('${f.id}')" aria-label="Challenge ${esc(f.handle)}">⚔️</button>
           </span>
         </div>`;}).join("")
-      : `<div class="muted" style="font-size:13px; margin-top:9px">No friends yet — share your code, or add theirs:</div>`}
-      <div class="row" style="gap:8px; margin-top:10px">
+      : `<div class="muted" style="font-size:13.5px; margin-top:10px">No friends yet — send someone your invite link. One tap and you're linked ⚔️</div>
+      <button class="btn pink" style="margin-top:10px" onclick="shareCode()">📤 Invite a friend</button>`}
+      <div class="muted" style="font-size:12px; margin-top:${fr.length ? 11 : 12}px">Got a friend's code? Add it here:</div>
+      <div class="row" style="gap:8px; margin-top:7px">
         <input id="codeIn" maxlength="9" placeholder="YW-XXXXXX" style="flex:1; text-transform:uppercase" aria-label="Friend code" />
         <button class="btn sm" style="flex:0 0 auto" onclick="addFriendCode(document.getElementById('codeIn').value)">+ Add</button>
       </div>
