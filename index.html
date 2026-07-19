@@ -316,7 +316,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.4.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.4.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4545,6 +4545,13 @@ async function dismissMsg(id){
   const r = await socialPost({ action:"seen", ids:[id] });
   if(r && r.ok) renderFriendsCard(r.body);
 }
+async function dismissChals(from){
+  // clear a whole pile of challenges from one sender in a single tap
+  const ids = ((_social && _social.inbox) || []).filter(m => m.kind === "challenge" && m.from === from).map(m => m.id);
+  if(!ids.length) return;
+  const r = await socialPost({ action:"seen", ids: ids.slice(0, 50) });
+  if(r && r.ok) renderFriendsCard(r.body);
+}
 function confettiBurst(){
   if(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   let host = document.getElementById("confetti");
@@ -4587,10 +4594,21 @@ function friendsCardHTML(st){
         <button class="eyebtn" onclick="friendsOverview()" aria-label="All standings with friends"><span class="eyebrow" style="color:var(--violet)">👥 friends ▸</span></button>
         <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="shareCode()" aria-label="Share your friend code">code <b>${esc(prof.code||"")}</b> 📤</button>
       </div>
-      ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
-        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> challenged you${m.payload && m.payload.score != null ? ` — beat ${m.payload.score}/${RUN_LEN}` : ``}</span>
-        <button class="btn sm pink" style="flex:0 0 auto" onclick="playInboxChal(${m.id})">▶ Play</button>
-      </div>`).join("")}
+      ${(()=>{   // bundle challenges per sender: one row, oldest plays first
+        const bySender = {};
+        for(const m of inbox) (bySender[m.from] = bySender[m.from] || []).push(m);
+        return Object.values(bySender).map(list=>{
+          const q = [...list].sort((a,b)=>(a.created||0)-(b.created||0));
+          const next = q[0], n = q.length;
+          const beat = next.payload && next.payload.score != null ? `beat ${next.payload.score}/${RUN_LEN}` : ``;
+          return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
+        <span style="font-size:13.5px">⚔️ <b>${esc(next.handle)}</b> ${n>1 ? `sent ${n} challenges — next: ${beat}` : `challenged you${beat ? ` — ${beat}` : ``}`}</span>
+        <span style="flex:0 0 auto; display:inline-flex; gap:6px; align-items:center">
+          ${n>1 ? `<button class="btn ghost sm" onclick="dismissChals('${next.from}')" aria-label="Dismiss all from ${esc(next.handle)}">✕</button>` : ``}
+          <button class="btn sm pink" onclick="playInboxChal(${next.id})">▶ Play</button>
+        </span>
+      </div>`;}).join("");
+      })()}
       ${newFriends.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> used your code — you're friends now!</span>
         <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>

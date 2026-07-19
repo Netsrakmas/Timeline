@@ -135,6 +135,28 @@ const server = http.createServer((req,res)=>{
   if(!/Zoe/.test(card)) throw new Error('instant friend not rendered: '+card.slice(0,200));
   console.log('add-by-code: instant friend OK');
 
+  // 4a) multiple challenges from one sender bundle into a single row (oldest
+  // is "next"), other senders keep their own row; ✕ dismisses the whole pile
+  state.inbox = [
+    {id:21, from:'f1', handle:'Jesse', kind:'challenge', payload:{set:'1.2.3.4.5.6', score:2, timeMs:9000}, created:11},
+    {id:22, from:'f1', handle:'Jesse', kind:'challenge', payload:{set:'2.3.4.5.6.7', score:4, timeMs:9000}, created:12},
+    {id:23, from:'f1', handle:'Jesse', kind:'challenge', payload:{set:'3.4.5.6.7.8', score:3, timeMs:9000}, created:13},
+    {id:24, from:'f9', handle:'Zoe', kind:'challenge', payload:{set:'9.8.7.6.5.4', score:5, timeMs:9000}, created:14},
+  ];
+  await pg.evaluate(()=>socialGet().then(st=>renderFriendsCard(st)));
+  await pg.waitForTimeout(300);
+  card = await pg.$eval('#friendsCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Jesse sent 3 challenges — next: beat 2\/5/.test(card)) throw new Error('bundle row wrong: '+card.slice(0,280));
+  if(!/Zoe challenged you — beat 5\/5/.test(card)) throw new Error('single row lost in bundling: '+card.slice(0,280));
+  if((card.match(/challenged you|sent \d+ challenges/g)||[]).length!==2) throw new Error('rows not bundled: '+card.slice(0,320));
+  await pg.click('#friendsCard button[aria-label="Dismiss all from Jesse"]');
+  await pg.waitForTimeout(300);
+  const pile = actions.find(a=>a.action==='seen' && a.ids && a.ids.length===3);
+  if(!pile || JSON.stringify([...pile.ids].sort((a,b)=>a-b))!==JSON.stringify([21,22,23])) throw new Error('dismiss-all wrong: '+JSON.stringify(pile));
+  card = await pg.$eval('#friendsCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(/Jesse sent/.test(card) || !/Zoe challenged you/.test(card)) throw new Error('dismiss-all cleared the wrong rows: '+card.slice(0,280));
+  console.log('challenge bundling: one row per sender, oldest first + dismiss-all OK');
+
   // 4) inbox challenge -> Play launches THAT set with the beat score
   state.inbox = [{id:7, from:'f1', handle:'Jesse', kind:'challenge', payload:{set:'10.20.30.40.50.60', score:4, timeMs:12000}, created:1}];
   await pg.evaluate(()=>socialGet().then(st=>renderFriendsCard(st)));
