@@ -280,6 +280,22 @@ const server = http.createServer((req,res)=>{
   if(await pg.$eval('#overlay', e=>e.classList.contains('show'))) throw new Error('detail sheet did not close');
   console.log('friend detail sheet: all-time + 7-day crown + recent duels OK');
 
+  // 5h) tapping the friends HEADER opens the all-standings sheet; a row
+  // drills into that friend's detail
+  await pg.click('#friendsCard .eyebtn');
+  await pg.waitForTimeout(200);
+  let ovr = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/STANDINGS/.test(ovr)) throw new Error('standings sheet missing: '+ovr.slice(0,200));
+  if(!/all-time/.test(ovr) || !/last 7 days/.test(ovr)) throw new Error('standings column headers missing: '+ovr.slice(0,240));
+  if(!/Jesse[\s\S]*👑 3–1 \+1[\s\S]*2–0/.test(ovr)) throw new Error('standings row wrong: '+ovr.slice(0,300));
+  await pg.click('#sheet .ovrow:has-text("Jesse")');
+  await pg.waitForTimeout(200);
+  ovr = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/all-time: you 3–1 · 1 tie/.test(ovr)) throw new Error('standings row did not open the detail: '+ovr.slice(0,240));
+  await pg.click('#sheet button:has-text("Close")');
+  await pg.waitForTimeout(200);
+  console.log('standings sheet: header tap + drill-down to detail OK');
+
   await ctx.close();
 
   // 6) Google sign-in — fake GIS button + stubbed /auth restores the account

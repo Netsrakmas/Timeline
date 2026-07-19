@@ -279,8 +279,15 @@
     padding:11px 18px; font-size:13.5px; font-weight:700; color:var(--text); background:var(--surface-2);}
   .greal{position:absolute; inset:0; opacity:.001; overflow:hidden; z-index:1;}
   .gwrap:focus-within .gbtn{border-color:var(--gold);}   /* the invisible real button carries focus */
-  .frname{background:none; border:none; padding:0; color:var(--text); font-weight:700; font-size:13.5px;
-    cursor:pointer; text-decoration:underline dotted rgba(166,171,209,.55); text-underline-offset:3px;}
+  .frname{background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:6px 12px;
+    color:var(--text); font-weight:700; font-size:13px; cursor:pointer;}
+  .frname:active{border-color:var(--gold);}
+  .eyebtn{background:none; border:none; padding:0; cursor:pointer; font:inherit;}
+  .ovrow{display:flex; width:100%; align-items:center; gap:10px; background:none; border:none;
+    border-bottom:1px solid var(--line); padding:11px 2px; color:var(--text); cursor:pointer; font:inherit; text-align:left;}
+  .ovrow:last-of-type{border-bottom:none;}
+  .ovrow b{flex:1; font-size:14px;}
+  .ovrow span{flex:0 0 76px; text-align:right; font-size:13px;}
   #confetti{position:fixed; inset:0; pointer-events:none; z-index:55; overflow:hidden;}
   #confetti i{position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
     animation:confall linear forwards;}
@@ -309,7 +316,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4443,6 +4450,36 @@ async function sendChal(to, set, score, timeMs){
   const r = await socialPost({ action:"challenge", to, set, score, timeMs });
   toast(r && r.ok ? "Challenge sent ⚔️" : "Couldn't send — use the share link instead.");
 }
+// tap the friends header: ALL standings in one sheet; each row opens the detail
+function friendsOverview(){
+  const fr = (_social && _social.friends) || [];
+  const sorted = [...fr].sort((x,y)=>(((y.w|0)+(y.l|0)+(y.t|0)) - ((x.w|0)+(x.l|0)+(x.t|0))) || ((y.w|0)-(x.w|0)));
+  const rows = sorted.map(f=>{
+    const w=f.w|0, l=f.l|0, t=f.t|0, w7=f.w7|0, l7=f.l7|0, t7=f.t7|0;
+    const any = w+l+t > 0, wk = w7+l7+t7;
+    const col = !any ? "var(--muted)" : w > l ? "var(--good)" : l > w ? "var(--bad)" : "var(--muted)";
+    const col7 = !wk ? "var(--muted)" : w7 > l7 ? "var(--good)" : l7 > w7 ? "var(--bad)" : "var(--muted)";
+    return `<button class="ovrow" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">
+      <b>${esc(f.handle)}</b>
+      <span style="color:${col}">${any ? `${w>l?'👑 ':''}${w}–${l}${t?` +${t}`:''}` : '—'}</span>
+      <span style="color:${col7}">${wk ? `${w7}–${l7}${t7?` +${t7}`:''}` : '—'}</span>
+    </button>`;
+  }).join("");
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">⚔️</div>
+    <div class="verdict good" style="margin-top:6px">STANDINGS</div>
+    ${fr.length ? `
+    <div class="ovrow" style="cursor:default; border-bottom:1px solid var(--line); padding-bottom:6px" aria-hidden="true">
+      <b class="muted" style="font-weight:400; font-size:12px">tap a friend for details</b>
+      <span class="muted" style="font-size:11px">all-time</span>
+      <span class="muted" style="font-size:11px">last 7 days</span>
+    </div>${rows}`
+    : `<div class="muted" style="font-size:13.5px; margin:10px 0">No friends yet — share your code and the standings fill up.</div>`}
+    <button class="btn ghost" style="margin-top:14px" onclick="closeOverlay()">Close</button>
+  `;
+  showSheet();
+}
 // tap a friend's name: head-to-head sheet — all-time, rolling 7 days, recent duels
 function friendDetail(id){
   const f = _social && _social.friends && _social.friends.find(x => x.id === id);
@@ -4547,7 +4584,7 @@ function friendsCardHTML(st){
   const fr = st && st.friends || [];
   return `<div class="card slim">
       <div class="row" style="justify-content:space-between; align-items:center">
-        <div class="eyebrow" style="color:var(--violet)">👥 friends</div>
+        <button class="eyebtn" onclick="friendsOverview()" aria-label="All standings with friends"><span class="eyebrow" style="color:var(--violet)">👥 friends ▸</span></button>
         <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="shareCode()" aria-label="Share your friend code">code <b>${esc(prof.code||"")}</b> 📤</button>
       </div>
       ${inbox.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
