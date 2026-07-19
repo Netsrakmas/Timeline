@@ -144,23 +144,35 @@ async function socialState(env, me, cors){
     const u = await env.DB.prepare("SELECT id, handle FROM users WHERE id=?1").bind(id).first();
     if(u) named[id] = u.handle;
   }
-  // head-to-head duel tallies per friend, from my perspective (w = my wins)
+  // head-to-head duel tallies per friend, from my perspective (w = my wins),
+  // plus a rolling last-7-days window and the most recent duels for the
+  // friend-detail sheet
   const drows = (await env.DB.prepare(
-    "SELECT a, b, winner FROM duels WHERE a=?1 OR b=?1"
+    "SELECT a, b, winner, score_a, score_b, created FROM duels WHERE a=?1 OR b=?1 ORDER BY created DESC"
   ).bind(me.id).all()).results || [];
+  const week = Date.now() - 7 * 864e5;
   const tally = {};
   for(const d of drows){
     const other = d.a === me.id ? d.b : d.a;
-    const t = tally[other] || (tally[other] = { w: 0, l: 0, t: 0 });
-    if(d.winner === me.id) t.w++; else if(d.winner === other) t.l++; else t.t++;
+    const t = tally[other] || (tally[other] = { w:0, l:0, t:0, w7:0, l7:0, t7:0, recent:[] });
+    const res = d.winner === me.id ? "w" : d.winner === other ? "l" : "t";
+    t[res]++;
+    if(d.created >= week) t[res + "7"]++;
+    if(t.recent.length < 6) t.recent.push({
+      r: res,
+      mine: d.a === me.id ? d.score_a : d.score_b,
+      theirs: d.a === me.id ? d.score_b : d.score_a,
+      at: d.created
+    });
   }
   const friends = [], requests = []; let outgoing = 0;
   for(const r of rows){
     const other = r.a === me.id ? r.b : r.a;
     if(!(other in named)) continue;
     if(r.status === "accepted"){
-      const t = tally[other] || { w: 0, l: 0, t: 0 };
-      friends.push({ id: other, handle: named[other], w: t.w, l: t.l, t: t.t });
+      const t = tally[other] || { w:0, l:0, t:0, w7:0, l7:0, t7:0, recent:[] };
+      friends.push({ id: other, handle: named[other], w: t.w, l: t.l, t: t.t,
+                     w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent });
     }
     else if(r.requester === me.id) outgoing++;
     else requests.push({ id: other, handle: named[other] });

@@ -85,8 +85,10 @@ function fakeDB(){
       if(/SELECT a, b, requester, status FROM friends/.test(sql)){
         return { results: friends.filter(r=>r.a===a[0]||r.b===a[0]).map(r=>({...r})) };
       }
-      if(/SELECT a, b, winner FROM duels/.test(sql)){
-        return { results: duels.filter(d=>d.a===a[0]||d.b===a[0]).map(d=>({a:d.a,b:d.b,winner:d.winner})) };
+      if(/SELECT a, b, winner, score_a, score_b, created FROM duels/.test(sql)){
+        return { results: duels.filter(d=>d.a===a[0]||d.b===a[0])
+          .sort((x,y)=>y.created-x.created)
+          .map(d=>({a:d.a,b:d.b,winner:d.winner,score_a:d.score_a,score_b:d.score_b,created:d.created})) };
       }
       if(/FROM inbox WHERE to_user=/.test(sql)){
         return { results: inbox.filter(m=>m.to_user===a[0]&&!m.seen).sort((x,y)=>y.created-x.created).slice(0,20)
@@ -320,6 +322,14 @@ m2 = (await js(await call('GET','/social?device='+dev('a')))).body.inbox.find(m=
 r = await js(await call('POST','/social',{device:dev('a'), action:'result', id:m2.id, score:4, timeMs:9000}));
 fJesse = r.body.friends.find(f=>f.handle==='Jesse');
 if(fJesse.w!==2 || fJesse.l!==0 || fJesse.t!==1) throw new Error('dead-even duel not a tie: '+JSON.stringify(fJesse));
-console.log('duels: validation, recipient-only, winner/tie math, one-shot dedupe, challenger notified ✓');
+// rolling 7-day window + recent duels ride along on each friend entry
+r = await js(await call('GET','/social?device='+dev('a')));
+fJesse = r.body.friends.find(f=>f.handle==='Jesse');
+if(fJesse.w7!==2 || fJesse.l7!==0 || fJesse.t7!==1) throw new Error('7-day tally wrong: '+JSON.stringify(fJesse));
+if(!Array.isArray(fJesse.recent) || fJesse.recent.length!==3) throw new Error('recent duels missing: '+JSON.stringify(fJesse.recent));
+if(!fJesse.recent.every(x=>Number.isFinite(x.mine) && Number.isFinite(x.theirs) && x.at && ['w','l','t'].includes(x.r)))
+  throw new Error('recent duel shape wrong: '+JSON.stringify(fJesse.recent));
+if(!fJesse.recent.some(x=>x.r==='t' && x.mine===4 && x.theirs===4)) throw new Error('tie duel not in recent: '+JSON.stringify(fJesse.recent));
+console.log('duels: validation, recipient-only, winner/tie math, one-shot dedupe, challenger notified, 7-day window + recent ✓');
 
 console.log('WORKER TEST PASS ✓ (validation, sanitizing, one-shot upsert, tie-by-time ranking, CORS, chal boards, social, auth, duels)');

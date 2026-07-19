@@ -254,6 +254,32 @@ const server = http.createServer((req,res)=>{
   if(!/Challenge someone else on these songs/.test(sheet2)) throw new Error('share button should read "someone else" after auto-send: '+sheet2.slice(0,260));
   console.log('friend ⚔️ button: fresh run + auto-sent gauntlet + someone-else label OK');
 
+  // 5g) tapping a friend's NAME opens the head-to-head sheet (all-time,
+  // rolling 7 days, recent duels), with a challenge button inside
+  await pg.click('#sheet button:has-text("Done")');
+  await pg.waitForTimeout(500);
+  await pg.evaluate(()=>{
+    _social = { me:{handle:'Sam', code:'YW-XXXXXX'},
+      friends:[{id:'f1', handle:'Jesse', w:3, l:1, t:1, w7:2, l7:0, t7:0,
+        recent:[{r:'w', mine:5, theirs:4, at:Date.now()-864e5},
+                {r:'l', mine:2, theirs:4, at:Date.now()-3*864e5}]}],
+      requests:[], outgoing:0, inbox:[] };
+    renderFriendsCard(_social);
+  });
+  await pg.waitForTimeout(200);
+  await pg.click('#friendsCard .frname:has-text("Jesse")');
+  await pg.waitForTimeout(200);
+  const dtl = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Jesse/.test(dtl) || !/all-time: you 3–1 · 1 tie/.test(dtl)) throw new Error('all-time record wrong: '+dtl.slice(0,240));
+  if(!/last 7 days: 👑 you lead — 2–0/.test(dtl)) throw new Error('7-day line wrong: '+dtl.slice(0,240));
+  if(!/yesterday · you 5\/5 vs 4\/5 🏆/.test(dtl)) throw new Error('recent duel line wrong: '+dtl.slice(0,300));
+  if(!/3 days ago · you 2\/5 vs 4\/5/.test(dtl)) throw new Error('older duel line wrong: '+dtl.slice(0,300));
+  if(!/⚔️ Challenge Jesse/.test(dtl)) throw new Error('challenge button missing in detail sheet');
+  await pg.click('#sheet button:has-text("Close")');
+  await pg.waitForTimeout(200);
+  if(await pg.$eval('#overlay', e=>e.classList.contains('show'))) throw new Error('detail sheet did not close');
+  console.log('friend detail sheet: all-time + 7-day crown + recent duels OK');
+
   await ctx.close();
 
   // 6) Google sign-in — fake GIS button + stubbed /auth restores the account

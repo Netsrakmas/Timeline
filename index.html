@@ -279,6 +279,8 @@
     padding:11px 18px; font-size:13.5px; font-weight:700; color:var(--text); background:var(--surface-2);}
   .greal{position:absolute; inset:0; opacity:.001; overflow:hidden; z-index:1;}
   .gwrap:focus-within .gbtn{border-color:var(--gold);}   /* the invisible real button carries focus */
+  .frname{background:none; border:none; padding:0; color:var(--text); font-weight:700; font-size:13.5px;
+    cursor:pointer; text-decoration:underline dotted rgba(166,171,209,.55); text-underline-offset:3px;}
   #confetti{position:fixed; inset:0; pointer-events:none; z-index:55; overflow:hidden;}
   #confetti i{position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
     animation:confall linear forwards;}
@@ -307,7 +309,7 @@
 
 <script>
 "use strict";
-const BUILD = "3.2.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "3.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4441,6 +4443,33 @@ async function sendChal(to, set, score, timeMs){
   const r = await socialPost({ action:"challenge", to, set, score, timeMs });
   toast(r && r.ok ? "Challenge sent ⚔️" : "Couldn't send — use the share link instead.");
 }
+// tap a friend's name: head-to-head sheet — all-time, rolling 7 days, recent duels
+function friendDetail(id){
+  const f = _social && _social.friends && _social.friends.find(x => x.id === id);
+  if(!f) return;
+  const w = f.w|0, l = f.l|0, t = f.t|0, w7 = f.w7|0, l7 = f.l7|0, t7 = f.t7|0;
+  const wk = w7 + l7 + t7;
+  const weekLine = !wk ? `<span class="muted">no duels this past week</span>`
+    : w7 > l7 ? `<b style="color:var(--good)">👑 you lead — ${w7}–${l7}${t7?` · ${t7} tie${t7===1?'':'s'}`:''}</b>`
+    : l7 > w7 ? `<b style="color:var(--bad)">they lead — ${l7}–${w7}${t7?` · ${t7} tie${t7===1?'':'s'}`:''}</b>`
+    : `<b>🤝 dead even — ${w7}–${l7}${t7?` · ${t7} tie${t7===1?'':'s'}`:''}</b>`;
+  const ago = ts => { const d = Math.floor((Date.now()-ts)/864e5); return d<=0 ? "today" : d===1 ? "yesterday" : d+" days ago"; };
+  const rows = (f.recent||[]).map(r => `<div style="font-size:13.5px; margin:5px 0">
+      <span class="muted" style="font-size:12px">${ago(r.at)}</span> · you <b>${r.mine|0}/${RUN_LEN}</b> vs <b>${r.theirs|0}/${RUN_LEN}</b>
+      ${r.r==='w' ? '🏆' : r.r==='l' ? `<span style="color:var(--bad)">✗</span>` : '🤝'}</div>`).join("");
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">⚔️</div>
+    <div class="verdict ${w >= l ? 'good' : 'bad'}" style="margin-top:6px">${esc(f.handle)}</div>
+    <div style="font-size:15px; margin:8px 0 2px">all-time: <b>you ${w}–${l}</b>${t ? ` · ${t} tie${t===1?'':'s'}` : ``}</div>
+    <div style="font-size:14px; margin:4px 0 10px">last 7 days: ${weekLine}</div>
+    ${rows ? `<div style="border-top:1px solid var(--line); padding-top:8px; margin-top:4px">${rows}</div>`
+           : `<div class="muted" style="font-size:13.5px; margin:8px 0">No duels yet — throw the first gauntlet!</div>`}
+    <button class="btn pink" style="margin-top:14px" onclick="closeOverlay(); challengeFriend('${f.id}')">⚔️ Challenge ${esc(f.handle)}</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="closeOverlay()">Close</button>
+  `;
+  showSheet();
+}
 async function challengeFriend(id){
   const f = _social && _social.friends && _social.friends.find(x => x.id === id);
   if(!f) return;
@@ -4551,7 +4580,7 @@ function friendsCardHTML(st){
         const w = f.w|0, l = f.l|0, t = f.t|0, any = w+l+t > 0;
         const col = !any ? "var(--muted)" : w > l ? "var(--good)" : l > w ? "var(--bad)" : "var(--muted)";
         return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:7px">
-          <b style="font-size:13.5px">${esc(f.handle)}</b>
+          <button class="frname" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">${esc(f.handle)}</button>
           <span style="display:inline-flex; gap:9px; align-items:center; flex:0 0 auto">
             ${any ? `<span style="font-size:12.5px; color:${col}">${w > l ? "👑 " : ""}you ${w}–${l}${t ? ` · ${t} tie${t===1?"":"s"}` : ``}</span>` : ``}
             <button class="btn sm" style="padding:6px 11px" onclick="challengeFriend('${f.id}')" aria-label="Challenge ${esc(f.handle)}">⚔️</button>
