@@ -148,6 +148,21 @@ async function sendWebPush(env, sub, payloadStr){
   }, body });
   return (r.status === 404 || r.status === 410) ? "gone" : "ok";
 }
+// non-secret diagnostic for /health: are the VAPID keys present, and do the
+// private (secret) and public (advertised in the app) form a MATCHING pair?
+async function vapidStatus(env){
+  const out = { configured: !!(env.VAPID_PRIVATE && env.VAPID_PUBLIC) };
+  if(!out.configured) return out;
+  try{
+    const pk = Uint8Array.from(atob(env.VAPID_PRIVATE), c => c.charCodeAt(0));
+    const priv = await crypto.subtle.importKey("pkcs8", pk, { name:"ECDSA", namedCurve:"P-256" }, false, ["sign"]);
+    const pub = await crypto.subtle.importKey("raw", b64uToBytes(env.VAPID_PUBLIC), { name:"ECDSA", namedCurve:"P-256" }, false, ["verify"]);
+    const msg = PUSH_ENC.encode("vapid-selftest");
+    const sig = await crypto.subtle.sign({ name:"ECDSA", hash:"SHA-256" }, priv, msg);
+    out.match = await crypto.subtle.verify({ name:"ECDSA", hash:"SHA-256" }, pub, sig, msg);
+  }catch(e){ out.match = false; }
+  return out;
+}
 // push a notification to every device a user has registered (best-effort, wrapped)
 async function pushToUser(env, userId, payloadObj){
   if(!env.VAPID_PRIVATE || !env.VAPID_PUBLIC || !userId) return;
@@ -460,7 +475,7 @@ export default {
     const ip = req.headers.get("CF-Connecting-IP") || "?";
     if(limited(ip)) return json({ error: "slow down" }, 429, cors);
 
-    if(url.pathname === "/health") return json({ ok: true, day: dayNow() }, 200, cors);
+    if(url.pathname === "/health") return json({ ok: true, day: dayNow(), vapid: await vapidStatus(env) }, 200, cors);
 
     if(url.pathname === "/daily" && req.method === "GET"){
       const day = Math.min(Math.max(parseInt(url.searchParams.get("day") || dayNow(), 10) || dayNow(), 1), dayNow() + 1);
