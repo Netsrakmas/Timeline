@@ -92,3 +92,26 @@ CREATE TABLE IF NOT EXISTS logins (
   created  INTEGER NOT NULL,
   PRIMARY KEY (provider, subject)
 );
+
+-- Web Push subscriptions: one row per device endpoint a user opted in from.
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint TEXT PRIMARY KEY,       -- the push service URL (unique per device)
+  user_id  TEXT NOT NULL,
+  p256dh   TEXT NOT NULL,          -- subscription public key (b64url)
+  auth     TEXT NOT NULL,          -- subscription auth secret (b64url)
+  created  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs(user_id);
+
+-- who created a shared challenge set (first submitter), so we can notify them
+-- when someone else plays it.
+CREATE TABLE IF NOT EXISTS chal_owner (
+  setkey  TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+
+-- migrations for existing databases (run once each; harmless "duplicate"/"exists" errors are fine):
+--   wrangler d1 execute yearworm --remote --command "ALTER TABLE users ADD COLUMN avatar TEXT"
+--   wrangler d1 execute yearworm --remote --command "CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, user_id TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created INTEGER NOT NULL)"
+--   wrangler d1 execute yearworm --remote --command "CREATE TABLE IF NOT EXISTS chal_owner (setkey TEXT PRIMARY KEY, user_id TEXT NOT NULL, created INTEGER NOT NULL)"

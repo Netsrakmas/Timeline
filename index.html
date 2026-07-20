@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -461,7 +461,43 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   });
+  // a tapped notification asks us to open a specific tab
+  navigator.serviceWorker.addEventListener('message', e=>{
+    const t = e.data && e.data.yearwormTab;
+    if(t && ["play","friends","ranks","profile"].includes(t) && typeof goTab==='function') goTab(t);
+  });
 }
+/* ---------- Web Push (notifications) ---------- */
+const VAPID_PUBLIC = "BJa44HnxApm2zTubV0QUaheLtNxT5Cmyp1Tg3yZj-DdUwibFwZ3o574Pl4aeVmheAVXsrnQxZ9zCpogm0I9Csrc";
+function pushSupported(){ return ('serviceWorker' in navigator) && ('PushManager' in window) && (typeof Notification !== 'undefined'); }
+function pushEnabled(){ return pushSupported() && Notification.permission === 'granted' && store.get('tl_push') === '1'; }
+function urlB64ToU8(b64){ const pad='='.repeat((4-b64.length%4)%4); const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/'); const raw=atob(s); const o=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)o[i]=raw.charCodeAt(i); return o; }
+async function enablePush(){
+  if(!pushSupported()){ toast("Notifications aren't supported on this device"); return; }
+  if(!loadProfile()){ toast("Claim a name first — then turn on notifications"); goTab("friends"); return; }
+  let perm = Notification.permission;
+  if(perm === 'default') perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ toast("Notifications are blocked — allow them in your browser settings"); return; }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC) });
+    const r = await socialPost({ action:'push-sub', sub: sub.toJSON() });
+    if(r && r.ok && r.body && r.body.ok){ store.set('tl_push','1'); toast("Notifications on 🔔"); }
+    else toast("Couldn't turn on notifications — try again in a moment");
+  }catch(e){ toast("Couldn't turn on notifications"); }
+  if(_tab === 'profile') renderSetup();
+}
+async function disablePush(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){ await socialPost({ action:'push-unsub', endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  }catch(e){}
+  store.del('tl_push'); toast("Notifications off");
+  if(_tab === 'profile') renderSetup();
+}
+function togglePush(){ pushEnabled() ? disablePush() : enablePush(); }
 
 // Surface crashes instead of white-screening; the game is auto-saved each turn.
 window.addEventListener("error", e => {
@@ -6009,6 +6045,11 @@ function profileTabHTML(){
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">your stats</div><div style="height:12px"></div>
       <div class="row" style="gap:8px">${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}</div></div>
     ${(()=>{ const a=achievementsHTML(); return `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">${a.label}</div><div style="height:6px"></div>${a.grid}</div>`; })()}
+    ${pushSupported() ? (()=>{ const on = pushEnabled(); return `<div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between; align-items:center; gap:10px">
+      <div style="min-width:0"><div style="font-weight:700; font-size:14px">🔔 Notifications</div>
+        <div class="muted" style="font-size:11.5px; margin-top:2px">${on ? 'On — challenges, new friends & plays' : 'Get pinged when a friend challenges you, adds you, or plays your set'}</div></div>
+      <button class="btn sm ${on ? 'ghost' : 'primary'}" style="flex:0 0 auto" onclick="togglePush()">${on ? 'Turn off' : 'Turn on'}</button>
+    </div></div>`; })() : ``}
     ${GAUTH.clientId ? `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">account</div><div style="height:8px"></div>
       <div class="muted" style="font-size:12.5px">${prof && prof.linked ? '✓ Google-linked — your name &amp; friends survive a new phone' : '🔐 Link Google so your account survives a new phone:'}</div>
       ${prof && prof.linked ? `` : `<div id="gsiBtn" style="margin-top:8px"></div>`}</div>` : ``}
@@ -6814,6 +6855,9 @@ function overlayChallengeInvite(){
   showSheet();
 }
 function boot(){
+  // opened from a tapped notification (./#tab=friends) → start on that tab
+  const tabm = (location.hash||"").match(/tab=(play|friends|ranks|profile)/);
+  if(tabm){ _tab = tabm[1]; try{ history.replaceState(null, "", location.pathname); }catch(e){} }
   const add = (location.hash||"").match(/add=(YW-[A-Z0-9]{6})/i);
   if(add){
     store.set(PENDING_ADD, add[1].toUpperCase());

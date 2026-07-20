@@ -99,6 +99,68 @@ function b64uToBytes(s){
   for(let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+
+/* ---------- Web Push (RFC 8291 aes128gcm + RFC 8292 VAPID) ----------
+   Crypto verified against the `web-push` library (encrypt/decrypt round-trip
+   and VAPID signature). Needs env.VAPID_PRIVATE (PKCS8 base64) + VAPID_PUBLIC
+   (b64url, 65-byte point) + VAPID_SUBJECT (mailto:). Absent → push is a no-op. */
+const PUSH_ENC = new TextEncoder();
+function bytesToB64u(b){ b = new Uint8Array(b); let s = ""; for(const x of b) s += String.fromCharCode(x); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function pushCat(...as){ let n = 0; for(const a of as) n += a.length; const o = new Uint8Array(n); let i = 0; for(const a of as){ o.set(a, i); i += a.length; } return o; }
+async function pushHkdf(salt, ikm, info, len){
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name:"HKDF", hash:"SHA-256", salt, info }, key, len * 8));
+}
+async function pushEncrypt(uaPubB64u, authB64u, payloadStr){
+  const uaPub = b64uToBytes(uaPubB64u), auth = b64uToBytes(authB64u);
+  const eph = await crypto.subtle.generateKey({ name:"ECDH", namedCurve:"P-256" }, true, ["deriveBits"]);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const uaKey = await crypto.subtle.importKey("raw", uaPub, { name:"ECDH", namedCurve:"P-256" }, false, []);
+  const secret = new Uint8Array(await crypto.subtle.deriveBits({ name:"ECDH", public:uaKey }, eph.privateKey, 256));
+  const ikm = await pushHkdf(auth, secret, pushCat(PUSH_ENC.encode("WebPush: info\0"), uaPub, asPub), 32);
+  const cek = await pushHkdf(salt, ikm, PUSH_ENC.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await pushHkdf(salt, ikm, PUSH_ENC.encode("Content-Encoding: nonce\0"), 12);
+  const aesKey = await crypto.subtle.importKey("raw", cek, { name:"AES-GCM" }, false, ["encrypt"]);
+  const record = pushCat(PUSH_ENC.encode(payloadStr), new Uint8Array([2]));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name:"AES-GCM", iv:nonce, tagLength:128 }, aesKey, record));
+  return pushCat(salt, new Uint8Array([0,0,0x10,0]), new Uint8Array([asPub.length]), asPub, ct);
+}
+async function vapidAuthHeader(endpoint, env){
+  const aud = new URL(endpoint).origin;
+  const header = bytesToB64u(PUSH_ENC.encode(JSON.stringify({ typ:"JWT", alg:"ES256" })));
+  const now = Math.floor(Date.now() / 1000);
+  const payload = bytesToB64u(PUSH_ENC.encode(JSON.stringify({ aud, exp: now + 12 * 3600, sub: env.VAPID_SUBJECT || "mailto:hello@playyearworm.com" })));
+  const signingInput = header + "." + payload;
+  const pk = Uint8Array.from(atob(env.VAPID_PRIVATE), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", pk, { name:"ECDSA", namedCurve:"P-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign({ name:"ECDSA", hash:"SHA-256" }, key, PUSH_ENC.encode(signingInput)));
+  return "vapid t=" + signingInput + "." + bytesToB64u(sig) + ", k=" + env.VAPID_PUBLIC;
+}
+// send one push; returns "gone" if the subscription is dead (404/410) so we can prune it
+async function sendWebPush(env, sub, payloadStr){
+  const body = await pushEncrypt(sub.p256dh, sub.auth, payloadStr);
+  const r = await fetch(sub.endpoint, { method:"POST", headers:{
+    "Authorization": await vapidAuthHeader(sub.endpoint, env),
+    "Content-Encoding": "aes128gcm",
+    "Content-Type": "application/octet-stream",
+    "TTL": "86400",
+  }, body });
+  return (r.status === 404 || r.status === 410) ? "gone" : "ok";
+}
+// push a notification to every device a user has registered (best-effort, wrapped)
+async function pushToUser(env, userId, payloadObj){
+  if(!env.VAPID_PRIVATE || !env.VAPID_PUBLIC || !userId) return;
+  try{
+    const subs = ((await env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subs WHERE user_id=?1 LIMIT 20").bind(userId).all()).results) || [];
+    const payload = JSON.stringify(payloadObj);
+    for(const s of subs){
+      try{ if(await sendWebPush(env, s, payload) === "gone")
+        await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?1").bind(s.endpoint).run(); }
+      catch(e){ /* one dead endpoint shouldn't stop the rest */ }
+    }
+  }catch(e){ /* push_subs not migrated yet, or DB hiccup — never block the action */ }
+}
 async function verifyGoogleToken(cred, clientId){
   const parts = String(cred || "").split(".");
   if(parts.length !== 3) return null;
@@ -205,7 +267,9 @@ async function socialState(env, me, cors){
   let myAv = null; try{ const a = await env.DB.prepare("SELECT avatar FROM users WHERE id=?1").bind(me.id).first(); myAv = a && a.avatar || null; }catch(e){}
   return json({ me: { handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox }, 200, cors);
 }
-async function handleSocialPost(env, b, cors){
+async function handleSocialPost(env, b, cors, ctx){
+  // schedule a push without delaying the response (falls back to inline await)
+  const push = (userId, payload) => { const p = pushToUser(env, userId, payload); if(ctx && ctx.waitUntil) ctx.waitUntil(p); return p; };
   const device = String(b.device || "");
   if(!DEVICE_RE.test(device)) return json({ error: "bad device" }, 400, cors);
   const action = String(b.action || "");
@@ -265,6 +329,7 @@ async function handleSocialPost(env, b, cors){
         .bind(a, bb, me.id, Date.now()).run();
       await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'friend',?3,?4)")
         .bind(other.id, me.id, "{}", Date.now()).run();
+      push(other.id, { title: "New friend 🎧", body: me.handle + " added you as a friend", tab: "friends" });
     }
     return socialState(env, me, cors);
   }
@@ -295,6 +360,7 @@ async function handleSocialPost(env, b, cors){
     if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
     await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'challenge',?3,?4)")
       .bind(to, me.id, JSON.stringify({ set, score, timeMs }), Date.now()).run();
+    push(to, { title: "You've been challenged ⚔️", body: me.handle + " challenged you — beat " + score + "/" + RUN_LEN, tab: "friends" });
     return socialState(env, me, cors);
   }
 
@@ -310,6 +376,7 @@ async function handleSocialPost(env, b, cors){
     if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
     await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'react',?3,?4)")
       .bind(to, me.id, JSON.stringify({ emoji, score }), Date.now()).run();
+    push(to, { title: me.handle + " reacted " + emoji, body: "on your challenge result", tab: "friends" });
     return socialState(env, me, cors);
   }
 
@@ -340,6 +407,8 @@ async function handleSocialPost(env, b, cors){
       .bind(m.from_user, me.id, JSON.stringify({
         score, timeMs, w: winner === m.from_user ? "you" : winner === me.id ? "them" : "tie"
       }), Date.now()).run();
+    push(m.from_user, { title: me.handle + " played your challenge",
+      body: (winner === m.from_user ? "You won! " : winner === me.id ? "They beat you — " : "A tie — ") + "they scored " + score + "/" + RUN_LEN, tab: "friends" });
     return socialState(env, me, cors);
   }
 
@@ -348,6 +417,28 @@ async function handleSocialPost(env, b, cors){
     for(const id of ids)
       await env.DB.prepare("UPDATE inbox SET seen=1 WHERE id=?1 AND to_user=?2").bind(id, me.id).run();
     return socialState(env, me, cors);
+  }
+
+  if(action === "push-sub"){
+    const s = b.sub || {};
+    const endpoint = String(s.endpoint || "");
+    const p256dh = String((s.keys && s.keys.p256dh) || "");
+    const auth = String((s.keys && s.keys.auth) || "");
+    if(!/^https:\/\//.test(endpoint) || endpoint.length > 800 || !p256dh || !auth)
+      return json({ error: "bad subscription" }, 400, cors);
+    try{
+      await env.DB.prepare(
+        "INSERT INTO push_subs (endpoint, user_id, p256dh, auth, created) VALUES (?1,?2,?3,?4,?5) " +
+        "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth"
+      ).bind(endpoint, me.id, p256dh, auth, Date.now()).run();
+    }catch(e){ return json({ error: "push not available" }, 200, cors); }   // table not migrated → soft-ok
+    return json({ ok: true }, 200, cors);
+  }
+
+  if(action === "push-unsub"){
+    const endpoint = String(b.endpoint || "");
+    if(endpoint) try{ await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?1 AND user_id=?2").bind(endpoint, me.id).run(); }catch(e){}
+    return json({ ok: true }, 200, cors);
   }
 
   return json({ error: "bad action" }, 400, cors);
@@ -362,7 +453,7 @@ async function chalBoardResp(env, setkey, device, cors){
 }
 
 export default {
-  async fetch(req, env){
+  async fetch(req, env, ctx){
     const url = new URL(req.url);
     const cors = corsHeaders(req.headers.get("Origin"));
     if(req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -415,10 +506,22 @@ export default {
       if(!Number.isFinite(timeMs) || timeMs < 500 || timeMs > RUN_LEN * 70000) return json({ error: "bad time" }, 400, cors);
       const nick = cleanNick(b.nick);
       // one shot per set per device — first result stands, resubmits refresh the nick
+      const existed = await env.DB.prepare("SELECT 1 AS x FROM chals WHERE setkey=?1 AND device=?2").bind(set, device).first();
       await env.DB.prepare(
         "INSERT INTO chals (setkey, device, nick, score, time_ms, created) VALUES (?1,?2,?3,?4,?5,?6) " +
         "ON CONFLICT(setkey, device) DO UPDATE SET nick=excluded.nick"
       ).bind(set, device, nick, score, timeMs, Date.now()).run();
+      // notify the set's creator when someone new plays it. The first submitter of
+      // a set is treated as its owner (the creator plays their own run first).
+      if(!existed){ try{
+        const submitter = await userByDevice(env, device);
+        if(submitter) await env.DB.prepare("INSERT OR IGNORE INTO chal_owner (setkey, user_id, created) VALUES (?1,?2,?3)").bind(set, submitter.id, Date.now()).run();
+        const owner = await env.DB.prepare("SELECT user_id FROM chal_owner WHERE setkey=?1").bind(set).first();
+        if(owner && owner.user_id && (!submitter || submitter.id !== owner.user_id)){
+          const p = pushToUser(env, owner.user_id, { title: nick + " played your challenge 🎯", body: "They scored " + score + "/" + RUN_LEN + " on your set", tab: "play" });
+          if(ctx && ctx.waitUntil) ctx.waitUntil(p);
+        }
+      }catch(e){} }
       return chalBoardResp(env, set, device, cors);
     }
 
@@ -432,7 +535,7 @@ export default {
 
     if(url.pathname === "/social" && req.method === "POST"){
       let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
-      return handleSocialPost(env, b, cors);
+      return handleSocialPost(env, b, cors, ctx);
     }
 
     if(url.pathname === "/auth" && req.method === "POST"){

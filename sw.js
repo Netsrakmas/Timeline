@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yearworm-4.3.0';
+const CACHE_NAME = 'yearworm-4.4.0';
 const ASSETS = ['./', './index.html', './manifest.json', './privacy.html', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
@@ -27,4 +27,32 @@ self.addEventListener('fetch', event => {
   event.respondWith(fetch(req).catch(() => caches.match(event.request).then(cached =>
     cached || (event.request.mode === 'navigate' ? caches.match('./index.html') : Response.error())
   )));
+});
+
+// ---- Web Push: show the notification, and route a tap to the right tab ----
+self.addEventListener('push', event => {
+  let d = {};
+  try{ d = event.data ? event.data.json() : {}; }
+  catch(e){ d = { title: 'Yearworm', body: event.data ? event.data.text() : '' }; }
+  const title = d.title || 'Yearworm';
+  const opts = {
+    body: d.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    tag: d.tag,
+    data: { tab: d.tab || 'play' },
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const tab = (event.notification.data && event.notification.data.tab) || 'play';
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for(const c of all){
+      if('focus' in c){ try{ c.postMessage({ yearwormTab: tab }); }catch(e){} return c.focus(); }
+    }
+    if(self.clients.openWindow) return self.clients.openWindow('./#tab=' + tab);
+  })());
 });
