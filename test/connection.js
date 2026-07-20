@@ -67,6 +67,7 @@ const bannerShown = pg => pg.evaluate(()=>{ const el=document.getElementById('ne
 
   // C) integration: a start where every lookup fails shows the banner
   fail = true;
+  await pg.click('.modecard:has-text("Pass & Play")');
   await pg.click('text=▶ Start game');
   await pg.waitForTimeout(1500);
   if(!await bannerShown(pg)) throw new Error('all-failing start did not surface the banner');
@@ -76,6 +77,7 @@ const bannerShown = pg => pg.evaluate(()=>{ const el=document.getElementById('ne
 
   // D) audio buffering indicator: waiting -> shows, playing -> clears
   await pg.reload(); await pg.waitForTimeout(600);
+  await pg.click('.modecard:has-text("Pass & Play")');
   await pg.click('text=▶ Start game');
   await pg.waitForSelector('.slot.active',{timeout:20000});
   // dispatch + read in the same tick: the stub clip keeps auto-firing 'playing',

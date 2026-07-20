@@ -49,6 +49,7 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(700);
 
   // default 2 players, classic race — start
+  await pg.click('.modecard:has-text("Pass & Play")');
   await pg.click('text=▶ Start game');
   await pg.waitForSelector('.slot.active',{timeout:30000});
 

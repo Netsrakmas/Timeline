@@ -40,6 +40,7 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(700);
 
   // default setup is 2-player classic — start and place two cards
+  await pg.click('.modecard:has-text("Pass & Play")');
   await pg.click('text=▶ Start game');
   for(let i=0;i<2;i++){
     await pg.waitForSelector('.slot.active',{timeout:30000});
@@ -59,13 +60,11 @@ const server = http.createServer((req,res)=>{
   if(!before.times.some(t=>t>0)) throw new Error('turn clock never ticked pre-reload: '+JSON.stringify(before.times));
   console.log('pre-reload:', JSON.stringify({turn:before.turn, cards:before.tls.map(t=>t.length), deck:before.deckLen}));
 
-  // reload → the resume card appears; poke the turbo chip (must NOT leak into
-  // the resumed classic game), then resume
+  // reload → the resume card appears on the Play home; resume it. (Turbo is now
+  // its own mode, not a chip reachable here — resumeSaved forces S.turbo=false.)
   await pg.reload(); await pg.waitForTimeout(800);
   const setupTxt = await pg.$eval('#app', e=>e.innerText);
   if(!/Resume game/.test(setupTxt)) throw new Error('resume card missing after reload');
-  await pg.click('.diffs .diff:has-text("⚡ Turbo")').catch(()=>{});
-  await pg.waitForTimeout(200);
   await pg.click('text=▶ Resume game');
   await pg.waitForTimeout(800);
   const after = await pg.evaluate(()=>({

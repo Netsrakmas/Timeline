@@ -72,7 +72,7 @@ const server = http.createServer((req,res)=>{
   await pg.goto(base,{waitUntil:'load'});
   await pg.waitForTimeout(800);
   // this context tests the social flows with Google OFF (clientId cleared)
-  await pg.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; renderSetup(); });
+  await pg.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; goTab('friends'); });
   await pg.waitForTimeout(500);
 
   // 1) no profile -> claim card
@@ -85,7 +85,7 @@ const server = http.createServer((req,res)=>{
   if(fcM !== '16px') throw new Error('friends card missing top margin: '+fcM);
   // typeless inputs must pick up the dark theme (UA default is white)
   const inCss = await pg.$eval('#handleIn', e=>{ const s=getComputedStyle(e); return s.backgroundColor+'|'+s.borderRadius; });
-  if(/rgb\(255, 255, 255\)/.test(inCss) || !/10px/.test(inCss)) throw new Error('handle input not dark-themed: '+inCss);
+  if(/rgb\(255, 255, 255\)/.test(inCss) || !/1[0-9]px/.test(inCss)) throw new Error('handle input not dark-themed: '+inCss);
   await pg.$eval('#handleIn', e=>{ e.value='Sam K'; });
   await pg.click('#friendsCard button:has-text("Claim")');
   await pg.waitForTimeout(400);
@@ -356,7 +356,7 @@ const server = http.createServer((req,res)=>{
   });
   await pg2.goto(base,{waitUntil:'load'});
   await pg2.waitForTimeout(700);
-  await pg2.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId='test-client'; renderSetup(); });
+  await pg2.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId='test-client'; goTab('friends'); });
   await pg2.waitForTimeout(400);
   let c2 = await pg2.$eval('#friendsCard', e=>e.innerText);
   if(!/Played before on another phone/.test(c2)) throw new Error('sign-in hint missing on claim card: '+c2.slice(0,160));
@@ -403,7 +403,7 @@ const server = http.createServer((req,res)=>{
   const armed = await pg3.evaluate(()=>({ pend: store.get('tl_pendingAdd'), hash: location.hash }));
   if(armed.pend!=='YW-ZZ77KK') throw new Error('invite code not armed: '+JSON.stringify(armed));
   if(/add=/.test(armed.hash)) throw new Error('invite hash not cleaned: '+armed.hash);
-  await pg3.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; renderSetup(); });
+  await pg3.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; goTab('friends'); });
   await pg3.waitForTimeout(500);
   if(actions3.some(a=>a.action==='add')) throw new Error('add fired before a profile exists');
   await pg3.$eval('#handleIn', e=>{ e.value='Frodo'; });

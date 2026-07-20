@@ -70,8 +70,8 @@ async function placeN(pg, n, collectTitles){
 
   // --- turbo solo (classic + turbo difficulty) ---
   let {ctx,pg} = await newPage(browser, base);
+  await pg.click('.modecard:has-text("Turbo")');         // Turbo is its own mode now
   await pg.click('#players .row >> nth=1 >> .iconbtn');   // default is 2 players; solo test drops one
-  await pg.click('.diffs .diff:has-text("⚡ Turbo")');
   await pg.click('text=⚡ Start turbo');
   await placeN(pg, 5);
   let sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
@@ -88,7 +88,7 @@ async function placeN(pg, n, collectTitles){
 
   // --- turbo 2 players: ranking screen ---
   ({ctx,pg} = await newPage(browser, base));
-  await pg.click('.diffs .diff:has-text("⚡ Turbo")');   // default 2 players
+  await pg.click('.modecard:has-text("Turbo")');   // default 2 players
   await pg.click('text=⚡ Start turbo');
   await placeN(pg, 10);   // 2 players x 5, reveal button rotates automatically
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
@@ -107,7 +107,7 @@ async function placeN(pg, n, collectTitles){
 
   // --- daily: play, record, share text, challenge link out ---
   ({ctx,pg} = await newPage(browser, base));
-  await pg.click('text=▶ Play');
+  await pg.click('.modecard:has-text("Daily Challenge")');
   const titles1 = await placeN(pg, 5, true);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/DAILY #/.test(sheet) || !/streak/.test(sheet)) throw new Error('daily results wrong: '+sheet.slice(0,140));
@@ -123,15 +123,15 @@ async function placeN(pg, n, collectTitles){
   await pg.click('#sheet button:has-text("Done")');
   await pg.waitForTimeout(400);
   const cardTxt = await pg.$eval('#app', e=>e.innerText);
-  if(!/Done —/.test(cardTxt)) throw new Error('daily card not in done state');
+  if(!/Done ·/.test(cardTxt)) throw new Error('daily card not in done state');
   console.log('daily: played-today lock OK');
   // the lock survives a reload, and the startDaily guard holds
   await pg.reload(); await pg.waitForTimeout(800);
   const relock = await pg.$eval('#app', e=>e.innerText);
-  if(!/Done —/.test(relock)) throw new Error('daily lock lost after reload');
+  if(!/Done ·/.test(relock)) throw new Error('daily lock lost after reload');
   await pg.evaluate(()=>startDaily());
   await pg.waitForTimeout(400);
-  if(!/Done —/.test(await pg.$eval('#app', e=>e.innerText))) throw new Error('startDaily guard broke after reload');
+  if(!/Done ·/.test(await pg.$eval('#app', e=>e.innerText))) throw new Error('startDaily guard broke after reload');
   console.log('daily: lock survives reload + guard holds OK');
   // opening your OWN link must read as "your challenge", not as a played friend-challenge
   await pg.goto(base + chalHash, {waitUntil:'load'});
@@ -153,7 +153,7 @@ async function placeN(pg, n, collectTitles){
 
   // --- daily determinism (fresh profile) ---
   ({ctx,pg} = await newPage(browser, base));
-  await pg.click('text=▶ Play');
+  await pg.click('.modecard:has-text("Daily Challenge")');
   const titles2 = await placeN(pg, 5, true);
   if(JSON.stringify(titles1)!==JSON.stringify(titles2)){
     console.log(' run1:',titles1.join(' | ')); console.log(' run2:',titles2.join(' | '));
@@ -223,7 +223,7 @@ async function placeN(pg, n, collectTitles){
   const createCard = await pg.$eval('#app', e=>e.innerText);
   if(!/challenge a friend/i.test(createCard)) throw new Error('create-a-challenge card missing on setup');
   // whole card triggers it — tap the description text instead of the Go button
-  await pg.click('.card:has-text("challenge a friend") >> .muted');
+  await pg.click('.modecard:has-text("Challenges")');
   await placeN(pg, 5);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('fresh challenge results wrong: '+sheet.slice(0,140));

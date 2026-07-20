@@ -38,7 +38,7 @@ const server = http.createServer((req,res)=>{
   await pg.goto(base,{waitUntil:'load'});
   await pg.waitForTimeout(700);
 
-  await pg.click('.diffs .diff:has-text("🎯 Survival")');
+  await pg.click('.modecard:has-text("Survival")');
   await pg.click('text=🎯 Start survival');
   await pg.waitForSelector('.slot.active',{timeout:30000});
   const lives0 = await pg.evaluate(()=>S.lives);

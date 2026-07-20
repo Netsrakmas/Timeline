@@ -43,7 +43,7 @@ const server = http.createServer((req,res)=>{
   await pg.goto(base,{waitUntil:'load'});
   await pg.waitForTimeout(700);
 
-  await pg.click('.card:has-text("challenge a friend") >> .muted');
+  await pg.click('.modecard:has-text("Challenges")');
   for(let i=1;i<=5;i++){
     await pg.waitForSelector('.slot.active',{timeout:40000});   // may wait through "Loading more songs…"
     await pg.click('.slot.active');

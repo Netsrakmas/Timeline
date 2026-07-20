@@ -65,6 +65,7 @@ let trackId = 1000;
   await page.waitForTimeout(800);
 
   // default is two players now — just start
+  await page.click('.modecard:has-text("Pass & Play")');
   await page.click('text=▶ Start game');
 
   // wait for the first clip to actually play

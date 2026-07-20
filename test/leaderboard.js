@@ -71,7 +71,7 @@ const server = http.createServer((req,res)=>{
   await pg.evaluate(()=>{ LB.url = 'https://lb.test'; });
 
   // play the daily
-  await pg.click('text=▶ Play');
+  await pg.click('.modecard:has-text("Daily Challenge")');
   for(let i=1;i<=5;i++){
     await pg.waitForSelector('.slot.active',{timeout:20000});
     await pg.click('.slot.active');
@@ -120,7 +120,7 @@ const server = http.createServer((req,res)=>{
 
   // create a fresh challenge; its results sheet shows the set board incl. others
   chalOthers = [{nick:'Jesse',score:4,timeMs:12000}];
-  await pg.click('.card:has-text("challenge a friend") >> .muted');
+  await pg.click('.modecard:has-text("Challenges")');
   for(let i=1;i<=5;i++){
     try{ await pg.waitForSelector('.slot.active',{timeout:15000}); }
     catch(e){
@@ -160,8 +160,8 @@ const server = http.createServer((req,res)=>{
   await pg2.goto(base,{waitUntil:'load'}); await pg2.waitForTimeout(600);
   const off = await pg2.$eval('#app', e=>e.innerText);
   if(/🌍 #\d/.test(off) || /new results/.test(off)) throw new Error('rank/news UI leaked before playing');
-  if(!/ONLINE/i.test(off) || !/ON THIS PHONE/i.test(off)) throw new Error('section headers missing');
-  console.log('section headers present · no rank/news before playing · API errors silent OK');
+  if(!/Daily Challenge/.test(off) || !/Pass & Play/.test(off)) throw new Error('mode list missing');
+  console.log('mode list present · no rank/news before playing · API errors silent OK');
   await ctx2.close();
 
   console.log('LEADERBOARD TEST PASS ✓');

@@ -46,6 +46,7 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(700);
 
   // solo classic game -> place one card -> reveal overlay
+  await pg.click('.modecard:has-text("Pass & Play")');
   await pg.click('#players .row >> nth=1 >> .iconbtn');
   await pg.click('text=▶ Start game');
   await pg.waitForSelector('.slot.active',{timeout:20000});
