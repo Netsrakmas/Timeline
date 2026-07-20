@@ -190,12 +190,16 @@ const server = http.createServer((req,res)=>{
   }
   await pg.waitForTimeout(500);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/straight to a friend/.test(sheet) || !/⚔️ Jesse/.test(sheet)) throw new Error('direct-send buttons missing: '+sheet.slice(0,240));
+  if(!/straight to a friend/.test(sheet)) throw new Error('direct-send buttons missing: '+sheet.slice(0,240));
+  // you played JESSE's challenge — you must NOT be offered to send the same set
+  // back to Jesse; other friends (Zoe) are fair game
+  if(/⚔️ Jesse/.test(sheet)) throw new Error("offered to send the set back to the challenger: "+sheet.slice(0,240));
+  if(!/⚔️ Zoe/.test(sheet)) throw new Error('other friends missing from direct-send: '+sheet.slice(0,240));
   // a friend's direct challenge is answered via the server — show a confirmation,
   // NOT a "share a link back" button that looks like creating a new challenge
   if(!/Result sent back to Jesse/.test(sheet)) throw new Error('friend-challenge "result sent" confirmation missing: '+sheet.slice(0,240));
   if(/Send your result back/.test(sheet)) throw new Error('redundant link-share shown for a friend challenge: '+sheet.slice(0,240));
-  console.log('friend challenge: result auto-sent + confirmation (no confusing link) OK');
+  console.log('friend challenge: result auto-sent, no send-back to challenger, confirmation shown OK');
   // 5a) this run came from Jesse's inbox challenge -> reaction row present
   if(!/react to Jesse/.test(sheet)) throw new Error('reaction row missing: '+sheet.slice(0,240));
   await pg.click('#reactRow button:has-text("🔥")');
@@ -205,11 +209,11 @@ const server = http.createServer((req,res)=>{
   const disabled = await pg.$$eval('#reactRow button', bs=>bs.every(b=>b.disabled));
   if(!disabled) throw new Error('reaction buttons should lock after one send');
   console.log('reaction row: sends 🔥 to Jesse once OK');
-  await pg.click('#sheet button:has-text("⚔️ Jesse")');
+  await pg.click('#sheet button:has-text("⚔️ Zoe")');
   await pg.waitForTimeout(300);
   const sent = actions.find(a=>a.action==='challenge');
-  if(!sent || sent.to!=='f1' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
-  console.log('direct-send button posts the set to the friend OK ·', JSON.stringify({to:sent.to, score:sent.score}));
+  if(!sent || sent.to!=='f9' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
+  console.log('direct-send passes the set to another friend (Zoe), not the challenger OK ·', JSON.stringify({to:sent.to, score:sent.score}));
 
   // 5c) finishing an inbox challenge reports the duel result (msg id 7) —
   // and a LOST duel gets no confetti

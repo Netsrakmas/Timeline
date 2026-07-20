@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.4.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.4.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -6524,10 +6524,10 @@ function overlayRunOver(){
       <div class="row" style="gap:6px; justify-content:center; margin-top:6px" id="reactRow">
         ${REACT_EMOJI.map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
       </div>` : ``}
-    ${(_social && _social.friends && _social.friends.some(f=>!(S.chalTarget && f.id===S.chalTarget.user)) && setIdx && setIdx.length>=2) ? `
+    ${(_social && _social.friends && _social.friends.some(f=>!(S.chalTarget && f.id===S.chalTarget.user) && !(S.reactTo && f.id===S.reactTo.user)) && setIdx && setIdx.length>=2) ? `
       <div class="muted" style="font-size:12px; margin-top:12px">send this set straight to a friend:</div>
       <div class="row" style="flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px">
-        ${_social.friends.filter(f=>!(S.chalTarget && f.id===S.chalTarget.user)).slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
+        ${_social.friends.filter(f=>!(S.chalTarget && f.id===S.chalTarget.user) && !(S.reactTo && f.id===S.reactTo.user)).slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
       </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
     ${(chal && S.challenge && S.challenge.msgId) ? `<div style="color:var(--good); font-weight:700; font-size:14px; margin:12px 0 2px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
