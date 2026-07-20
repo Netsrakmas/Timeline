@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.2.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.2.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4477,6 +4477,7 @@ let _social = null;   // last fetched social state
 /* ---------- 4.0 tab router ---------- */
 let _tab = "play";        // play | friends | ranks | profile
 let _playScreen = null;   // null (mode list) | passplay | turbo | survival
+let _invitePrompted = false;  // opened the claim-name popup for an incoming invite this session
 function goTab(t){ _tab = t; _playScreen = null; renderSetup(); try{ window.scrollTo(0,0); }catch(e){} }
 function openMode(m){
   _playScreen = m;
@@ -4574,13 +4575,14 @@ async function socialPost(data){
 }
 async function claimHandle(v){
   const r = await socialPost({ action:"claim", handle:(v||"").trim() });
-  if(!r){ toast("No connection — try again in a moment."); return; }
-  if(!r.ok){ toast(r.status===409 ? "That name is taken — try another." : "3–20 letters or numbers, please."); return; }
+  if(!r){ toast("No connection — try again in a moment."); return false; }
+  if(!r.ok){ toast(r.status===409 ? "That name is taken — try another." : "3–20 letters or numbers, please."); return false; }
   store.set("tl_nick", r.body.me.handle);   // boards and profile share one name
   const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
   renderFriendsCard(r.body);
   toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
-  tryPendingAdd(r.body);   // came in via an invite link? add the friend now
+  tryPendingAdd(r.body);   // came in via an invite link? add the friend + jump to Friends
+  return true;
 }
 async function addFriendCode(v){
   const r = await socialPost({ action:"add", code:v });
@@ -4603,8 +4605,31 @@ function tryPendingAdd(st){
   if(!code) return;
   const own = loadProfile();
   if(own && own.code === code){ store.del(PENDING_ADD); return; }   // own invite link
-  if(st && st.me){ store.del(PENDING_ADD); addFriendCode(code); }
-  else toast("Friend invite received ⚔️ — claim a name to add them.");
+  if(st && st.me){                       // already have a name → add and show it off
+    store.del(PENDING_ADD); addFriendCode(code);
+    if(_tab !== "friends") goTab("friends");
+    return;
+  }
+  // no profile yet → pop up a claim-a-name sheet (once), then land on Friends
+  if(!_invitePrompted){ _invitePrompted = true; overlayInviteClaim(); }
+}
+/* an invite link landed but there's no profile yet — claim a name right here */
+function overlayInviteClaim(){
+  const sheet = document.getElementById("sheet"); if(!sheet) return;
+  sheet.innerHTML = `
+    <div class="winner-emoji">🎧</div>
+    <div class="verdict good" style="margin-top:2px">A friend invited you!</div>
+    <div class="muted" style="font-size:13.5px; margin:6px 6px 14px">Claim a name to join — your friend gets added automatically.</div>
+    <input id="inviteName" maxlength="20" value="${esc(lbNick())}" aria-label="Your player name" style="width:100%; text-align:center; font-size:16px" onkeydown="if(event.key==='Enter')claimFromInvite()" onfocus="this.select()" />
+    <button class="btn primary" style="margin-top:12px" onclick="claimFromInvite()">Claim name &amp; add friend</button>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="closeOverlay()">Maybe later</button>`;
+  showSheet();
+  const inp = document.getElementById("inviteName"); if(inp){ try{ inp.focus(); inp.select(); }catch(e){} }
+}
+async function claimFromInvite(){
+  const el = document.getElementById("inviteName");
+  const ok = await claimHandle(el ? el.value : "");   // success → tryPendingAdd adds friend + goTab('friends')
+  if(ok) closeOverlay();
 }
 async function sendChal(to, set, score, timeMs){
   const r = await socialPost({ action:"challenge", to, set, score, timeMs });

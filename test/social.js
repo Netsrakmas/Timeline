@@ -403,17 +403,22 @@ const server = http.createServer((req,res)=>{
   const armed = await pg3.evaluate(()=>({ pend: store.get('tl_pendingAdd'), hash: location.hash }));
   if(armed.pend!=='YW-ZZ77KK') throw new Error('invite code not armed: '+JSON.stringify(armed));
   if(/add=/.test(armed.hash)) throw new Error('invite hash not cleaned: '+armed.hash);
-  await pg3.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; goTab('friends'); });
+  // production boot has LB configured; simulate that then re-render → a claim-name
+  // popup should appear on the CURRENT tab (not force a navigation yet)
+  await pg3.evaluate(()=>{ LB.url='https://lb.test'; GAUTH.clientId=''; renderSetup(); });
   await pg3.waitForTimeout(500);
+  if(!(await pg3.$('#inviteName'))) throw new Error('invite claim popup did not appear');
+  if((await pg3.evaluate(()=>_tab))!=='play') throw new Error('popup should not leave the current tab yet');
   if(actions3.some(a=>a.action==='add')) throw new Error('add fired before a profile exists');
-  await pg3.$eval('#handleIn', e=>{ e.value='Frodo'; });
-  await pg3.click('#friendsCard button:has-text("Claim")');
-  await pg3.waitForTimeout(500);
+  await pg3.$eval('#inviteName', e=>{ e.value='Frodo'; });
+  await pg3.click('#sheet button:has-text("Claim name")');
+  await pg3.waitForTimeout(600);
   const addAct = actions3.find(a=>a.action==='add');
   if(!addAct || addAct.code!=='YW-ZZ77KK') throw new Error('pending add did not fire after claim: '+JSON.stringify(actions3));
-  const pendAfter = await pg3.evaluate(()=>store.get('tl_pendingAdd'));
-  if(pendAfter) throw new Error('pending code not cleared after add');
-  console.log('invite link: arms code, hash cleaned, auto-adds after claim OK');
+  if(await pg3.evaluate(()=>store.get('tl_pendingAdd'))) throw new Error('pending code not cleared after add');
+  if((await pg3.evaluate(()=>_tab))!=='friends') throw new Error('did not land on Friends tab after claiming via invite');
+  if(await pg3.$('#overlay.show')) throw new Error('claim popup did not close after claiming');
+  console.log('invite link: claim-name popup → auto-add + land on Friends OK');
   await ctx3.close();
 
   console.log('SOCIAL TEST PASS ✓');
