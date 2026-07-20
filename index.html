@@ -183,15 +183,18 @@
     display:flex; align-items:center; justify-content:center; animation:yw-spin 6s linear infinite;}
   .vinyl i{width:16px; height:16px; border-radius:50%; background:var(--gold); display:block;}
   @keyframes yw-spin{to{transform:rotate(360deg);}}
-  @media (prefers-reduced-motion: reduce){ .vinyl,.gvinyl{animation:none !important;} }
-  /* the in-game mystery record — the signature moment of the play screen */
+  @media (prefers-reduced-motion: reduce){ .vinyl,.gvinyl::before{animation:none !important;} }
+  /* the in-game mystery record — the signature moment of the play screen.
+     Only the grooves (::before) spin; the center label stays put so the ? never wobbles. */
   .gvinyl{width:120px; height:120px; border-radius:50%; margin:0 auto 18px; position:relative;
+    display:flex; align-items:center; justify-content:center;}
+  .gvinyl::before{content:""; position:absolute; inset:0; border-radius:50%;
     background:repeating-radial-gradient(circle at 50% 50%, #0A0F1E 0 3px, #182140 3px 5px);
     box-shadow:0 0 0 4px #05070F, 0 10px 30px rgba(0,0,0,.5);
-    display:flex; align-items:center; justify-content:center; animation:yw-spin 3.5s linear infinite;}
-  .gvinyl.paused{animation-play-state:paused;}
-  .gvinyl i{width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-size:18px; font-weight:800; color:#05070F; background:linear-gradient(135deg, var(--gold), var(--cyan));}
+    animation:yw-spin 3.5s linear infinite;}
+  .gvinyl.paused::before{animation-play-state:paused;}
+  .gvinyl i{position:relative; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:18px; font-weight:800; line-height:1; color:#05070F; background:linear-gradient(135deg, var(--gold), var(--cyan));}
   .subtag{font-family:var(--mono); font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-top:3px;}
   .lobby-intro{color:var(--muted); font-size:14px; line-height:1.5; margin:18px 4px 8px; text-align:center; text-wrap:pretty;}
   .modelist{margin-top:16px;}
@@ -419,7 +422,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.0.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.0.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
