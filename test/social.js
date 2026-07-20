@@ -93,9 +93,10 @@ const server = http.createServer((req,res)=>{
   if(!/YW-ABC234/.test(card)) throw new Error('friend code not shown after claim: '+card.slice(0,160));
   const claimAct = actions.find(a=>a.action==='claim');
   if(!claimAct || claimAct.handle!=='Sam K') throw new Error('claim POST wrong: '+JSON.stringify(claimAct));
-  const chip = await pg.$eval('.nickchip', e=>e.textContent);
-  if(!/Sam K/.test(chip)) throw new Error('nick chip did not adopt the handle: '+chip);
-  console.log('claim: card + code + chip sync OK');
+  // claim adopts the handle as the shared board nickname (identity now on Profile tab)
+  const adopted = await pg.evaluate(()=>lbNick());
+  if(adopted!=='Sam K') throw new Error('claim did not adopt the handle as nick: '+adopted);
+  console.log('claim: card + code + nick sync OK');
 
   // 1b) the code button SHARES an invite link (app share, not just clipboard)
   await pg.evaluate(()=>{ navigator.share = t=>{ window.__shared=(t&&t.text)||String(t); return Promise.resolve(); }; });
@@ -372,8 +373,7 @@ const server = http.createServer((req,res)=>{
     throw new Error('auth POST wrong: '+JSON.stringify(authPosts));
   c2 = await pg2.$eval('#friendsCard', e=>e.innerText);
   if(!/YW-TTT222/.test(c2) || !/Google-linked/.test(c2)) throw new Error('restored account not shown: '+c2.slice(0,200));
-  const chip2 = await pg2.$eval('.nickchip', e=>e.textContent);
-  if(!/Tim/.test(chip2)) throw new Error('chip did not adopt restored handle: '+chip2);
+  if((await pg2.evaluate(()=>lbNick()))!=='Tim') throw new Error('nick did not adopt restored handle');
   console.log('Google sign-in: hidden-until-configured, button mounts, /auth restores account + linked badge OK');
   await ctx2.close();
 

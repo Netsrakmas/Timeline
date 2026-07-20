@@ -101,16 +101,17 @@ const server = http.createServer((req,res)=>{
   await pg.click('#sheet button:has-text("Done")');
   await pg.waitForTimeout(600);
   const card = await pg.$eval('#app', e=>e.innerText);
-  if(!/🌍 #7\/42/.test(card)) throw new Error('setup mini rank missing: '+card.slice(0,200));
-  if(gets.length<1) throw new Error('expected a GET for the setup card');
-  if(!/🎧 Sam/.test(card)) throw new Error('identity chip missing on setup: '+card.slice(0,160));
-  // chip is tap-to-edit in place
-  await pg.click('.nickchip');
-  await pg.$eval('#nickTop', e=>{ e.value='Sammy'; e.blur(); });
+  if(!/🌍 #7\/42/.test(card)) throw new Error('daily-card mini rank missing: '+card.slice(0,200));
+  if(gets.length<1) throw new Error('expected a GET for the daily card');
+  // identity now lives on the Profile tab — rename there via the name input
+  await pg.evaluate(()=>goTab('profile'));
   await pg.waitForTimeout(300);
-  const chip = await pg.$eval('.nickchip', e=>e.textContent);
-  if(!/Sammy/.test(chip)) throw new Error('chip edit failed: '+chip);
-  console.log('setup mini rank + identity chip (tap-to-edit) OK');
+  const pName = await pg.$eval('#nickTop', e=>e.value);
+  if(!/Sam/.test(pName)) throw new Error('profile name missing: '+pName);
+  await pg.$eval('#nickTop', e=>{ e.value='Sammy'; e.dispatchEvent(new Event('change')); });
+  await pg.waitForTimeout(300);
+  if((await pg.evaluate(()=>lbNick()))!=='Sammy') throw new Error('profile rename failed');
+  console.log('daily mini rank + profile rename OK');
 
   // --- step 2: challenge-set boards ---
   // the finished daily also reported to /chal (the set is shareable)
@@ -120,6 +121,7 @@ const server = http.createServer((req,res)=>{
 
   // create a fresh challenge; its results sheet shows the set board incl. others
   chalOthers = [{nick:'Jesse',score:4,timeMs:12000}];
+  await pg.evaluate(()=>goTab('play')); await pg.waitForTimeout(300);
   await pg.click('.modecard:has-text("Challenges")');
   for(let i=1;i<=5;i++){
     try{ await pg.waitForSelector('.slot.active',{timeout:15000}); }

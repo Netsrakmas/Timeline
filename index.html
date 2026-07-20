@@ -193,10 +193,18 @@
   .gvinyl i{width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     font-size:18px; font-weight:800; color:#05070F; background:linear-gradient(135deg, var(--gold), var(--cyan));}
   .subtag{font-family:var(--mono); font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-top:3px;}
+  .lobby-intro{color:var(--muted); font-size:14px; line-height:1.5; margin:18px 4px 8px; text-align:center; text-wrap:pretty;}
+  .modelist{margin-top:16px;}
   /* screen title bar for tab pages + config screens */
   .screenhd{display:flex; align-items:center; gap:12px; margin:6px 0 16px;}
   .screenhd h2{font-family:"Rubik"; font-weight:800; font-size:22px; margin:0; flex:1;}
   .backbtn{background:var(--s2); border:1px solid var(--line); color:var(--text); width:40px; height:40px; border-radius:12px; font-size:18px; flex:0 0 auto;}
+  /* Profile identity header: big avatar + inline-editable name */
+  .pfp{width:60px; height:60px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
+    font-size:26px; font-weight:800; color:var(--gold); background:var(--s2); border:2px solid var(--gold);}
+  input.nameinput{background:none; border:none; padding:0; width:100%; color:var(--text); font:inherit;
+    font-size:22px; font-weight:800; outline:none; border-radius:0;}
+  input.nameinput:focus{color:var(--gold); border:none;}
   /* segmented 2-up mode toggle */
   .diffs.duo{flex-direction:row;}
   .duo .diff{flex:1; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 13px;}
@@ -4414,6 +4422,7 @@ function saveNickTop(v){
   saveNick(v);
   if(lbNick() !== before) toast("Name saved — " + lbNick());
   const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
+  const pfp = document.querySelector(".pfp"); if(pfp) pfp.textContent = avat(lbNick());   // keep the profile avatar in sync
 }
 function saveNick(v){
   store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,20));
@@ -5490,8 +5499,8 @@ function renderSetup(){
 }
 // the spinning-vinyl wordmark header, shared by lobby tabs
 function lobbyHeadHTML(){
-  return `${LB.url ? `<div class="nickbar" id="nickbar">${nickChipHTML()}</div>` : ``}
-    <div class="lobbyhead">
+  // identity now lives on the Profile tab — no top-right name chip
+  return `<div class="lobbyhead">
       <div class="vinyl" aria-hidden="true"><i></i></div>
       <div><h1 class="brand">Yearworm</h1><div class="subtag">Guess the year · Build the line</div></div>
     </div>`;
@@ -5563,7 +5572,10 @@ function homeHTML(){
       <button class="btn primary" onclick="resumeSaved()">▶ Resume game</button>
       <button class="btn ghost sm" style="margin-top:8px" onclick="discardSaved()">Discard &amp; start fresh</button></div>` : ``;
   const chal = S.challenge ? `<div style="margin-top:12px">${challengeCardHTML()}</div>` : ``;
+  const intro = (S.challenge || resume) ? `` :
+    `<p class="lobby-intro">Hear a mystery track and drop it into your timeline — no exact year, just where it belongs. The line grows, the gaps shrink, every guess gets harder.</p>`;
   return `${lobbyHeadHTML()}
+    ${intro}
     <div id="chalNews"></div>
     ${chal}${resume}
     <div class="modelist">
@@ -5683,10 +5695,12 @@ function profileTabHTML(){
   const stat = (v,l)=>`<div style="flex:1; min-width:70px; text-align:center"><div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold)">${v}</div><div class="muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin-top:2px">${l}</div></div>`;
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Profile</h2></div>
-    <div class="card">
-      <div class="eyebrow" style="margin-top:0">your name</div><div style="height:8px"></div>
-      <input id="nickTop" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name" oninput="saveNickTop(this.value)" />
-      ${LB.url ? `<div style="height:10px"></div><div id="friendsCode"></div>` : ``}
+    <div class="card" style="display:flex; align-items:center; gap:14px">
+      <div class="pfp" aria-hidden="true">${avat(lbNick())}</div>
+      <div style="flex:1; min-width:0">
+        <input id="nickTop" class="nameinput" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name" onchange="saveNickTop(this.value)" onkeydown="if(event.key==='Enter')this.blur()" onfocus="this.select()" />
+        <div class="muted" style="font-size:11.5px; margin-top:2px">${LB.url ? `<span id="friendsCode"></span>` : `tap your name to rename`}</div>
+      </div>
     </div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">your stats</div><div style="height:12px"></div>
       <div class="row" style="gap:8px">${stat('🔥'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}</div></div>
