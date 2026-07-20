@@ -113,6 +113,20 @@ const server = http.createServer((req,res)=>{
   if((await pg.evaluate(()=>lbNick()))!=='Sammy') throw new Error('profile rename failed');
   console.log('daily mini rank + profile rename OK');
 
+  // avatar picker: tap the pfp, choose an emoji, it sticks and persists a reload
+  await pg.click('.pfpwrap');
+  await pg.waitForSelector('.avgrid',{timeout:3000});
+  const optCount = await pg.$$eval('.avopt', els=>els.length);
+  if(optCount < 40) throw new Error('avatar grid too small: '+optCount);
+  await pg.click('.avopt:has-text("🦊")');
+  await pg.waitForTimeout(300);
+  if((await pg.$eval('.pfp', e=>e.textContent)) !== '🦊') throw new Error('pfp did not update to picked emoji');
+  await pg.reload(); await pg.waitForTimeout(700);
+  await pg.evaluate(()=>{ LB.url = 'https://lb.test'; });   // reload drops the localhost override
+  await pg.evaluate(()=>goTab('profile')); await pg.waitForTimeout(300);
+  if((await pg.$eval('.pfp', e=>e.textContent)) !== '🦊') throw new Error('avatar did not persist a reload');
+  console.log('avatar picker: pick + persist OK ('+optCount+' options)');
+
   // --- step 2: challenge-set boards ---
   // the finished daily also reported to /chal (the set is shareable)
   if(chalPosts.length < 1) throw new Error('run not submitted to /chal: '+chalPosts.length);

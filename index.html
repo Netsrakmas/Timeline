@@ -208,12 +208,29 @@
   .screenhd{display:flex; align-items:center; gap:12px; margin:6px 0 16px;}
   .screenhd h2{font-family:"Rubik"; font-weight:800; font-size:22px; margin:0; flex:1;}
   .backbtn{background:var(--s2); border:1px solid var(--line); color:var(--text); width:40px; height:40px; border-radius:12px; font-size:18px; flex:0 0 auto;}
-  /* Profile identity header: big avatar + inline-editable name */
-  .pfp{width:60px; height:60px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
-    font-size:26px; font-weight:800; color:var(--gold); background:var(--s2); border:2px solid var(--gold);}
-  input.nameinput{background:none; border:none; padding:0; width:100%; color:var(--text); font:inherit;
-    font-size:22px; font-weight:800; outline:none; border-radius:0;}
-  input.nameinput:focus{color:var(--gold); border:none;}
+  /* Profile identity header: big avatar (tap to change) + inline-editable name */
+  .idcard{display:flex; align-items:center; gap:14px;}
+  .pfpwrap{position:relative; flex:0 0 auto; padding:0; border:none; background:none; cursor:pointer; line-height:0; border-radius:50%;}
+  .pfp{width:64px; height:64px; border-radius:50%; display:grid; place-items:center;
+    font-size:31px; font-weight:800; color:var(--gold); background:var(--s2); border:2px solid var(--gold); line-height:1;}
+  .pfp-edit{position:absolute; right:-2px; bottom:-2px; width:22px; height:22px; border-radius:50%;
+    display:grid; place-items:center; font-size:11px; color:var(--bg); background:var(--gold);
+    border:2px solid var(--s1); line-height:1;}
+  .idmeta{flex:1; min-width:0;}
+  .namerow{display:flex; align-items:center; gap:8px;}
+  input.nameinput{background:none; border:none; border-bottom:1px dashed rgba(255,255,255,.20); padding:0 0 3px; flex:1; min-width:0;
+    color:var(--text); font:inherit; font-size:21px; font-weight:800; outline:none; border-radius:0;}
+  input.nameinput:focus{color:var(--gold); border-bottom-color:var(--gold); border-bottom-style:solid;}
+  .nameedit{flex:0 0 auto; width:30px; height:30px; border-radius:9px; display:grid; place-items:center; cursor:pointer;
+    font-size:13px; color:var(--muted); background:var(--s2); border:1px solid var(--line);}
+  .nameedit:active{transform:scale(.94);}
+  .idsub{font-size:11.5px; margin-top:6px;}
+  /* avatar picker grid (in the sheet) */
+  .avgrid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+  .avopt{aspect-ratio:1; font-size:23px; line-height:1; border-radius:12px; display:grid; place-items:center; cursor:pointer;
+    background:var(--s2); border:1px solid var(--line); transition:transform .08s ease, border-color .12s ease;}
+  .avopt:active{transform:scale(.9);}
+  .avopt.sel{border-color:var(--gold); background:rgba(246,185,59,.16);}
   /* segmented 2-up mode toggle */
   .diffs.duo{flex-direction:row;}
   .duo .diff{flex:1; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 13px;}
@@ -428,7 +445,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.0.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4431,7 +4448,7 @@ function saveNickTop(v){
   saveNick(v);
   if(lbNick() !== before) toast("Name saved — " + lbNick());
   const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
-  const pfp = document.querySelector(".pfp"); if(pfp) pfp.textContent = avat(lbNick());   // keep the profile avatar in sync
+  const pfp = document.querySelector(".pfp"); if(pfp) pfp.textContent = myAvatar();   // keep the profile avatar in sync (initial follows the name)
 }
 function saveNick(v){
   store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,20));
@@ -4706,6 +4723,37 @@ function confettiBurst(){
   setTimeout(()=>{ host.remove(); }, 3800);
 }
 function avat(h){ const c = [...(String(h||"?"))][0] || "?"; return esc(String(c).toUpperCase()); }
+/* profile picture: a curated set of 60 emoji (6×10 grid). Kept as emoji so the app
+   stays single-file and works fully offline — no image assets, no network. */
+const AVATARS = [
+  "😎","🤠","🥳","🤓","🧐","🤖","👽","👾","🤡","💀",
+  "🎃","🦸","🧙","🧛","🥷","🕺","💃","🧚","🧜","🦹",
+  "🦊","🐼","🐨","🦁","🐯","🐸","🐵","🐶","🐱","🦄",
+  "🐺","🦉","🦅","🦩","🐧","🐳","🦖","🦕","🐢","🐙",
+  "🎧","🎸","🎷","🎺","🎹","🥁","🎤","🎻","📀","💿",
+  "🚀","⚡","🔥","🌟","💎","🍀","🌈","🎯","👑","🎲"
+];
+/* my avatar = chosen emoji, else the first letter of my name */
+function myAvatar(){ return store.get("tl_avatar") || avat(lbNick()); }
+function pickAvatar(e){
+  if(e) store.set("tl_avatar", e); else store.del("tl_avatar");
+  closeOverlay();
+  if(_tab === "profile") renderSetup();
+  toast(e ? "Profile picture updated" : "Back to your initial");
+}
+function openAvatarPicker(){
+  const cur = store.get("tl_avatar") || "";
+  const grid = AVATARS.map(e =>
+    `<button class="avopt ${e===cur?'sel':''}" onclick="pickAvatar('${e}')" aria-label="Choose ${e}">${e}</button>`).join("");
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="verdict good" style="margin-top:2px">Pick a profile picture</div>
+    <div class="muted" style="font-size:12.5px; margin:2px 0 12px">Tap one to set it as your avatar</div>
+    <div class="avgrid">${grid}</div>
+    ${cur ? `<button class="btn ghost" style="margin-top:12px" onclick="pickAvatar('')">Use my initial instead</button>` : ``}
+    <button class="btn ghost" style="margin-top:8px" onclick="closeOverlay()">Close</button>`;
+  showSheet();
+}
 function friendsCardHTML(st){
   const prof = (st && st.me) || loadProfile();
   if(!prof){
@@ -5704,15 +5752,21 @@ function profileTabHTML(){
   const stat = (v,l)=>`<div style="flex:1; min-width:70px; text-align:center"><div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold)">${v}</div><div class="muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin-top:2px">${l}</div></div>`;
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Profile</h2></div>
-    <div class="card" style="display:flex; align-items:center; gap:14px">
-      <div class="pfp" aria-hidden="true">${avat(lbNick())}</div>
-      <div style="flex:1; min-width:0">
-        <input id="nickTop" class="nameinput" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name" onchange="saveNickTop(this.value)" onkeydown="if(event.key==='Enter')this.blur()" onfocus="this.select()" />
-        <div class="muted" style="font-size:11.5px; margin-top:2px">${LB.url ? `<span id="friendsCode"></span>` : `tap your name to rename`}</div>
+    <div class="card idcard">
+      <button class="pfpwrap" onclick="openAvatarPicker()" aria-label="Change profile picture">
+        <span class="pfp" aria-hidden="true">${myAvatar()}</span>
+        <span class="pfp-edit" aria-hidden="true">✎</span>
+      </button>
+      <div class="idmeta">
+        <div class="namerow">
+          <input id="nickTop" class="nameinput" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name" onchange="saveNickTop(this.value)" onkeydown="if(event.key==='Enter')this.blur()" onfocus="this.select()" />
+          <button class="nameedit" onclick="var n=document.getElementById('nickTop');n.focus();n.select();" aria-label="Edit your name">✎</button>
+        </div>
+        <div class="muted idsub">${LB.url ? `<span id="friendsCode"></span>` : `tap the pencil to rename`}</div>
       </div>
     </div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">your stats</div><div style="height:12px"></div>
-      <div class="row" style="gap:8px">${stat('🔥'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}</div></div>
+      <div class="row" style="gap:8px">${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}</div></div>
     ${(()=>{ const a=achievementsHTML(); return `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">${a.label}</div><div style="height:6px"></div>${a.grid}</div>`; })()}
     ${GAUTH.clientId ? `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">account</div><div style="height:8px"></div>
       <div class="muted" style="font-size:12.5px">${prof && prof.linked ? '✓ Google-linked — your name &amp; friends survive a new phone' : '🔐 Link Google so your account survives a new phone:'}</div>
