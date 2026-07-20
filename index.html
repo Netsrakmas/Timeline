@@ -139,6 +139,7 @@
   .avatar{display:inline-grid; place-items:center; width:38px; height:38px; border-radius:50%;
     background:var(--s2); border:2px solid var(--line); font-size:17px; flex:0 0 auto; font-weight:800;}
   .avatar.me{border-color:var(--gold); color:var(--gold);}
+  .avatar.sm{width:27px; height:27px; font-size:15px; border-width:1px;}
   .vs{font-size:10px; font-weight:800; color:var(--faint); letter-spacing:.08em; flex:0 0 auto;}
   .daynum{flex:0 0 auto; display:grid; place-items:center; width:64px; height:64px; border-radius:14px;
     background:var(--gold); color:#231500; border-bottom:4px solid #B8862F; text-align:center;}
@@ -416,7 +417,7 @@
     border-bottom:1px solid var(--line); padding:11px 2px; color:var(--text); cursor:pointer; font:inherit; text-align:left;}
   .ovrow:last-of-type{border-bottom:none;}
   .ovrow b{flex:1; font-size:14px;}
-  .ovrow span{flex:0 0 76px; text-align:right; font-size:13px;}
+  .ovrow span:not(.avatar){flex:0 0 76px; text-align:right; font-size:13px;}
   #confetti{position:fixed; inset:0; pointer-events:none; z-index:55; overflow:hidden;}
   #confetti i{position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
     animation:confall linear forwards;}
@@ -445,7 +446,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.1.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.1.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4778,6 +4779,11 @@ function friendsCardHTML(st){
         <button class="eyebtn" onclick="friendsOverview()" aria-label="All standings with friends"><span class="eyebrow" style="color:var(--violet)">👥 friends ▸</span></button>
         <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="shareCode()" aria-label="Share your friend code">code <b>${esc(prof.code||"")}</b> 📤</button>
       </div>
+      <div class="row" style="align-items:center; gap:9px; margin-top:9px; padding-bottom:10px; border-bottom:1px solid var(--line)">
+        <span class="avatar me" aria-hidden="true">${myAvatar()}</span>
+        <b style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(lbNick())} <span class="muted" style="font-weight:400; font-size:12px">(you)</span></b>
+        <button class="btn ghost sm" style="flex:0 0 auto; padding:6px 10px" onclick="goTab('profile')" aria-label="Edit your profile">edit ✎</button>
+      </div>
       ${(()=>{   // bundle challenges per sender: one row, oldest plays first
         const bySender = {};
         for(const m of inbox) (bySender[m.from] = bySender[m.from] || []).push(m);
@@ -5717,13 +5723,15 @@ function ranksBoardHTML(b){
   const meRank = b.me && b.me.rank;
   const rows = b.top.slice(0,10).map((t,i)=>{
     const rank = i+1, top3 = rank<=3, mine = b.me && t.nick===b.me.nick && rank===meRank;
-    return `<div class="row" style="align-items:center; gap:10px; padding:8px 2px; ${i?'border-top:1px solid var(--line)':''}">
-      <span style="flex:0 0 26px; text-align:center; font-family:var(--mono); font-weight:700; color:${top3?'var(--gold)':'var(--faint)'}">${top3?['🥇','🥈','🥉'][i]:rank}</span>
+    return `<div class="row" style="align-items:center; gap:8px; padding:8px 2px; ${i?'border-top:1px solid var(--line)':''}">
+      <span style="flex:0 0 24px; text-align:center; font-family:var(--mono); font-weight:700; color:${top3?'var(--gold)':'var(--faint)'}">${top3?['🥇','🥈','🥉'][i]:rank}</span>
+      <span class="avatar sm ${mine?'me':''}" aria-hidden="true">${mine?myAvatar():avat(t.nick)}</span>
       <b style="flex:1; min-width:0; font-size:14px; ${mine?'color:var(--gold)':''}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(t.nick)}${mine?' (you)':''}</b>
       <span style="flex:0 0 auto; font-family:var(--mono); font-size:13px">${t.score}/${RUN_LEN}</span></div>`;
   }).join("");
-  const meLine = (b.me && meRank>10) ? `<div class="row" style="align-items:center; gap:10px; padding:8px 2px; border-top:1px solid var(--line); margin-top:4px">
-      <span style="flex:0 0 26px; text-align:center; font-family:var(--mono); font-weight:700; color:var(--gold)">#${meRank}</span>
+  const meLine = (b.me && meRank>10) ? `<div class="row" style="align-items:center; gap:8px; padding:8px 2px; border-top:1px solid var(--line); margin-top:4px">
+      <span style="flex:0 0 24px; text-align:center; font-family:var(--mono); font-weight:700; color:var(--gold)">#${meRank}</span>
+      <span class="avatar sm me" aria-hidden="true">${myAvatar()}</span>
       <b style="flex:1; color:var(--gold)">You</b><span style="font-family:var(--mono); font-size:13px">${b.me.score}/${RUN_LEN}</span></div>` : ``;
   return `<div class="muted" style="font-size:11.5px; margin-bottom:4px">${b.total} played today${b.me?` · you're #${meRank}`:''}</div>${rows}${meLine}`;
 }
