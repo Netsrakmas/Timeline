@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.4.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.4.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4754,7 +4754,9 @@ async function playInboxChal(id){
   }
   // NOT marked seen here: if the start aborts (song resolution failed), the
   // challenge stays in the inbox for a retry — it's consumed on the results screen
-  S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null };
+  // msgId marks this as a friend's direct challenge: the result goes back through
+  // the server automatically, so we never show a "share a link back" step for it
+  S.challenge = { idx, beat: (m.payload.score != null ? m.payload.score : null), beatTime: m.payload.timeMs || null, msgId: m.id, fromHandle: m.handle };
   const from = { user: m.from, handle: m.handle, msgId: m.id };
   await startChallenge();
   S.reactTo = from;   // after startGame (which clears it) — offer a reaction on the results screen
@@ -5857,10 +5859,11 @@ function challengeCardHTML(){
       return `<div class="card" style="border-color:var(--violet)">
         <div class="eyebrow" style="color:var(--violet)">🏁 challenge result ${icon}</div>
         <div class="muted" style="font-size:13.5px; margin-top:4px">${line}</div>
+        ${S.challenge.msgId ? `<div style="color:var(--good); font-size:12.5px; margin-top:4px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
         <div id="chalSetBoard"></div>
         <div class="row" style="margin-top:10px; gap:8px">
           <button class="btn sm pink" onclick="startFreshChallenge()">⚔️ Rematch — new songs</button>
-          <button class="btn sm" onclick="shareChallengeBack()">📤 Send result</button>
+          ${S.challenge.msgId ? `` : `<button class="btn sm" onclick="shareChallengeBack()">📤 Send result</button>`}
         </div></div>`;
     }
   }
@@ -6527,7 +6530,8 @@ function overlayRunOver(){
         ${_social.friends.filter(f=>!(S.chalTarget && f.id===S.chalTarget.user)).slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
       </div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
-    ${(!daily && canChallenge) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : S.chalTarget ? '🔗 Challenge someone else on these songs' : '🔗 Challenge a friend on these songs'}</button>` : ``}
+    ${(chal && S.challenge && S.challenge.msgId) ? `<div style="color:var(--good); font-weight:700; font-size:14px; margin:12px 0 2px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
+    ${(!daily && canChallenge && !(chal && S.challenge && S.challenge.msgId)) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : S.chalTarget ? '🔗 Challenge someone else on these songs' : '🔗 Challenge a friend on these songs'}</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;

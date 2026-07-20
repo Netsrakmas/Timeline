@@ -191,6 +191,11 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(500);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/straight to a friend/.test(sheet) || !/⚔️ Jesse/.test(sheet)) throw new Error('direct-send buttons missing: '+sheet.slice(0,240));
+  // a friend's direct challenge is answered via the server — show a confirmation,
+  // NOT a "share a link back" button that looks like creating a new challenge
+  if(!/Result sent back to Jesse/.test(sheet)) throw new Error('friend-challenge "result sent" confirmation missing: '+sheet.slice(0,240));
+  if(/Send your result back/.test(sheet)) throw new Error('redundant link-share shown for a friend challenge: '+sheet.slice(0,240));
+  console.log('friend challenge: result auto-sent + confirmation (no confusing link) OK');
   // 5a) this run came from Jesse's inbox challenge -> reaction row present
   if(!/react to Jesse/.test(sheet)) throw new Error('reaction row missing: '+sheet.slice(0,240));
   await pg.click('#reactRow button:has-text("🔥")');
