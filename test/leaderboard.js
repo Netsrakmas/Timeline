@@ -113,19 +113,23 @@ const server = http.createServer((req,res)=>{
   if((await pg.evaluate(()=>lbNick()))!=='Sammy') throw new Error('profile rename failed');
   console.log('daily mini rank + profile rename OK');
 
-  // avatar picker: tap the pfp, choose an emoji, it sticks and persists a reload
+  // avatar picker: tap the pfp, choose a generated musician, it sticks + persists a reload
   await pg.click('.pfpwrap');
-  await pg.waitForSelector('.avgrid',{timeout:3000});
-  const optCount = await pg.$$eval('.avopt', els=>els.length);
-  if(optCount < 40) throw new Error('avatar grid too small: '+optCount);
-  await pg.click('.avopt:has-text("🦊")');
+  await pg.waitForSelector('.avgrid.muso',{timeout:3000});
+  const optCount = await pg.$$eval('.avgrid.muso .avopt', els=>els.length);
+  if(optCount !== 60) throw new Error('expected 60 avatar options, got '+optCount);
+  if(!(await pg.$eval('.avgrid.muso .avopt svg', e=>!!e))) throw new Error('avatar options are not rendered SVGs');
+  await pg.click('.avgrid.muso .avopt >> nth=6');
   await pg.waitForTimeout(300);
-  if((await pg.$eval('.pfp', e=>e.textContent)) !== '🦊') throw new Error('pfp did not update to picked emoji');
+  const picked = await pg.evaluate(()=>localStorage.getItem('tl_avatar'));
+  if(!/^m:\d+$/.test(picked||'')) throw new Error('picked avatar not stored as m:NN: '+picked);
+  if(!(await pg.$eval('.pfp', e=>/<svg/i.test(e.innerHTML)))) throw new Error('pfp did not render the picked SVG');
   await pg.reload(); await pg.waitForTimeout(700);
   await pg.evaluate(()=>{ LB.url = 'https://lb.test'; });   // reload drops the localhost override
   await pg.evaluate(()=>goTab('profile')); await pg.waitForTimeout(300);
-  if((await pg.$eval('.pfp', e=>e.textContent)) !== '🦊') throw new Error('avatar did not persist a reload');
-  console.log('avatar picker: pick + persist OK ('+optCount+' options)');
+  if((await pg.evaluate(()=>localStorage.getItem('tl_avatar'))) !== picked) throw new Error('avatar choice did not persist a reload');
+  if(!(await pg.$eval('.pfp', e=>/<svg/i.test(e.innerHTML)))) throw new Error('avatar SVG did not persist a reload');
+  console.log('avatar picker: 60 generated musicians, pick + persist OK ('+picked+')');
 
   // --- step 2: challenge-set boards ---
   // the finished daily also reported to /chal (the set is shareable)
