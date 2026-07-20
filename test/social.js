@@ -53,7 +53,7 @@ const server = http.createServer((req,res)=>{
         if(b.action==='add'){   // instant friendship — no accept round-trip
           state.friends = [...state.friends, {id:'f9', handle:'Zoe', w:0, l:0, t:0}];
         }
-        if(b.action==='accept'){ state.requests = []; state.friends = [{id:'f1', handle:'Jesse'}]; }
+        if(b.action==='accept'){ state.requests = []; state.friends = [{id:'f1', handle:'Jesse', avatar:'m:12'}]; }
         if(b.action==='seen'){ state.inbox = state.inbox.filter(m=>!b.ids.includes(m.id)); }
         if(b.action==='challenge'){ /* recorded via actions */ }
       }
@@ -125,7 +125,12 @@ const server = http.createServer((req,res)=>{
   card = await pg.$eval('#friendsCard', e=>e.innerText);
   if(!/Jesse/.test(card) || /wants to be friends/.test(card)) throw new Error('accept did not settle: '+card.slice(0,160));
   if(!actions.some(a=>a.action==='accept' && a.user==='f1')) throw new Error('accept POST missing');
-  console.log('friend request accept OK');
+  // friend's server-synced avatar (m:12) renders as an SVG, not just an initial
+  const jesseSvg = await pg.evaluate(()=>{ const a=[...document.querySelectorAll('#friendsCard .avatar')].find(x=>x.closest('.row')&&/Jesse/.test(x.closest('.row').innerText)); return a?/<svg/i.test(a.innerHTML):null; });
+  if(!jesseSvg) throw new Error("friend's synced avatar did not render");
+  // and my own avatar rides along in the social POST so friends can see me
+  if(!actions.some(a=>/^m:\d+$/.test(a.avatar||''))) throw new Error('own avatar not sent to server');
+  console.log('friend request accept + friend avatar render + own-avatar sync OK');
 
   // 3) add by code posts the code and lands as an INSTANT friend
   await pg.$eval('#codeIn', e=>{ e.value='yw-zz88kk'; });

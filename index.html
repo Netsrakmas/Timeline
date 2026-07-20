@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.2.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.3.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4555,7 +4555,7 @@ async function socialGet(){
     // POST, not GET: the device token is a bearer credential and must not
     // end up in URL/proxy logs
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), action:"state" }) });
+      body: JSON.stringify({ device: deviceId(), action:"state", avatar: currentAvatarKey() }) });
     if(!r.ok) return null;
     const b = await r.json();
     if(b && b.me) saveProfile(b.me);
@@ -4567,7 +4567,7 @@ async function socialPost(data){
   if(!LB.url) return null;
   try{
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), ...data }) });
+      body: JSON.stringify({ device: deviceId(), avatar: currentAvatarKey(), ...data }) });
     const b = await r.json().catch(()=>null);
     if(r.ok && b && b.me){ saveProfile(b.me); _social = b; }
     return { ok: r.ok, status: r.status, body: b };
@@ -4645,6 +4645,7 @@ function friendsOverview(){
     const col = !any ? "var(--muted)" : w > l ? "var(--good)" : l > w ? "var(--bad)" : "var(--muted)";
     const col7 = !wk ? "var(--muted)" : w7 > l7 ? "var(--good)" : l7 > w7 ? "var(--bad)" : "var(--muted)";
     return `<button class="ovrow" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">
+      <span class="avatar sm" aria-hidden="true">${friendAvatar(f)}</span>
       <b>${esc(f.handle)}</b>
       <span style="color:${col}">${any ? `${w>l?'👑 ':''}${w}–${l}${t?` +${t}`:''}` : '—'}</span>
       <span style="color:${col7}">${wk ? `${w7}–${l7}${t7?` +${t7}`:''}` : '—'}</span>
@@ -4656,6 +4657,7 @@ function friendsOverview(){
     <div class="verdict good" style="margin-top:6px">STANDINGS</div>
     ${fr.length ? `
     <div class="ovrow" style="cursor:default; border-bottom:1px solid var(--line); padding-bottom:6px" aria-hidden="true">
+      <span class="avatar sm" style="visibility:hidden"></span>
       <b class="muted" style="font-weight:400; font-size:12px">tap a friend for details</b>
       <span class="muted" style="font-size:11px">all-time</span>
       <span class="muted" style="font-size:11px">last 7 days</span>
@@ -4945,16 +4947,31 @@ const MUSOS = [
   return { avatar: musoAvatar, list: MUSOS, hash: hashCode };
 })();
 /* my avatar = chosen musician (m:NN), a legacy emoji, else a musician seeded from device */
-function myAvatar(){
-  const a = store.get("tl_avatar") || "";
-  if(a.indexOf("m:")===0){ const i=+a.slice(2); return MUSO.avatar(MUSO.list[i] || MUSO.list[0]); }
-  if(a) return a;                                   // legacy emoji still honoured
-  return MUSO.avatar(MUSO.list[ MUSO.hash(deviceId()) % MUSO.list.length ]);
+function myAvatar(){ return avatarFor(currentAvatarKey()); }
+// resolve any stored avatar token (m:NN | legacy emoji) to its rendered form;
+// falls back to the initial letter when there's nothing to render
+function avatarFor(key, fallbackHandle){
+  const a = String(key || "");
+  if(/^m:\d+$/.test(a)){ const i = +a.slice(2); return MUSO.avatar(MUSO.list[i] || MUSO.list[0]); }
+  if(a) return esc(a);                              // legacy emoji still honoured
+  return avat(fallbackHandle);
 }
+// my avatar as a concrete, shareable token — an explicit pick, a legacy emoji,
+// or the musician deterministically seeded from this device (so friends see the
+// same face I do even before I ever open the picker)
+function currentAvatarKey(){
+  const a = store.get("tl_avatar") || "";
+  if(/^m:\d+$/.test(a)) return a;
+  if(a) return a.slice(0, 8);
+  return "m:" + (MUSO.hash(deviceId()) % MUSO.list.length);
+}
+// a friend/user object's avatar (server-synced), else their initial
+function friendAvatar(f){ return avatarFor(f && f.avatar, f && f.handle); }
 function pickAvatar(v){
   if(v) store.set("tl_avatar", v); else store.del("tl_avatar");
   closeOverlay();
   if(_tab === "profile") renderSetup();
+  if(LB.url && loadProfile()) socialGet();   // push the new picture so friends see it
   toast(v ? "Profile picture updated" : "Back to your default");
 }
 function shuffleAvatar(){ pickAvatar("m:" + Math.floor(Math.random()*MUSO.list.length)); }
@@ -5008,7 +5025,7 @@ function friendsCardHTML(st){
           const next = q[0], n = q.length;
           const beat = next.payload && next.payload.score != null ? `beat ${next.payload.score}/${RUN_LEN}` : ``;
           return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
-        <span style="font-size:13.5px; display:inline-flex; align-items:center; gap:8px; min-width:0"><span class="avatar" aria-hidden="true">${avat(next.handle)}</span><span>⚔️ <b>${esc(next.handle)}</b> ${n>1 ? `sent ${n} challenges — next: ${beat}` : `challenged you${beat ? ` — ${beat}` : ``}`}</span></span>
+        <span style="font-size:13.5px; display:inline-flex; align-items:center; gap:8px; min-width:0"><span class="avatar" aria-hidden="true">${friendAvatar(next)}</span><span>⚔️ <b>${esc(next.handle)}</b> ${n>1 ? `sent ${n} challenges — next: ${beat}` : `challenged you${beat ? ` — ${beat}` : ``}`}</span></span>
         <span style="flex:0 0 auto; display:inline-flex; gap:6px; align-items:center">
           ${n>1 ? `<button class="btn ghost sm" onclick="dismissChals('${next.from}')" aria-label="Dismiss all from ${esc(next.handle)}">✕</button>` : ``}
           <button class="btn sm pink" onclick="playInboxChal(${next.id})">▶ Play</button>
@@ -5042,7 +5059,7 @@ function friendsCardHTML(st){
         const col = !any ? "var(--muted)" : w > l ? "var(--good)" : l > w ? "var(--bad)" : "var(--muted)";
         return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:8px">
           <span style="display:inline-flex; gap:9px; align-items:center; min-width:0">
-            <span class="avatar" aria-hidden="true">${avat(f.handle)}</span>
+            <span class="avatar" aria-hidden="true">${friendAvatar(f)}</span>
             <button class="frname" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">${esc(f.handle)}</button>
           </span>
           <span style="display:inline-flex; gap:9px; align-items:center; flex:0 0 auto">
@@ -5923,7 +5940,7 @@ function ranksTabHTML(){
   const rows = sorted.length ? sorted.map(f=>{
     const w=f.w|0,l=f.l|0,t=f.t|0,any=w+l+t>0,col=!any?"var(--muted)":w>l?"var(--good)":l>w?"var(--bad)":"var(--muted)";
     return `<div class="ovrow" role="button" tabindex="0" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">
-      <span class="avatar" aria-hidden="true">${avat(f.handle)}</span><b>${esc(f.handle)}</b>
+      <span class="avatar" aria-hidden="true">${friendAvatar(f)}</span><b>${esc(f.handle)}</b>
       <span style="color:${col}; flex:0 0 auto">${any?`${w>l?'👑 ':''}you ${w}–${l}${t?` +${t}`:''}`:'—'}</span></div>`;
   }).join("") : `<div class="muted" style="font-size:13.5px">No duels yet — challenge a friend and your standings fill in here.</div>`;
   return `${lobbyHeadHTML()}

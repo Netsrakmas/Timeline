@@ -32,8 +32,11 @@ CREATE TABLE IF NOT EXISTS users (
   handle    TEXT NOT NULL,         -- display name as typed
   handle_lc TEXT NOT NULL UNIQUE,  -- lowercased for uniqueness
   code      TEXT NOT NULL UNIQUE,  -- friend code, e.g. YW-7F3KQ2
+  avatar    TEXT,                  -- profile picture id (e.g. m:12) or short emoji; NULL = default
   created   INTEGER NOT NULL
 );
+-- migration for existing databases (safe to run once; errors if already added):
+--   wrangler d1 execute yearworm --remote --command "ALTER TABLE users ADD COLUMN avatar TEXT"
 CREATE TABLE IF NOT EXISTS devices (
   device  TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

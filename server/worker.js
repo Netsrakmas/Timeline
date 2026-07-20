@@ -62,6 +62,9 @@ const DEVICE_RE = /^[a-f0-9]{16,64}$/i;
 
 /* ---------- social: users, friends, direct challenges ---------- */
 const HANDLE_RE = /^[\p{L}\p{N}][\p{L}\p{N} _\-.]{1,18}[\p{L}\p{N}]$/u;   // 3–20 chars, no edge junk
+// avatar token: a generated-avatar id (m:NN) or a short legacy emoji; kept tiny
+const AVATAR_RE = /^(m:\d{1,3}|.{1,8})$/u;
+function validAvatar(v){ v = String(v == null ? "" : v); return AVATAR_RE.test(v) ? v : null; }
 function friendCode(){
   const A = "ABCDEFGHJKMNPQRSTVWXYZ23456789";   // no 0/O/1/I/L/U lookalikes
   let s = ""; for(let i=0;i<6;i++) s += A[Math.floor(Math.random()*A.length)];
@@ -144,6 +147,14 @@ async function socialState(env, me, cors){
     const u = await env.DB.prepare("SELECT id, handle FROM users WHERE id=?1").bind(id).first();
     if(u) named[id] = u.handle;
   }
+  // profile pictures for those users, one batched query. Wrapped so a server
+  // running before the `avatar` column migration simply returns no avatars.
+  const avatars = {};
+  const capIds = ids.slice(0, 100);
+  if(capIds.length){ try{
+    const q = "SELECT id, avatar FROM users WHERE id IN (" + capIds.map((_, i) => "?" + (i + 1)).join(",") + ")";
+    for(const r of ((await env.DB.prepare(q).bind(...capIds).all()).results || [])) if(r.avatar) avatars[r.id] = r.avatar;
+  }catch(e){} }
   // head-to-head duel tallies per friend, from my perspective (w = my wins),
   // plus a rolling last-7-days window and the most recent duels for the
   // friend-detail sheet
@@ -171,16 +182,16 @@ async function socialState(env, me, cors){
     if(!(other in named)) continue;
     if(r.status === "accepted"){
       const t = tally[other] || { w:0, l:0, t:0, w7:0, l7:0, t7:0, recent:[] };
-      friends.push({ id: other, handle: named[other], w: t.w, l: t.l, t: t.t,
+      friends.push({ id: other, handle: named[other], avatar: avatars[other] || null, w: t.w, l: t.l, t: t.t,
                      w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent });
     }
     else if(r.requester === me.id) outgoing++;
-    else requests.push({ id: other, handle: named[other] });
+    else requests.push({ id: other, handle: named[other], avatar: avatars[other] || null });
   }
   const inbox = ((await env.DB.prepare(
     "SELECT id, from_user, kind, payload, created FROM inbox WHERE to_user=?1 AND seen=0 ORDER BY created DESC LIMIT 20"
   ).bind(me.id).all()).results || []).map(m => ({
-    id: m.id, from: m.from_user, handle: named[m.from_user] || "?", kind: m.kind,
+    id: m.id, from: m.from_user, handle: named[m.from_user] || "?", avatar: avatars[m.from_user] || null, kind: m.kind,
     payload: (()=>{ try{ return JSON.parse(m.payload); }catch(e){ return {}; } })(), created: m.created
   }));
   // inbox senders might not be resolved yet (named only covers friend rows)
@@ -191,13 +202,19 @@ async function socialState(env, me, cors){
     }
   }
   const linked = await env.DB.prepare("SELECT user_id FROM logins WHERE user_id=?1 LIMIT 1").bind(me.id).first();
-  return json({ me: { handle: me.handle, code: me.code, linked: !!linked }, friends, requests, outgoing, inbox }, 200, cors);
+  let myAv = null; try{ const a = await env.DB.prepare("SELECT avatar FROM users WHERE id=?1").bind(me.id).first(); myAv = a && a.avatar || null; }catch(e){}
+  return json({ me: { handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox }, 200, cors);
 }
 async function handleSocialPost(env, b, cors){
   const device = String(b.device || "");
   if(!DEVICE_RE.test(device)) return json({ error: "bad device" }, 400, cors);
   const action = String(b.action || "");
   let me = await userByDevice(env, device);
+
+  // keep the caller's profile picture fresh on every state/claim/etc. Wrapped so
+  // a server deployed before the `avatar` column migration can't 500 on it.
+  const av = validAvatar(b.avatar);
+  if(me && av){ try{ await env.DB.prepare("UPDATE users SET avatar=?1 WHERE id=?2").bind(av, me.id).run(); }catch(e){} }
 
   if(action === "claim"){
     const handle = String(b.handle || "").replace(/\s+/g, " ").trim();
@@ -217,6 +234,7 @@ async function handleSocialPost(env, b, cors){
     await env.DB.prepare("INSERT INTO devices (device, user_id, created) VALUES (?1,?2,?3) ON CONFLICT(device) DO UPDATE SET user_id=excluded.user_id")
       .bind(device, id, Date.now()).run();
     me = { id, handle, code };
+    if(av){ try{ await env.DB.prepare("UPDATE users SET avatar=?1 WHERE id=?2").bind(av, id).run(); }catch(e){} }
     return socialState(env, me, cors);
   }
 
