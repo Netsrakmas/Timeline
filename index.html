@@ -150,6 +150,9 @@
     color:var(--muted); font-size:10.5px; font-weight:700; letter-spacing:.3px; padding:6px 0; position:relative; min-height:48px;}   /* --muted, not --faint: functional labels need ≥4.5:1 */
   .tab.on{color:#fff;}
   .tab .tico{font-size:21px; line-height:1; opacity:.55;}
+  .ico{width:22px; height:22px; display:block;}
+  .tab .tico .ico{width:21px; height:21px;}
+  .modeicon .ico{width:23px; height:23px;}
   .tab.on .tico{opacity:1;}
   .tab .tbadge{position:absolute; top:0; right:calc(50% - 24px); background:var(--cyan); color:#04322E;
     font-size:10px; font-weight:800; min-width:16px; height:16px; border-radius:99px; display:grid; place-items:center; padding:0 4px;}
@@ -467,7 +470,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.18.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.19.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4571,15 +4574,29 @@ function openMode(m){
   renderSetup(); try{ window.scrollTo(0,0); }catch(e){}
 }
 function backToLobby(){ _playScreen = null; renderSetup(); try{ window.scrollTo(0,0); }catch(e){} }
+/* ---------- UI chrome icons: one consistent line-icon set (24px grid, 2px
+   round stroke, currentColor) instead of platform emoji — emoji stay for
+   CONTENT (reactions, verdicts, badges), icons own the STRUCTURE ---------- */
+const ICO = {
+  note:  '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  trophy:'<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  user:  '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  cal:   '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  swords:'<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 10"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/>',
+  bolt:  '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+};
+function ico(name){ return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[name]||''}</svg>`; }
 function navHTML(active){
   if(!LB.url) return "";
   const inbox = (_social && _social.inbox && _social.inbox.length) || 0;
-  const tab = (key, ico, label, badge) => `<button class="tab ${active===key?'on':''}" onclick="goTab('${key}')" aria-label="${label}"${active===key?' aria-current="page"':''}>${badge?`<span class="tbadge">${badge}</span>`:``}<span class="tico">${ico}</span>${label}</button>`;
+  const tab = (key, icon, label, badge) => `<button class="tab ${active===key?'on':''}" onclick="goTab('${key}')" aria-label="${label}"${active===key?' aria-current="page"':''}>${badge?`<span class="tbadge">${badge}</span>`:``}<span class="tico">${icon}</span>${label}</button>`;
   return `<div class="tabbar" role="navigation" aria-label="Sections">
-    ${tab('play','🎵','Play')}
-    ${tab('friends','👥','Friends', inbox||'')}
-    ${tab('ranks','🏆','Ranks')}
-    ${tab('profile','👤','Profile')}
+    ${tab('play',ico('note'),'Play')}
+    ${tab('friends',ico('users'),'Friends', inbox||'')}
+    ${tab('ranks',ico('trophy'),'Ranks')}
+    ${tab('profile',ico('user'),'Profile')}
   </div>`;
 }
 /* Google sign-in — hidden until the owner's OAuth Web client id is set here
@@ -5900,6 +5917,39 @@ function slotCorrect(p, idx){
 }
 /* haptics — a non-visual feedback cue (good on mobile + for accessibility) */
 function buzz(pattern){ try{ if("vibrate" in navigator) navigator.vibrate(pattern); }catch(e){} }
+/* SFX — tiny synthesized cues over WebAudio (no assets, mixes fine under the
+   music preview). Kinds: good (placement ding), bad (soft thunk), win (finish
+   arpeggio), end (neutral two-tone close). Toggle lives on Profile. */
+let _sfxCtx = null;
+function sfxEnabled(){ return store.get("tl_sfx") !== "0"; }   // default ON — it's a music game
+function sfx(kind){
+  if(!sfxEnabled()) return;
+  try{
+    _sfxCtx = _sfxCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(_sfxCtx.state === "suspended") _sfxCtx.resume();
+    const t0 = _sfxCtx.currentTime;
+    const tone = (f0, f1, dt, dur, type, gain) => {
+      const o = _sfxCtx.createOscillator(), g = _sfxCtx.createGain();
+      o.type = type || "sine";
+      o.frequency.setValueAtTime(f0, t0 + dt);
+      if(f1) o.frequency.exponentialRampToValueAtTime(f1, t0 + dt + dur);
+      g.gain.setValueAtTime(0, t0 + dt);
+      g.gain.linearRampToValueAtTime(gain || .14, t0 + dt + .012);
+      g.gain.exponentialRampToValueAtTime(.0001, t0 + dt + dur);
+      o.connect(g); g.connect(_sfxCtx.destination);
+      o.start(t0 + dt); o.stop(t0 + dt + dur + .05);
+    };
+    if(kind === "good"){ tone(660, 880, 0, .10); tone(990, 1320, .07, .14, "sine", .10); }
+    else if(kind === "bad"){ tone(220, 145, 0, .20, "triangle", .12); }
+    else if(kind === "win"){ tone(523, 0, 0, .11); tone(659, 0, .09, .11); tone(784, 0, .18, .13); tone(1047, 0, .27, .26, "sine", .16); }
+    else if(kind === "end"){ tone(494, 0, 0, .12, "sine", .10); tone(392, 0, .11, .20, "sine", .10); }
+  }catch(e){}
+}
+function toggleSfx(){
+  store.set("tl_sfx", sfxEnabled() ? "0" : "1");
+  if(sfxEnabled()) sfx("good");   // instant preview of what you just turned on
+  renderSetup();
+}
 /* where the card actually belonged, for "you missed" feedback */
 function correctRange(p, c){
   const yrs = sortedTimeline(p).filter(x => x.id !== c.id).map(x => x.year);
@@ -5941,6 +5991,7 @@ function chooseSlot(idx){
   S.used.add(S.current.id);
   bumpLife("cards");                        // lifetime cards-placed counter
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
+  sfx(correct ? "good" : "bad");
   saveGame();
   if(run) recordRunProgress();   // one-shot sets burn from the first reveal on (no-op for the tutorial)
   // the guided first round is over after TUT_LEN placements — its own finish
@@ -6160,11 +6211,11 @@ function homeHTML(){
     <div id="chalNews"></div>
     ${chal}${resume}${hero}
     <div class="modelist">
-      ${modeCardHTML('📅','rgba(198,242,78,.16)','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
-      ${modeCardHTML('⚔️','rgba(167,139,250,.16)','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','openChallengePicker()')}
-      ${modeCardHTML('🎉','rgba(246,185,59,.16)','Pass &amp; Play','Classic','','Party mode. Pass one phone, first to the target wins.',"openMode('passplay')")}
-      ${modeCardHTML('⚡','rgba(94,224,214,.16)','Turbo','3 min','live','Same '+RUN_LEN+' songs, one shared line. Most correct wins.',"openMode('turbo')")}
-      ${modeCardHTML('🎯','rgba(255,93,177,.16)','Survival','Solo','','Endless run, 3 lives. Chase your personal best.',"openMode('survival')")}
+      ${modeCardHTML(ico('cal'),'rgba(198,242,78,.16); color:#C6F24E','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
+      ${modeCardHTML(ico('swords'),'rgba(167,139,250,.16); color:#A78BFA','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','openChallengePicker()')}
+      ${modeCardHTML(ico('users'),'rgba(246,185,59,.16); color:#F6B93B','Pass &amp; Play','Classic','','Party mode. Pass one phone, first to the target wins.',"openMode('passplay')")}
+      ${modeCardHTML(ico('bolt'),'rgba(94,224,214,.16); color:#5EE0D6','Turbo','3 min','live','Same '+RUN_LEN+' songs, one shared line. Most correct wins.',"openMode('turbo')")}
+      ${modeCardHTML(ico('target'),'rgba(255,93,177,.16); color:#FF5DB1','Survival','Solo','','Endless run, 3 lives. Chase your personal best.',"openMode('survival')")}
     </div>
     <div class="footnote">No account needed · 30-second previews courtesy of Apple Music, all rights with their owners<br>
       <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
@@ -6343,6 +6394,11 @@ function profileTabHTML(){
         <div class="muted" style="font-size:11.5px; margin-top:2px">${on ? 'On — challenges, new friends & plays' : 'Get pinged when a friend challenges you, adds you, or plays your set'}</div></div>
       <button class="btn sm ${on ? 'ghost' : 'primary'}" style="flex:0 0 auto" onclick="togglePush()">${on ? 'Turn off' : 'Turn on'}</button>
     </div></div>`; })() : ``}
+    ${(()=>{ const on = sfxEnabled(); return `<div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between; align-items:center; gap:10px">
+      <div style="min-width:0"><div style="font-weight:700; font-size:14px">🔊 Sound effects</div>
+        <div class="muted" style="font-size:11.5px; margin-top:2px">${on ? 'On — little dings for placements & finishes' : 'Off — placements are silent'}</div></div>
+      <button class="btn sm ${on ? 'ghost' : 'primary'}" style="flex:0 0 auto" onclick="toggleSfx()">${on ? 'Turn off' : 'Turn on'}</button>
+    </div></div>`; })()}
     ${GAUTH.clientId ? `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">account</div><div style="height:8px"></div>
       <div class="muted" style="font-size:12.5px">${prof && prof.linked ? '✓ Google-linked — your name &amp; friends survive a new phone' : '🔐 Link Google so your account survives a new phone:'}</div>
       ${prof && prof.linked ? `` : `<div id="gsiBtn" style="margin-top:8px"></div>`}</div>` : ``}
@@ -6678,6 +6734,7 @@ function overlayGameOver(deckEmpty, winner){
     saveBest(nb);
     logFeed({ k:"survival", c: S.score, nb: newBest ? 1 : 0 });
     buzz(newBest ? [0,30,40,30,40,90] : [0,25,40,25]);
+    sfx(newBest ? "win" : "end");
     const sheet = document.getElementById("sheet");
     sheet.innerHTML = `
       <div class="winner-emoji">🎯</div>
@@ -6696,6 +6753,7 @@ function overlayGameOver(deckEmpty, winner){
   const w = winner || rankedC[0];
   const tiedOnCards = !winner && rankedC.length>1 && rankedC[0].timeline.length===rankedC[1].timeline.length;
   buzz([0,30,40,30,40,90]);
+  sfx("win");
   const sheet = document.getElementById("sheet");
   sheet.innerHTML = `
     <div class="winner-emoji">🏆</div>
@@ -6737,6 +6795,7 @@ function overlayRunOver(){
     }).join("");
     buzz([0,30,40,30,40,90]);
     confettiBurst();
+    sfx("win");
     sheet.innerHTML = `
       <div class="winner-emoji">⚡</div>
       <div class="verdict good" style="margin-top:6px">${esc(top.name)} WINS</div>
@@ -6753,6 +6812,7 @@ function overlayRunOver(){
 
   const score = me.hits||0;
   const perfect = score === RUN_LEN;
+  sfx(score >= 4 ? "win" : "end");   // finish flourish scaled to how it went
   // S.challenge only owns this result if this WAS a challenge run — a pending
   // link left on setup must not hijack a later daily/turbo run's recording
   const setIdx = (chal && S.challenge && S.challenge.idx) || S.runCards;
@@ -7052,6 +7112,7 @@ function overlayTutOver(){
   const last = S.lastReveal; S.lastReveal = null;
   const sq = (me.results||[]).map(r=>r?'🟩':'🟥').join('');
   buzz([0,30,40,30,40,90]);
+  sfx("win");
   const sheet = document.getElementById("sheet");
   sheet.innerHTML = `
     <div class="winner-emoji">🎓</div>
