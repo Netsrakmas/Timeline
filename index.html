@@ -439,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.8.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.9.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5732,6 +5732,7 @@ function startGame(){
   if(S.mode==="survival"){ S.lives = 3; S.score = 0; S.streak = 0; S.bestStreak = 0; }
   if(isRun()){
     S.players.forEach(pl => { pl.tries = 0; pl.hits = 0; pl.results = []; pl.timeMs = 0; });
+    S.runLog = [];   // per-song recap for the results screen (name/year/ok, in play order)
     // track pool indices for challenge links (solo runs only; null = unencodable)
     S.runCards = null;
     if(S.players.length===1 && S.players[0].timeline[0]){
@@ -5838,7 +5839,8 @@ function chooseSlot(idx){
     else { S.lives--; S.streak = 0; }
   }
   p.timeMs = (p.timeMs||0) + turnElapsed();
-  if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1; }
+  if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1;
+    (S.runLog = S.runLog||[]).push({ name:S.current.name, artist:S.current.artist, year:S.current.year, ok:!!correct }); }
   S.used.add(S.current.id);
   bumpLife("cards");                        // lifetime cards-placed counter
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
@@ -6565,7 +6567,8 @@ function overlayRunOver(){
   const sheet = document.getElementById("sheet");
   // the run's final placement reveals right here — no separate in-between screen
   const last = S.lastReveal; S.lastReveal = null;
-  const lastLine = last ? `<div style="font-size:14px; margin:2px 0 6px">last song:
+  // the per-song recap (solo runs) already lists the final song — no separate line then
+  const lastLine = (last && !(solo && S.runLog && S.runLog.length)) ? `<div style="font-size:14px; margin:2px 0 6px">last song:
       <span style="color:${last.correct?'var(--good)':'var(--bad)'}; font-weight:700">${last.correct?'✓':'✗'} ${last.year}</span>
       <span class="muted">— ${esc(last.name)} · ${esc(last.artist)}</span></div>` : ``;
 
@@ -6659,6 +6662,12 @@ function overlayRunOver(){
     <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
     <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
+    ${(solo && S.runLog && S.runLog.length) ? `<div id="runRecap" style="margin:10px auto 2px; max-width:320px; text-align:left">
+      ${S.runLog.map(r=>`<div style="display:flex; gap:8px; align-items:center; font-size:12.5px; padding:3px 0">
+        <span aria-hidden="true">${r.ok?'🟩':'🟥'}</span>
+        <b style="font-family:var(--mono); flex:0 0 auto">${r.year}</b>
+        <span class="muted" style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(r.name)} — ${esc(r.artist)}</span>
+      </div>`).join("")}</div>` : ``}
     ${lastLine}
     ${streakLine}
     ${sentLine}
