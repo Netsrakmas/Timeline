@@ -114,7 +114,10 @@ const server = http.createServer((req,res)=>{
   await pg.$eval('#nickTop', e=>{ e.value='Sammy'; e.dispatchEvent(new Event('change')); });
   await pg.waitForTimeout(300);
   if((await pg.evaluate(()=>lbNick()))!=='Sammy') throw new Error('profile rename failed');
-  console.log('daily mini rank + profile rename OK');
+  // the finished daily shows up in Profile's "recent games" (from the local feed log)
+  const prof = await pg.$eval('#app', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/recent games/i.test(prof) || !/Daily #\d+ — \d\/5/.test(prof)) throw new Error('recent games missing the daily: '+prof.slice(0,300));
+  console.log('daily mini rank + profile rename + recent games OK');
 
   // avatar picker: tap the pfp, choose a generated musician, it sticks + persists a reload
   await pg.click('.pfpwrap');
