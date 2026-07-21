@@ -439,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.7.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.8.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4328,6 +4328,9 @@ const S = {
 /* survival personal bests, persisted in localStorage */
 function loadBest(){ try{ return JSON.parse(store.get("tl_best")||"{}")||{}; }catch(e){ return {}; } }
 function saveBest(b){ store.set("tl_best", JSON.stringify(b)); }
+// lifetime counters — power the Profile stats + long-haul achievements
+function loadLife(){ try{ return JSON.parse(store.get("tl_life")||"{}")||{}; }catch(e){ return {}; } }
+function bumpLife(k, n){ const l = loadLife(); l[k] = (l[k]|0) + (n||1); store.set("tl_life", JSON.stringify(l)); }
 
 /* ---------- daily challenge (no backend: the date is the seed) ---------- */
 const RUN_LEN = 5;                                   // songs per turbo/daily run
@@ -5837,6 +5840,7 @@ function chooseSlot(idx){
   p.timeMs = (p.timeMs||0) + turnElapsed();
   if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1; }
   S.used.add(S.current.id);
+  bumpLife("cards");                        // lifetime cards-placed counter
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
   if(run) recordRunProgress();   // one-shot sets burn from the first reveal on
@@ -6145,7 +6149,7 @@ function ranksBoardHTML(b){
 }
 // a few achievements computed from REAL local + social data (no fake progress)
 function achievementsHTML(){
-  const d = loadDaily(), best = loadBest();
+  const d = loadDaily(), best = loadBest(), life = loadLife();
   const wins = ((_social && _social.friends) || []).reduce((s,f)=>s+(f.w|0), 0);
   const A = [
     { icon:"📅", name:"Regular", desc:"Play a Daily Challenge", done:(d.streak||0)>=1 || (d.num!=null) },
@@ -6154,6 +6158,9 @@ function achievementsHTML(){
     { icon:"⚔️", name:"First Blood", desc:"Win a duel", done:wins>=1, prog:wins?`${wins} won`:"0 won" },
     { icon:"⚡", name:"Speed Demon", desc:"Score 5/5 in Turbo", done:(best.turbo||0)>=RUN_LEN, prog:`best ${best.turbo||0}/${RUN_LEN}` },
     { icon:"🎧", name:"Crate Digger", desc:"Place 100 cards in Survival", done:(best.cards||0)>=100, prog:`${best.cards||0}/100` },
+    { icon:"🎯", name:"Bullseye", desc:"Place 250 cards in total", done:(life.cards|0)>=250, prog:`${life.cards|0}/250` },
+    { icon:"🏅", name:"Century", desc:"Play 100 games", done:(life.games|0)>=100, prog:`${life.games|0}/100` },
+    { icon:"👑", name:"Champion", desc:"Finish top-10 on a Daily", done:!!d.bestRank && d.bestRank<=10, prog: d.bestRank?`best #${d.bestRank}`:"🔒" },
   ];
   const unlocked = A.filter(a=>a.done).length;
   const grid = A.map(a=>`<div style="display:flex; gap:10px; align-items:center; padding:9px 0; ${a===A[0]?'':'border-top:1px solid var(--line)'}; opacity:${a.done?1:.6}">
@@ -6182,7 +6189,7 @@ function profileTabHTML(){
       </div>
     </div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">your stats</div><div style="height:12px"></div>
-      <div class="row" style="gap:8px">${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}</div></div>
+      <div class="row" style="gap:8px; flex-wrap:wrap">${(l=>`${stat(l.games|0,'Games')}${stat(l.cards|0,'Cards placed')}${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}`)(loadLife())}</div></div>
     ${recentGamesHTML()}
     ${(()=>{ const a=achievementsHTML(); return `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">${a.label}</div><div style="height:6px"></div>${a.grid}</div>`; })()}
     ${pushSupported() ? (()=>{ const on = pushEnabled(); return `<div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between; align-items:center; gap:10px">
@@ -6508,6 +6515,7 @@ function overlayReveal(correct, p){
 
 function overlayGameOver(deckEmpty, winner){
   clearGame();
+  bumpLife("games");   // classic race / survival end counts as a played game
   if(S.mode==="survival"){
     const best = loadBest();
     const newBest = S.score > (best.cards||0) || S.bestStreak > (best.streak||0);
@@ -6548,6 +6556,7 @@ function overlayGameOver(deckEmpty, winner){
 /* ---------- run results (turbo / daily / challenge) ---------- */
 function overlayRunOver(){
   S.current = null;
+  bumpLife("games");   // a finished run counts as a played game
   renderGame();   // repaint the final board behind the results (last card included)
   const daily = S.mode==="daily", chal = S.mode==="challenge";
   const solo = S.players.length===1;
@@ -6680,6 +6689,8 @@ function overlayRunOver(){
   showSheet();
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0, S.dailyNum).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
+    // remember the best world rank ever reached — powers the Champion badge
+    if(b && b.me && b.me.rank){ const d = loadDaily(); if(!d.bestRank || b.me.rank < d.bestRank){ d.bestRank = b.me.rank; saveDaily(d); } }
   });
   if(LB.url && setIdx && setIdx.length>=2) lbSubmitChal(chalKey(setIdx), score, me.timeMs||0, daily).then(b=>{
     const el = document.getElementById("chalBoard"); if(el && b) el.innerHTML = chalOthersHTML(b);

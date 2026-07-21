@@ -117,7 +117,15 @@ const server = http.createServer((req,res)=>{
   // the finished daily shows up in Profile's "recent games" (from the local feed log)
   const prof = await pg.$eval('#app', e=>e.innerText.replace(/\s+/g,' '));
   if(!/recent games/i.test(prof) || !/Daily #\d+ — \d\/5/.test(prof)) throw new Error('recent games missing the daily: '+prof.slice(0,300));
-  console.log('daily mini rank + profile rename + recent games OK');
+  // lifetime counters: the finished daily = 1 game, 5 cards; stats show on Profile
+  const life = await pg.evaluate(()=>loadLife());
+  if((life.games|0) < 1 || (life.cards|0) < 5) throw new Error('lifetime counters wrong: '+JSON.stringify(life));
+  if(!/Games/i.test(prof) || !/Cards placed/i.test(prof)) throw new Error('lifetime stats missing on Profile: '+prof.slice(0,200));
+  // the submitted rank (stubbed #7) is remembered for the Champion badge
+  if((await pg.evaluate(()=>loadDaily().bestRank)) !== 7) throw new Error('bestRank not recorded');
+  // stubbed rank #7 ≤ 10 → Champion unlocks outright (counted in the unlock tally)
+  if(!/Champion/.test(prof) || !/ACHIEVEMENTS · 2\/9/i.test(prof)) throw new Error('Champion badge missing/not unlocked: '+prof.slice(0,600));
+  console.log('daily mini rank + profile rename + recent games + lifetime stats + bestRank OK');
 
   // avatar picker: tap the pfp, choose a generated musician, it sticks + persists a reload
   await pg.click('.pfpwrap');
