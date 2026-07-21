@@ -439,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.5.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.6.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4623,6 +4623,7 @@ async function socialGet(){
     const b = await r.json();
     if(b && b.me){ saveProfile(b.me); adoptAvatar(b.me); }
     _social = b;
+    feedFromInbox(b);
     return b;
   }catch(e){ return null; }
 }
@@ -4632,7 +4633,7 @@ async function socialPost(data){
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
       body: JSON.stringify({ device: deviceId(), ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}), ...data }) });
     const b = await r.json().catch(()=>null);
-    if(r.ok && b && b.me){ saveProfile(b.me); adoptAvatar(b.me); _social = b; }
+    if(r.ok && b && b.me){ saveProfile(b.me); adoptAvatar(b.me); _social = b; feedFromInbox(b); }
     return { ok: r.ok, status: r.status, body: b };
   }catch(e){ return null; }
 }
@@ -4699,6 +4700,10 @@ async function claimFromInvite(){
 async function sendChal(to, set, score, timeMs){
   const r = await socialPost({ action:"challenge", to, set, score, timeMs });
   toast(r && r.ok ? "Challenge sent ⚔️" : "Couldn't send — use the share link instead.");
+  if(r && r.ok){
+    const f = _social && _social.friends && _social.friends.find(x => x.id === to);
+    logFeed({ k:"chal-out", who: f && f.handle, s: score });
+  }
 }
 // tap the friends header: ALL standings in one sheet; each row opens the detail
 function friendsOverview(){
@@ -5034,6 +5039,67 @@ function currentAvatarKey(){
 }
 // a friend/user object's avatar (server-synced), else their initial
 function friendAvatar(f){ return avatarFor(f && f.avatar, f && f.handle); }
+/* ---------- activity feed (local event log — no server persistence) ----------
+   Everything feed-worthy already passes through the client: inbox messages
+   (challenges/results/reactions/new friends), finished dailies, duel verdicts,
+   and challenges you send. Log them into tl_feed (capped) as they happen —
+   inbox items dedupe on their message id since they vanish once "seen". */
+function loadFeed(){ try{ return JSON.parse(store.get("tl_feed")||"[]")||[]; }catch(e){ return []; } }
+function logFeed(e){
+  const f = loadFeed();
+  if(e.id != null && f.some(x => x.id === e.id)) return;
+  f.unshift({ ...e, t: Date.now() });
+  store.set("tl_feed", JSON.stringify(f.slice(0, 30)));
+}
+function feedFromInbox(st){
+  if(!st || !st.inbox) return;
+  for(const m of st.inbox){
+    if(m.kind === "challenge") logFeed({ id:m.id, k:"chal-in", who:m.handle, s:m.payload && m.payload.score });
+    else if(m.kind === "friend") logFeed({ id:m.id, k:"friend", who:m.handle });
+    else if(m.kind === "react") logFeed({ id:m.id, k:"react", who:m.handle, e:(m.payload && m.payload.emoji)||"👏" });
+    else if(m.kind === "result") logFeed({ id:m.id, k:"result", who:m.handle, s:m.payload && m.payload.score, w:m.payload && m.payload.w });
+  }
+}
+function fmtAgo(t){
+  const s = (Date.now() - t) / 1000;
+  if(s < 90) return "just now";
+  if(s < 3600) return Math.round(s/60) + "m ago";
+  if(s < 86400) return Math.round(s/3600) + "h ago";
+  const d = Math.round(s/86400);
+  return d <= 7 ? d + "d ago" : new Date(t).toLocaleDateString();
+}
+function feedRowHTML(e){
+  const who = `<b>${esc(e.who || "a friend")}</b>`;
+  let icon = "📡", text = "";
+  switch(e.k){
+    case "daily":   icon = "📅"; text = `Daily #${e.n} — <b>${e.s}/${RUN_LEN}</b>${e.streak>1 ? ` · 🔥${e.streak}` : ``}`; break;
+    case "duel":    icon = e.r==="w" ? "🏆" : e.r==="l" ? "😤" : "🤝";
+                    text = e.r==="w" ? `You beat ${who} — ${e.mine}–${e.theirs}`
+                         : e.r==="l" ? `${who} held it — ${e.mine}–${e.theirs}`
+                         : `Dead even with ${who} — ${e.mine}–${e.theirs}`; break;
+    case "result":  icon = e.w==="you" ? "🛡" : e.w==="them" ? "😱" : "🤝";
+                    text = e.w==="you" ? `${who} played your challenge — you held it (their ${e.s}/${RUN_LEN})`
+                         : e.w==="them" ? `${who} beat your challenge — ${e.s}/${RUN_LEN}`
+                         : `${who} tied your challenge — ${e.s}/${RUN_LEN}`; break;
+    case "chal-in": icon = "⚔️"; text = `${who} challenged you${e.s!=null ? ` — beat ${e.s}/${RUN_LEN}` : ``}`; break;
+    case "chal-out":icon = "⚔️"; text = `You challenged ${who} — ${e.s}/${RUN_LEN} to beat`; break;
+    case "friend":  icon = "🎉"; text = `${who} added you as a friend`; break;
+    case "react":   icon = esc(e.e || "👏"); text = `${who} reacted to your result`; break;
+    default: return "";
+  }
+  return `<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line)">
+    <span style="flex:0 0 30px; text-align:center; font-size:17px" aria-hidden="true">${icon}</span>
+    <span style="flex:1; min-width:0; font-size:13px">${text}</span>
+    <span class="muted" style="flex:0 0 auto; font-size:10.5px; font-family:var(--mono)">${fmtAgo(e.t)}</span>
+  </div>`;
+}
+function feedCardHTML(){
+  const f = loadFeed();
+  if(!f.length) return "";
+  return `<div class="card slim" style="margin-top:12px">
+    <div class="eyebrow" style="margin-top:0">📡 recent activity</div>
+    <div style="height:2px"></div>${f.slice(0, 12).map(feedRowHTML).join("")}</div>`;
+}
 function pickAvatar(v){
   if(v) store.set("tl_avatar", v); else store.del("tl_avatar");
   closeOverlay();
@@ -6022,7 +6088,8 @@ function friendsTabHTML(){
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Friends</h2></div>
     <div id="chalNews"></div>
-    <div id="friendsCard"></div>`;
+    <div id="friendsCard"></div>
+    <div id="feedCard">${feedCardHTML()}</div>`;
 }
 // friends-standings rows, factored out so the socialGet callback can refresh
 // them in place (a cold load on the Ranks tab used to show a stale empty state)
@@ -6127,7 +6194,8 @@ function afterLobby(tab){
   if(tab === "ranks" && LB.url){ lbFetchDaily().then(b=>{ const el=document.getElementById("ranksDaily"); if(el) el.innerHTML = ranksBoardHTML(b); }); }
   if(tab === "profile"){ const c=document.getElementById("friendsCode"); if(c && loadProfile()) c.innerHTML = `<button class="btn ghost sm" onclick="shareCode()" aria-label="Share your friend code">code <b style="font-family:var(--mono)">${esc((loadProfile()||{}).code||"")}</b> 📤</button>`; mountGoogleBtn(); }
   if(LB.url) socialGet().then(st => { if(st){ tryPendingAdd(st);
-    if(_tab==="friends") renderFriendsCard(st);
+    if(_tab==="friends"){ renderFriendsCard(st);
+      const fc=document.getElementById("feedCard"); if(fc) fc.innerHTML = feedCardHTML(); }
     // fresh social state landed: refresh the ranks standings in place too
     if(_tab==="ranks"){ const rf=document.getElementById("ranksFriends"); if(rf) rf.innerHTML = ranksFriendsRows(); }
     // refresh the nav badge without a full re-render
@@ -6518,6 +6586,7 @@ function overlayRunOver(){
     title = 'DAILY #'+(S.dailyNum || dailyNumber());
     recordRunProgress();   // final write (all placements done → no p flag)
     streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
+    logFeed({ k:"daily", n: S.dailyNum || dailyNumber(), s: score, streak: loadDaily().streak||1 });
   } else if(chal){
     title = 'CHALLENGE';
     const beat = S.challenge && S.challenge.beat;
@@ -6542,6 +6611,10 @@ function overlayRunOver(){
     if(S.reactTo && S.reactTo.msgId && LB.url){
       socialPost({ action:"result", id:S.reactTo.msgId, score, timeMs: me.timeMs||0 });
       socialPost({ action:"seen", ids:[S.reactTo.msgId] });
+    }
+    if(beat != null){   // a real duel verdict — remember it in the activity feed
+      const rr = duelWon ? "w" : (score < beat || (score === beat && beatT && myT > beatT)) ? "l" : "t";
+      logFeed({ k:"duel", who: S.reactTo && S.reactTo.handle, mine: score, theirs: beat, r: rr });
     }
   } else {
     const best = loadBest();

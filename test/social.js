@@ -215,6 +215,25 @@ const server = http.createServer((req,res)=>{
   if(!sent || sent.to!=='f9' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
   console.log('direct-send passes the set to another friend (Zoe), not the challenger OK ·', JSON.stringify({to:sent.to, score:sent.score}));
 
+  // 5b-bis) the activity feed logged all of it: incoming challenge, duel verdict,
+  // outgoing challenge — and renders on the Friends tab
+  const feed = await pg.evaluate(()=>loadFeed());
+  if(!feed.some(e=>e.k==='chal-in' && e.who==='Jesse')) throw new Error('feed missing incoming challenge: '+JSON.stringify(feed));
+  if(!feed.some(e=>e.k==='duel' && e.who==='Jesse')) throw new Error('feed missing duel verdict: '+JSON.stringify(feed));
+  if(!feed.some(e=>e.k==='chal-out' && e.who==='Zoe')) throw new Error('feed missing outgoing challenge: '+JSON.stringify(feed));
+  await pg.evaluate(()=>{ document.getElementById('overlay').classList.remove('show'); goTab('friends'); });
+  await pg.waitForTimeout(400);
+  const feedTxt = await pg.$eval('#feedCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/recent activity/i.test(feedTxt) || !/Jesse challenged you/.test(feedTxt) || !/You challenged Zoe/.test(feedTxt))
+    throw new Error('feed card wrong: '+feedTxt.slice(0,300));
+  // inbox events must not duplicate on the next poll (dedupe by message id)
+  const n1 = (await pg.evaluate(()=>loadFeed())).filter(e=>e.k==='chal-in').length;
+  await pg.evaluate(()=>socialGet());
+  await pg.waitForTimeout(300);
+  const n2 = (await pg.evaluate(()=>loadFeed())).filter(e=>e.k==='chal-in').length;
+  if(n2 !== n1) throw new Error('feed duplicated inbox events on re-poll: '+n1+' -> '+n2);
+  console.log('activity feed: in/out challenges + duel verdict rendered, no dupes OK');
+
   // 5c) finishing an inbox challenge reports the duel result (msg id 7) —
   // and a LOST duel gets no confetti
   const resAct = actions.find(a=>a.action==='result');
