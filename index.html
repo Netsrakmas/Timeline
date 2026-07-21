@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.5.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.5.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4502,7 +4502,9 @@ async function lbSubmitDaily(score, timeMs, day){
 }
 async function lbFetchDaily(){
   if(!LB.url) return null;
-  try{ const r = await fetch(LB.url+"/daily?device="+deviceId()); return r.ok ? await r.json() : null; }catch(e){ return null; }
+  // POST, not GET: the device token is a bearer credential — keep it out of URL/proxy logs
+  try{ const r = await fetch(LB.url+"/daily", { method:"POST", headers:{ "content-type":"application/json" },
+    body: JSON.stringify({ read:1, device: deviceId() }) }); return r.ok ? await r.json() : null; }catch(e){ return null; }
 }
 function lbLineHTML(b){
   if(!b || !b.me) return `<span class="muted">leaderboard unavailable</span>`;
@@ -4612,10 +4614,18 @@ async function onGoogleCred(resp){
     const b = await r.json().catch(()=>null);
     if(!r.ok || !b || !b.me){ toast("Sign-in didn't work — try again in a moment."); return; }
     saveProfile(b.me); _social = b;
+    adoptAvatar(b.me);   // returning account: its avatar wins over this device's default
     store.set("tl_nick", b.me.handle);
     const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
     renderFriendsCard(b);
     toast("Signed in — welcome, "+b.me.handle+"!");
+    // this browser's push subscription still points at the PREVIOUS account —
+    // re-register it so notifications follow the account that just signed in
+    if(pushEnabled()){ try{
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if(sub) socialPost({ action:"push-sub", sub: sub.toJSON() });
+    }catch(e){} }
   }catch(e){ toast("Sign-in didn't work — no connection."); }
 }
 function loadProfile(){ try{ return JSON.parse(store.get("tl_user")||"null"); }catch(e){ return null; } }
@@ -5178,7 +5188,9 @@ async function lbSubmitChal(setkey, score, timeMs, daily){
 }
 async function lbFetchChal(setkey){
   if(!LB.url) return null;
-  try{ const r = await fetch(LB.url+"/chal?set="+encodeURIComponent(setkey)+"&device="+deviceId()); return r.ok ? await r.json() : null; }catch(e){ return null; }
+  // POST, not GET: the device token is a bearer credential — keep it out of URL/proxy logs
+  try{ const r = await fetch(LB.url+"/chal", { method:"POST", headers:{ "content-type":"application/json" },
+    body: JSON.stringify({ read:1, set: setkey, device: deviceId() }) }); return r.ok ? await r.json() : null; }catch(e){ return null; }
 }
 function chalOthersHTML(b){
   const rows = (b && b.results || []).slice(0,5).map(r=>
@@ -6899,6 +6911,15 @@ function playAgain(){
   S.loadingMore = false;   // startGame kills the old loader; without this reset the
                            // starvation wait would spin on "Loading more songs…" forever
   startGame();
+  // survival is "endless" but startGame just killed the background loader (bgRun++)
+  // and never restarts it — a quick death + replay would hard-stop at whatever
+  // happened to resolve during the first run ("deck ran dry"). Stream the rest.
+  if(S.mode === "survival"){
+    const have = new Set([...S.deck, ...S.players.flatMap(p=>p.timeline)]
+      .map(c=>((c.name||"")+"|"+(c.artist||"")).toLowerCase()));
+    const rest = selectedSongs().filter(sg => !have.has(((sg.title||"")+"|"+(sg.artist||"")).toLowerCase()));
+    if(rest.length){ shuffle(rest); loadRest(rest, bgRun); }
+  }
 }
 function backToSetup(){ bgRun++; S.loadingMore=false;
   // runs are never saved — finishing one must not delete an unrelated saved classic game

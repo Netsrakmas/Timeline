@@ -49,8 +49,9 @@ const server = http.createServer((req,res)=>{
       return;
     }
     const isChal = /\/chal/.test(req.url());
+    const rbody = req.method()==='POST' ? (()=>{ try{ return JSON.parse(req.postData()); }catch(e){ return {}; } })() : null;
     if(isChal){
-      if(req.method()==='POST') chalPosts.push(JSON.parse(req.postData())); else chalGets.push(req.url());
+      if(rbody && !rbody.read) chalPosts.push(rbody); else chalGets.push(req.url());
       const results = [{nick:'Player',score:2,timeMs:9000,you:true}, ...chalOthers];
       route.fulfill({ contentType:'application/json',
         body: JSON.stringify({ set:'x', total: results.length, results }),
@@ -60,8 +61,8 @@ const server = http.createServer((req,res)=>{
     const body = { day: 16, total: 42,
       me: { nick:'Player', score: 2, timeMs: 9000, rank: 7 },
       top: [{nick:'Ace',score:5,timeMs:8000},{nick:'Bo',score:4,timeMs:9000},{nick:'Cy',score:4,timeMs:12000}] };
-    if(req.method()==='POST'){ posts.push(JSON.parse(req.postData())); }
-    else gets.push(req.url());
+    if(rbody && !rbody.read){ posts.push(rbody); }
+    else gets.push(req.url());   // GETs and read-only POSTs are board fetches, not submits
     route.fulfill({ contentType:'application/json', body: JSON.stringify(body),
       headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'} });
   });
@@ -102,7 +103,9 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(600);
   const card = await pg.$eval('#app', e=>e.innerText);
   if(!/🌍 #7\/42/.test(card)) throw new Error('daily-card mini rank missing: '+card.slice(0,200));
-  if(gets.length<1) throw new Error('expected a GET for the daily card');
+  if(gets.length<1) throw new Error('expected a board fetch for the daily card');
+  // the device token is a bearer credential — board fetches must never put it in a URL
+  if([...gets, ...chalGets].some(u=>/device=/.test(u))) throw new Error('device token leaked into a URL');
   // identity now lives on the Profile tab — rename there via the name input
   await pg.evaluate(()=>goTab('profile'));
   await pg.waitForTimeout(300);

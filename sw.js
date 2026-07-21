@@ -1,4 +1,4 @@
-const CACHE_NAME = 'yearworm-4.5.0';
+const CACHE_NAME = 'yearworm-4.5.1';
 const ASSETS = ['./', './index.html', './manifest.json', './privacy.html', './icon-192.png', './icon-512.png', './icon-180.png'];
 
 self.addEventListener('install', event => {
@@ -43,6 +43,21 @@ self.addEventListener('push', event => {
     data: { tab: d.tab || 'play' },
   };
   event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+// the push service rotated/expired our subscription: re-subscribe and re-point
+// the server row at the new endpoint, or notifications die silently while the
+// app's toggle still says "On"
+self.addEventListener('pushsubscriptionchange', event => {
+  event.waitUntil((async () => {
+    const old = event.oldSubscription;
+    const opts = (old && old.options) || { userVisibleOnly: true };
+    const sub = await self.registration.pushManager.subscribe(opts);
+    await fetch('https://yearworm-api.samkarsten.workers.dev/push-rotate', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ old: old && old.endpoint, sub: sub.toJSON() }),
+    });
+  })().catch(() => {}));
 });
 
 self.addEventListener('notificationclick', event => {

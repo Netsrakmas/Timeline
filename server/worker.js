@@ -490,6 +490,13 @@ export default {
 
     if(url.pathname === "/daily" && req.method === "POST"){
       let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
+      // read-only twin of GET: the device token is a bearer credential and must
+      // not end up in URL/proxy logs, so board fetches POST {read:1} instead
+      if(b.read){
+        const rd = Math.min(Math.max(parseInt(b.day, 10) || dayNow(), 1), dayNow() + 1);
+        const rdev = String(b.device || "");
+        return board(env, rd, /^[a-f0-9]{16,64}$/i.test(rdev) ? rdev : null, cors);
+      }
       const day = parseInt(b.day, 10);
       const score = parseInt(b.score, 10);
       const timeMs = parseInt(b.timeMs, 10);
@@ -517,6 +524,11 @@ export default {
     if(url.pathname === "/chal" && req.method === "POST"){
       let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
       const set = String(b.set || "");
+      if(b.read){   // read-only twin of GET — keeps the device token out of URLs
+        if(!SET_RE.test(set)) return json({ error: "bad set" }, 400, cors);
+        const rdev = String(b.device || "");
+        return chalBoardResp(env, set, /^[a-f0-9]{16,64}$/i.test(rdev) ? rdev : null, cors);
+      }
       const score = parseInt(b.score, 10);
       const timeMs = parseInt(b.timeMs, 10);
       const device = String(b.device || "");
@@ -549,6 +561,23 @@ export default {
         }
       }catch(e){} }
       return chalBoardResp(env, set, device, cors);
+    }
+
+    if(url.pathname === "/push-rotate" && req.method === "POST"){
+      // the push service rotated a subscription (sw.js pushsubscriptionchange).
+      // Auth = knowledge of the OLD unguessable endpoint URL; we just re-point
+      // that row at the new endpoint/keys. No user data returned.
+      let b; try{ b = await req.json(); }catch(e){ return json({ error: "bad json" }, 400, cors); }
+      const oldEp = String(b.old || "");
+      const s = b.sub || {};
+      const endpoint = String(s.endpoint || "");
+      const p256dh = String((s.keys && s.keys.p256dh) || "");
+      const auth = String((s.keys && s.keys.auth) || "");
+      if(!/^https:\/\//.test(oldEp) || !/^https:\/\//.test(endpoint) || endpoint.length > 800 || !p256dh || !auth)
+        return json({ error: "bad rotate" }, 400, cors);
+      try{ await env.DB.prepare("UPDATE push_subs SET endpoint=?1, p256dh=?2, auth=?3 WHERE endpoint=?4")
+        .bind(endpoint, p256dh, auth, oldEp).run(); }catch(e){}
+      return json({ ok: true }, 200, cors);
     }
 
     if(url.pathname === "/social" && req.method === "GET"){
