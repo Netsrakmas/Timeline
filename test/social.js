@@ -234,6 +234,22 @@ const server = http.createServer((req,res)=>{
   if(n2 !== n1) throw new Error('feed duplicated inbox events on re-poll: '+n1+' -> '+n2);
   console.log('activity feed: in/out challenges + duel verdict rendered, no dupes OK');
 
+  // 5b-ter) with friends present, the Challenges card opens a WHO-picker first
+  await pg.evaluate(()=>{ document.getElementById('overlay').classList.remove('show'); goTab('play'); });
+  await pg.waitForTimeout(300);
+  await pg.click('.modecard:has-text("Challenges")');
+  await pg.waitForTimeout(300);
+  const picker = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Who are you challenging\?/.test(picker) || !/Jesse/.test(picker) || !/Anyone — share a link/.test(picker))
+    throw new Error('challenge picker missing: '+picker.slice(0,240));
+  await pg.click('#sheet button:has-text("Cancel")');
+  await pg.waitForTimeout(200);
+  if(await pg.$('#overlay.show')) throw new Error('picker did not close on Cancel');
+  if(!(await pg.$('.modecard'))) throw new Error('cancel should stay in the lobby');
+  console.log('challenge picker: friends listed + link fallback + cancel OK');
+  await pg.evaluate(()=>goTab('friends'));   // later sections expect the Friends tab
+  await pg.waitForTimeout(300);
+
   // 5c) finishing an inbox challenge reports the duel result (msg id 7) —
   // and a LOST duel gets no confetti
   const resAct = actions.find(a=>a.action==='result');
@@ -312,7 +328,7 @@ const server = http.createServer((req,res)=>{
   if(!autoChal || autoChal.to!=='f1' || !/^\d+(\.\d+)+$/.test(autoChal.set) || autoChal.score==null)
     throw new Error('friend challenge did not auto-send: '+JSON.stringify(autoChal));
   const sheet2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/Sent to Jesse — you set \d\/5/.test(sheet2)) throw new Error('sent line missing: '+sheet2.slice(0,260));
+  if(!/Challenge sent to Jesse!/.test(sheet2) || !/You set \d\/5 to beat/.test(sheet2)) throw new Error('sent hero missing: '+sheet2.slice(0,260));
   if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear in the direct-send row');
   if(!/Challenge someone else on these songs/.test(sheet2)) throw new Error('share button should read "someone else" after auto-send: '+sheet2.slice(0,260));
   console.log('friend ⚔️ button: fresh run + auto-sent gauntlet + someone-else label OK');

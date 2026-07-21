@@ -439,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.9.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.10.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4774,6 +4774,24 @@ async function challengeFriend(id){
   await startFreshChallenge();
   S.chalTarget = to;   // after startGame (which clears it) — auto-send on the results screen
 }
+/* the Challenges mode card: pick WHO first (like the prototype), then play the
+   gauntlet. No friends (or offline) → straight to the shareable-link flow. */
+function openChallengePicker(){
+  const fr = (_social && _social.friends) || [];
+  if(!LB.url || !fr.length){ startFreshChallenge(); return; }
+  const rows = fr.slice(0, 8).map(f => `<button class="ovrow" onclick="closeOverlay(); challengeFriend('${f.id}')" aria-label="Challenge ${esc(f.handle)}">
+      <span class="avatar" aria-hidden="true">${friendAvatar(f)}</span><b>${esc(f.handle)}</b>
+      <span style="flex:0 0 auto" aria-hidden="true">⚔️</span></button>`).join("");
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">⚔️</div>
+    <div class="verdict good" style="margin-top:2px">Who are you challenging?</div>
+    <div class="muted" style="font-size:12.5px; margin:2px 0 10px">You play 5 songs first — then they get your gauntlet.</div>
+    ${rows}
+    <button class="btn pink" style="margin-top:12px" onclick="closeOverlay(); startFreshChallenge()">🔗 Anyone — share a link</button>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="closeOverlay()">Cancel</button>`;
+  showSheet();
+}
 async function playInboxChal(id){
   const m = _social && _social.inbox && _social.inbox.find(x => x.id === id);
   if(!m) return;
@@ -6050,7 +6068,7 @@ function homeHTML(){
     ${chal}${resume}
     <div class="modelist">
       ${modeCardHTML('📅','rgba(198,242,78,.16)','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
-      ${modeCardHTML('⚔️','rgba(167,139,250,.16)','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','startFreshChallenge()')}
+      ${modeCardHTML('⚔️','rgba(167,139,250,.16)','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','openChallengePicker()')}
       ${modeCardHTML('🎉','rgba(246,185,59,.16)','Pass &amp; Play','Classic','','Party mode. Pass one phone, first to the target wins.',"openMode('passplay')")}
       ${modeCardHTML('⚡','rgba(94,224,214,.16)','Turbo','3 min','live','Same '+RUN_LEN+' songs, one shared line. Most correct wins.',"openMode('turbo')")}
       ${modeCardHTML('🎯','rgba(255,93,177,.16)','Survival','Solo','','Endless run, 3 lives. Chase your personal best.',"openMode('survival')")}
@@ -6619,17 +6637,26 @@ function overlayRunOver(){
     const beatT = S.challenge && S.challenge.beatTime;
     const myT = me.timeMs||0;
     if(beat!=null){
-      if(score > beat){ duelWon = true; streakLine = `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 You beat their ${beat}/${RUN_LEN}!</div>`; }
-      else if(score < beat) streakLine = `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">They hold it — ${beat}/${RUN_LEN}</div>`;
+      // the prototype's duel verdict: a big you-vs-them scoreline with avatars
+      let verdict, vcol = "var(--muted)";
+      if(score > beat){ duelWon = true; verdict = `🏆 You beat their ${beat}/${RUN_LEN}!`; vcol = "var(--good)"; }
+      else if(score < beat){ verdict = `They hold it — ${beat}/${RUN_LEN}`; vcol = "var(--bad)"; }
       else if(beatT){   // equal score: fastest time decides
         duelWon = myT < beatT;
-        streakLine = myT < beatT
-          ? `<div style="color:var(--good); font-weight:700; font-size:15px; margin:6px 0">🏆 Tied at ${beat}/${RUN_LEN} — but you were faster! ⏱ ${fmtTime(myT)} vs ${fmtTime(beatT)}</div>`
-          : myT > beatT
-          ? `<div style="color:var(--bad); font-weight:700; font-size:15px; margin:6px 0">Tied at ${beat}/${RUN_LEN} — they were faster ⏱ ${fmtTime(beatT)} vs ${fmtTime(myT)}</div>`
-          : `<div style="font-size:15px; margin:6px 0">🤝 Dead even — same score, same time</div>`;
+        verdict = myT < beatT ? `🏆 Tied — but you were faster! ⏱ ${fmtTime(myT)} vs ${fmtTime(beatT)}`
+                : myT > beatT ? `Tied — they were faster ⏱ ${fmtTime(beatT)} vs ${fmtTime(myT)}`
+                : `🤝 Dead even — same score, same time`;
+        vcol = myT < beatT ? "var(--good)" : myT > beatT ? "var(--bad)" : "var(--muted)";
       }
-      else streakLine = `<div style="font-size:15px; margin:6px 0">🤝 Tied at ${beat}/${RUN_LEN}</div>`;
+      else verdict = `🤝 Tied at ${beat}/${RUN_LEN}`;
+      const oppName = (S.reactTo && S.reactTo.handle) || (S.challenge && S.challenge.fromHandle) || "them";
+      const oppF = S.reactTo && _social && _social.friends && _social.friends.find(f => f.id === S.reactTo.user);
+      streakLine = `<div style="display:flex; align-items:center; justify-content:center; gap:16px; margin:10px 0 2px">
+        <div style="text-align:center"><span class="avatar me" aria-hidden="true">${myAvatar()}</span><div class="muted" style="font-size:10.5px; margin-top:3px">you</div></div>
+        <div style="font-family:'Anton'; font-size:38px; letter-spacing:2px; color:${vcol}">${score} – ${beat}</div>
+        <div style="text-align:center"><span class="avatar" aria-hidden="true">${oppF ? friendAvatar(oppF) : avat(oppName)}</span><div class="muted" style="font-size:10.5px; margin-top:3px; max-width:64px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(oppName)}</div></div>
+      </div>
+      <div style="color:${vcol}; font-weight:800; font-size:15px; margin:2px 0 6px">${verdict}</div>`;
     }
     // inbox challenge: record the duel server-side (first report stands) —
     // this also drops a "they played it" message in the challenger's inbox.
@@ -6654,7 +6681,11 @@ function overlayRunOver(){
   let sentLine = "";
   if(S.chalTarget && LB.url && setIdx && setIdx.length >= 2){
     sendChal(S.chalTarget.user, chalKey(setIdx), score, me.timeMs||0);
-    sentLine = `<div style="color:var(--cyan); font-weight:700; font-size:14px; margin:6px 0">⚔️ Sent to ${esc(S.chalTarget.handle)} — you set ${score}/${RUN_LEN} to beat</div>`;
+    sentLine = `<div style="margin:12px auto 4px; max-width:320px; padding:12px 14px; border-radius:14px; background:rgba(94,224,214,.10); border:1px solid rgba(94,224,214,.35)">
+      <div style="font-size:24px" aria-hidden="true">⚔️</div>
+      <div style="font-weight:800; font-size:16px; color:var(--cyan); margin-top:2px">Challenge sent to ${esc(S.chalTarget.handle)}!</div>
+      <div class="muted" style="font-size:12.5px; margin-top:3px">You set <b style="color:var(--text)">${score}/${RUN_LEN}</b> to beat — you'll hear about it when they play.</div>
+    </div>`;
   }
   sheet.innerHTML = `
     <div class="winner-emoji">${perfect ? '🏆' : daily ? '📅' : chal ? '🎯' : '⚡'}</div>
