@@ -78,11 +78,9 @@
      transparent border keeps inline border-color accents (hero/chal) working */
   .card{background:var(--s1); border:1px solid transparent; border-radius:var(--r-card); padding:18px;}
   /* the daily ritual hero — the ONE loud card on the setup screen */
-  .card.hero{border-radius:var(--r-hero); box-shadow:0 10px 44px var(--glow-gold);}
-  .card.hero .eyebrow{color:var(--gold);}
   /* one filled-gold per view: inner buttons of hero/friends stay quiet —
      the sticky Start bar is the screen's primary */
-  .card.hero .btn.primary, #friendsCard .btn.primary{background:var(--s2); color:var(--gold);}
+  #friendsCard .btn.primary{background:var(--s2); color:var(--gold);}
   .card + .card{margin-top:16px;}
   /* the news card lives inside a wrapper div, so the sibling rule misses it */
   #chalNews .card{margin-bottom:16px;}
@@ -142,10 +140,6 @@
   .avatar.sm{width:27px; height:27px; font-size:15px; border-width:1px;}
   .avatar svg{width:100%; height:100%; display:block;}
   .vs{font-size:10px; font-weight:800; color:var(--faint); letter-spacing:.08em; flex:0 0 auto;}
-  .daynum{flex:0 0 auto; display:grid; place-items:center; width:64px; height:64px; border-radius:14px;
-    background:var(--gold); color:#231500; border-bottom:4px solid #B8862F; text-align:center;}
-  .daynum .dn-big{font-family:"Anton"; font-size:24px; line-height:1;}
-  .daynum .dn-sub{font-size:9px; font-weight:800; letter-spacing:.12em;}
   /* ===== 4.0 tabbed lobby ===== */
   .mono{font-family:var(--mono);}
   /* fixed bottom nav — Play / Friends / Ranks / Profile */
@@ -153,7 +147,7 @@
     background:rgba(9,13,25,.92); backdrop-filter:blur(12px); border-top:1px solid var(--line);
     padding:8px 8px calc(8px + env(safe-area-inset-bottom));}
   .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
-    color:var(--faint); font-size:10.5px; font-weight:700; letter-spacing:.3px; padding:6px 0; position:relative; min-height:48px;}
+    color:var(--muted); font-size:10.5px; font-weight:700; letter-spacing:.3px; padding:6px 0; position:relative; min-height:48px;}   /* --muted, not --faint: functional labels need ≥4.5:1 */
   .tab.on{color:#fff;}
   .tab .tico{font-size:21px; line-height:1; opacity:.55;}
   .tab.on .tico{opacity:1;}
@@ -161,13 +155,12 @@
     font-size:10px; font-weight:800; min-width:16px; height:16px; border-radius:99px; display:grid; place-items:center; padding:0 4px;}
   #app.tabbed{padding-bottom:calc(90px + env(safe-area-inset-bottom));}
   /* mode list (Play tab home) */
-  .modelist{display:grid; gap:12px; margin-top:6px;}
+  .modelist{display:grid; gap:12px; margin-top:16px;}
   .modecard{text-align:left; cursor:pointer; border:1px solid var(--line);
     background:linear-gradient(rgba(255,255,255,.043), rgba(255,255,255,.016));
     border-radius:18px; padding:15px 16px; display:flex; align-items:center; gap:14px; color:var(--text); width:100%; font:inherit;
     transition:border-color .15s, transform .06s;}
   .modecard:active{transform:scale(.99);}
-  .modecard.on{border-color:var(--gold);}
   .modeicon{width:46px; height:46px; flex:0 0 auto; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:23px;}
   .modecard .mmid{flex:1; min-width:0;}
   .modecard .mtitle{font-weight:800; font-size:17px; display:flex; align-items:center; gap:8px;}
@@ -205,7 +198,6 @@
     transform:translate(-50%,-50%); background:#05070F; box-shadow:0 0 0 2px rgba(0,0,0,.35);}
   .subtag{font-family:var(--mono); font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-top:3px;}
   .lobby-intro{color:var(--muted); font-size:14px; line-height:1.5; margin:18px 4px 8px; text-align:center; text-wrap:pretty;}
-  .modelist{margin-top:16px;}
   /* screen title bar for tab pages + config screens */
   .screenhd{display:flex; align-items:center; gap:12px; margin:6px 0 16px;}
   .screenhd h2{font-family:"Rubik"; font-weight:800; font-size:22px; margin:0; flex:1;}
@@ -240,7 +232,6 @@
   .avgrid.muso .avopt svg{width:100%; height:100%; display:block;}
   .avgrid.muso .avopt.sel{box-shadow:0 0 0 2px var(--gold); border-color:var(--gold);}
   /* segmented 2-up mode toggle */
-  .diffs.duo{flex-direction:row;}
   .duo .diff{flex:1; flex-direction:column; align-items:flex-start; gap:3px; padding:11px 13px;}
   .duo .diff .dcards{font-size:11px;}
   /* game length as one wrapping chip row */
@@ -248,7 +239,6 @@
   .chips .diff{flex:0 0 auto; width:auto; border-radius:999px; padding:10px 14px;}
   .chips .diff .dname{font-size:13.5px;}
   .card.slim{padding:13px 15px;}
-  .nickbar{position:fixed; top:calc(8px + env(safe-area-inset-top)); right:12px; z-index:6;}
   /* connection-trouble banner — unobtrusive, slides down from the top, auto-hides */
   .netbanner{position:fixed; left:50%; top:calc(8px + env(safe-area-inset-top)); transform:translate(-50%,-140%);
     z-index:20; display:flex; align-items:center; gap:8px; max-width:calc(100% - 24px);
@@ -263,10 +253,6 @@
   .bufnote.show{opacity:1; height:auto;}
   @media (prefers-reduced-motion: reduce){ .netbanner{transition:none;} .netdot{animation:none;} }
   .sect{font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; margin:32px 2px 10px; color:var(--muted);}
-  .nickbar ~ .eyebrow{padding-right:118px;}   /* keep the tagline clear of the chip */
-  .nickchip{font:inherit; font-size:13px; font-weight:600; color:var(--text); cursor:pointer;
-    background:rgba(19,26,53,.88); border:1px solid var(--line); border-radius:999px;
-    padding:8px 14px; backdrop-filter:blur(6px); box-shadow:0 4px 16px rgba(0,0,0,.4);}
   .startbar .btn{box-shadow:0 6px 24px rgba(0,0,0,.55);}
   .diffs{display:flex; flex-direction:column; gap:8px;}
   .diff{display:flex; align-items:center; justify-content:space-between; gap:12px;
@@ -453,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.5.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.5.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -472,6 +458,13 @@ if('serviceWorker' in navigator){
     else window._pendingTab = t;
   });
 }
+// Esc dismisses lobby sheets (avatar picker, standings, invite…). Never in-game:
+// mid-run overlays (reveal/results) drive the game flow and must use their buttons.
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Escape') return;
+  const ov = document.getElementById('overlay');
+  if(ov && ov.classList.contains('show') && document.querySelector('.tabbar')) closeOverlay();
+});
 /* ---------- Web Push (notifications) ---------- */
 const VAPID_PUBLIC = "BJa44HnxApm2zTubV0QUaheLtNxT5Cmyp1Tg3yZj-DdUwibFwZ3o574Pl4aeVmheAVXsrnQxZ9zCpogm0I9Csrc";
 function pushSupported(){ return ('serviceWorker' in navigator) && ('PushManager' in window) && (typeof Notification !== 'undefined'); }
@@ -4512,23 +4505,10 @@ function lbLineHTML(b){
   const mini = (b.top||[]).slice(0,3).map((t,i)=>`${["🥇","🥈","🥉"][i]} ${esc(t.nick)} ${t.score}/${RUN_LEN}`).join(" · ");
   return `${medal} <b>#${b.me.rank}</b> of ${b.total} today${mini ? `<div class="muted" style="font-size:11.5px; margin-top:3px">${mini}</div>` : ``}`;
 }
-/* the identity chip floats top-right like the start bar floats bottom —
-   always in view on setup, tap to edit in place */
-function nickChipHTML(){
-  return `<button class="nickchip" onclick="editNickTop()" aria-label="Your player name — tap to edit">🎧 ${esc(lbNick())} <span style="opacity:.6">✎</span></button>`;
-}
-function editNickTop(){
-  const bar = document.getElementById("nickbar"); if(!bar) return;
-  bar.innerHTML = `<input id="nickTop" value="${esc(lbNick())}" maxlength="20" aria-label="Your player name"
-    style="width:180px; font-size:13.5px; padding:8px 12px; text-align:center"
-    onblur="saveNickTop(this.value)" onkeydown="if(event.key==='Enter')this.blur()" />`;
-  const inp = document.getElementById("nickTop"); inp.focus(); inp.select();
-}
 function saveNickTop(v){
   const before = lbNick();
   saveNick(v);
   if(lbNick() !== before) toast("Name saved — " + lbNick());
-  const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
   const pfp = document.querySelector(".pfp"); if(pfp) pfp.innerHTML = myAvatar();   // keep the profile avatar in sync
 }
 function saveNick(v){
@@ -4616,8 +4596,7 @@ async function onGoogleCred(resp){
     saveProfile(b.me); _social = b;
     adoptAvatar(b.me);   // returning account: its avatar wins over this device's default
     store.set("tl_nick", b.me.handle);
-    const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
-    renderFriendsCard(b);
+      renderFriendsCard(b);
     toast("Signed in — welcome, "+b.me.handle+"!");
     // this browser's push subscription still points at the PREVIOUS account —
     // re-register it so notifications follow the account that just signed in
@@ -4665,7 +4644,6 @@ async function claimHandle(v){
   if(!r){ toast("No connection — try again in a moment."); return false; }
   if(!r.ok){ toast(r.status===409 ? "That name is taken — try another." : "3–20 letters or numbers, please."); return false; }
   store.set("tl_nick", r.body.me.handle);   // boards and profile share one name
-  const bar = document.getElementById("nickbar"); if(bar) bar.innerHTML = nickChipHTML();
   renderFriendsCard(r.body);
   toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
   tryPendingAdd(r.body);   // came in via an invite link? add the friend + jump to Friends
@@ -5170,7 +5148,15 @@ function friendsCardHTML(st){
 }
 function renderFriendsCard(st){
   const el = document.getElementById("friendsCard");
-  if(el) el.innerHTML = LB.url ? friendsCardHTML(st) : "";
+  if(!el) return;
+  // first visit of a session: the social state hasn't arrived yet — a user WITH
+  // friends must not see the "No friends yet" empty state flash while it loads
+  if(LB.url && !st && loadProfile()){
+    el.innerHTML = `<div class="card slim"><div class="eyebrow" style="color:var(--violet)">👥 friends</div>
+      <div class="muted" style="font-size:13.5px; margin-top:6px">Loading…</div></div>`;
+    return;
+  }
+  el.innerHTML = LB.url ? friendsCardHTML(st) : "";
   mountGoogleBtn();
 }
 
@@ -5934,7 +5920,7 @@ function challengeCardHTML(){
   }
   if(chalPlayed(S.challenge.idx)){
     const p = chalPlayed(S.challenge.idx);
-    return `<div class="card slim" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
+    return `<div class="card slim" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" style="border-color:var(--cyan); cursor:pointer" onclick="shareChallengeBack()">
       <div class="row" style="justify-content:space-between; align-items:center">
         <div><div class="eyebrow" style="color:var(--cyan)">${p.m ? '🎯 your challenge' : '🎯 friend challenge'}</div>
           <div class="muted" style="font-size:13.5px; margin-top:4px">${p.m
@@ -5944,7 +5930,7 @@ function challengeCardHTML(){
         <button aria-hidden="true" tabindex="-1" class="btn sm" style="flex:0 0 auto">${p.m ? '⚔️ Challenge' : '📤 Send result'}</button>
       </div></div>`;
   }
-  return `<div class="card slim" role="button" tabindex="0" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
+  return `<div class="card slim" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" style="border-color:var(--cyan); cursor:pointer" onclick="startChallenge()">
     <div class="row" style="justify-content:space-between; align-items:center">
       <div><div class="eyebrow" style="color:var(--cyan)">🎯 friend challenge</div>
         <div class="muted" style="font-size:13.5px; margin-top:4px">${S.challenge.beat!=null ? `Beat their <b style="color:var(--text)">${S.challenge.beat}/${RUN_LEN}</b> on the same ${RUN_LEN} songs · one shot` : `${RUN_LEN} songs, chosen by a friend · one shot`}</div>
@@ -5979,7 +5965,7 @@ function homeHTML(){
     <div id="chalNews"></div>
     ${chal}${resume}
     <div class="modelist">
-      ${modeCardHTML('📅','rgba(198,242,78,.16)','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'startDaily()':'startDaily()')}
+      ${modeCardHTML('📅','rgba(198,242,78,.16)','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
       ${modeCardHTML('⚔️','rgba(167,139,250,.16)','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','startFreshChallenge()')}
       ${modeCardHTML('🎉','rgba(246,185,59,.16)','Pass &amp; Play','Classic','','Party mode. Pass one phone, first to the target wins.',"openMode('passplay')")}
       ${modeCardHTML('⚡','rgba(94,224,214,.16)','Turbo','3 min','live','Same '+RUN_LEN+' songs, one shared line. Most correct wins.',"openMode('turbo')")}
@@ -6038,21 +6024,26 @@ function friendsTabHTML(){
     <div id="chalNews"></div>
     <div id="friendsCard"></div>`;
 }
-function ranksTabHTML(){
+// friends-standings rows, factored out so the socialGet callback can refresh
+// them in place (a cold load on the Ranks tab used to show a stale empty state)
+function ranksFriendsRows(){
   const fr = (_social && _social.friends) || [];
   const sorted = [...fr].sort((x,y)=>(((y.w|0)+(y.l|0)+(y.t|0)) - ((x.w|0)+(x.l|0)+(x.t|0))) || ((y.w|0)-(x.w|0)));
-  const rows = sorted.length ? sorted.map(f=>{
+  if(!sorted.length) return `<div class="muted" style="font-size:13.5px">${LB.url && !_social ? 'Loading…' : 'No duels yet — challenge a friend and your standings fill in here.'}</div>`;
+  return sorted.map(f=>{
     const w=f.w|0,l=f.l|0,t=f.t|0,any=w+l+t>0,col=!any?"var(--muted)":w>l?"var(--good)":l>w?"var(--bad)":"var(--muted)";
-    return `<div class="ovrow" role="button" tabindex="0" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">
+    return `<div class="ovrow" role="button" tabindex="0" onclick="friendDetail('${f.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" aria-label="Duel record with ${esc(f.handle)}">
       <span class="avatar" aria-hidden="true">${friendAvatar(f)}</span><b>${esc(f.handle)}</b>
       <span style="color:${col}; flex:0 0 auto">${any?`${w>l?'👑 ':''}you ${w}–${l}${t?` +${t}`:''}`:'—'}</span></div>`;
-  }).join("") : `<div class="muted" style="font-size:13.5px">No duels yet — challenge a friend and your standings fill in here.</div>`;
+  }).join("");
+}
+function ranksTabHTML(){
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Ranks</h2></div>
     <div class="card"><div class="eyebrow" style="color:var(--gold); margin-top:0">🌍 today's daily · worldwide</div>
       <div id="ranksDaily" style="margin-top:10px"><div class="muted" style="font-size:13.5px">${LB.url ? 'Loading…' : 'Play the daily to join the worldwide board.'}</div></div></div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:var(--cyan); margin-top:0">⚔️ friends standings</div>
-      <div style="height:8px"></div>${rows}</div>`;
+      <div style="height:8px"></div><div id="ranksFriends">${ranksFriendsRows()}</div></div>`;
 }
 // world daily board rows from the real /daily top[]
 function ranksBoardHTML(b){
@@ -6070,7 +6061,8 @@ function ranksBoardHTML(b){
       <span style="flex:0 0 24px; text-align:center; font-family:var(--mono); font-weight:700; color:var(--gold)">#${meRank}</span>
       <span class="avatar sm me" aria-hidden="true">${myAvatar()}</span>
       <b style="flex:1; color:var(--gold)">You</b><span style="font-family:var(--mono); font-size:13px">${b.me.score}/${RUN_LEN}</span></div>` : ``;
-  return `<div class="muted" style="font-size:11.5px; margin-bottom:4px">${b.total} played today${b.me?` · you're #${meRank}`:''}</div>${rows}${meLine}`;
+  const pct = b.me && b.total ? Math.max(1, Math.round(meRank / b.total * 100)) : null;
+  return `<div class="muted" style="font-size:11.5px; margin-bottom:4px">${b.total} played today${b.me?` · you're #${meRank}${pct?` · top ${pct}%`:``}`:''}</div>${rows}${meLine}`;
 }
 // a few achievements computed from REAL local + social data (no fake progress)
 function achievementsHTML(){
@@ -6136,6 +6128,8 @@ function afterLobby(tab){
   if(tab === "profile"){ const c=document.getElementById("friendsCode"); if(c && loadProfile()) c.innerHTML = `<button class="btn ghost sm" onclick="shareCode()" aria-label="Share your friend code">code <b style="font-family:var(--mono)">${esc((loadProfile()||{}).code||"")}</b> 📤</button>`; mountGoogleBtn(); }
   if(LB.url) socialGet().then(st => { if(st){ tryPendingAdd(st);
     if(_tab==="friends") renderFriendsCard(st);
+    // fresh social state landed: refresh the ranks standings in place too
+    if(_tab==="ranks"){ const rf=document.getElementById("ranksFriends"); if(rf) rf.innerHTML = ranksFriendsRows(); }
     // refresh the nav badge without a full re-render
     const bar=document.querySelector(".tabbar"); if(bar && _playScreen==null) bar.outerHTML = navHTML(_tab);
   } });
@@ -6554,7 +6548,7 @@ function overlayRunOver(){
     if(score > (best.turbo||0)){ best.turbo = score; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
   }
   buzz(perfect ? [0,30,40,30,40,90] : [0,25,40,25]);
-  if(duelWon) confettiBurst();   // you beat a real person — celebrate 🎉
+  if(duelWon || (daily && perfect)) confettiBurst();   // beat a real person, or a perfect daily 🎉
   const canChallenge = S.runCards && S.runCards.length >= 2;
   // run started from a friend's ⚔️ button: the gauntlet sends itself
   let sentLine = "";
