@@ -467,7 +467,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.17.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.18.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -6881,14 +6881,83 @@ function overlayRunOver(){
     const el = document.getElementById("chalBoard"); if(el && b) el.innerHTML = chalOthersHTML(b);
   });
 }
-function shareDaily(){
+/* ---------- daily share IMAGE: the share artifact does the marketing ----------
+   A branded 1080×1080 result card (vinyl, wordmark, score squares, streak) sent
+   through the OS share sheet alongside the text+link. Every failure path —
+   fonts, canvas, canShare, share targets without file support — falls back to
+   the plain-text share that always worked. */
+async function dailyShareCanvas(d){
+  const W = 1080, H = 1080;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const x = cv.getContext("2d"); if(!x) return null;
+  try{ await Promise.all([document.fonts.load('900 120px Rubik'), document.fonts.load('700 40px Rubik'),
+    document.fonts.load('400 34px "DM Mono"'), document.fonts.load('400 150px Anton')]); }catch(e){}
+  // backdrop: app background with a faint gold glow behind the vinyl
+  const bg = x.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#0D1526"); bg.addColorStop(1,"#0B1120");
+  x.fillStyle = bg; x.fillRect(0,0,W,H);
+  let g = x.createRadialGradient(W/2,270,40, W/2,270,440);
+  g.addColorStop(0,"rgba(246,185,59,.10)"); g.addColorStop(1,"rgba(246,185,59,0)");
+  x.fillStyle = g; x.fillRect(0,0,W,620);
+  // the vinyl: disc, grooves, gold label, spindle, light glint
+  const cx = W/2, cy = 268, R = 185;
+  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,R,0,7); x.fill();
+  x.strokeStyle = "rgba(255,255,255,.05)"; x.lineWidth = 3;
+  for(let r = 84; r < R-8; r += 13){ x.beginPath(); x.arc(cx,cy,r,0,7); x.stroke(); }
+  g = x.createLinearGradient(cx-66,cy-66,cx+66,cy+66); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#E09B18");
+  x.fillStyle = g; x.beginPath(); x.arc(cx,cy,66,0,7); x.fill();
+  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,10,0,7); x.fill();
+  x.strokeStyle = "rgba(255,255,255,.10)"; x.lineWidth = 24;
+  x.beginPath(); x.arc(cx,cy,R-28,-2.3,-1.15); x.stroke();
+  // wordmark (gold→cyan, same gradient as the app header) + subtag
+  x.textAlign = "center";
+  g = x.createLinearGradient(W/2-260,0,W/2+260,0); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
+  x.fillStyle = g; x.font = "900 116px Rubik, sans-serif"; x.fillText("Yearworm", W/2, 598);
+  x.fillStyle = "#8EA0C9"; x.font = '400 26px "DM Mono", monospace';
+  try{ x.letterSpacing = "10px"; }catch(e){}
+  x.fillText("GUESS THE YEAR · BUILD THE LINE", W/2, 648);
+  try{ x.letterSpacing = "0px"; }catch(e){}
+  // the result: daily number, big score, squares, time + streak
+  x.fillStyle = "#8EA0C9"; x.font = "700 40px Rubik, sans-serif";
+  x.fillText(("DAILY  #" + (d.num||dailyNumber())), W/2, 732);
+  x.fillStyle = "#EEF2FF"; x.font = "400 148px Anton, sans-serif";
+  x.fillText((d.score||0) + " / " + RUN_LEN, W/2, 862);
+  const res = (d.results||[]).slice(0, RUN_LEN), n = Math.max(res.length, RUN_LEN);
+  const sq = 70, gap = 20, x0 = W/2 - (n*sq + (n-1)*gap)/2;
+  for(let i=0;i<n;i++){
+    x.fillStyle = i < res.length ? (res[i] ? "#4ADE80" : "#FF6B6B") : "#212C4A";
+    x.beginPath(); x.roundRect(x0 + i*(sq+gap), 896, sq, sq, 16); x.fill();
+  }
+  x.fillStyle = "#EEF2FF"; x.font = "700 36px Rubik, sans-serif";
+  const meta = (d.timeMs ? "⏱ " + fmtTime(d.timeMs) + "   ·   " : "") + "🔥 " + (d.streak||1) + " day streak";
+  x.fillText(meta, W/2, 1016);
+  x.fillStyle = "#5A6A92"; x.font = '400 28px "DM Mono", monospace';
+  x.fillText("playyearworm.com", W/2, 1058);
+  return cv;
+}
+async function dailyShareFile(d){
+  try{
+    if(!navigator.canShare || !window.File || !("roundRect" in CanvasRenderingContext2D.prototype)) return null;
+    const cv = await dailyShareCanvas(d); if(!cv) return null;
+    const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+    if(!blob) return null;
+    const file = new File([blob], "yearworm-daily-" + (d.num||dailyNumber()) + ".png", { type:"image/png" });
+    return navigator.canShare({ files:[file] }) ? file : null;
+  }catch(e){ return null; }
+}
+async function shareDaily(){
   const d = loadDaily();
   const squares = (d.results||[]).map(r=>r?'🟩':'🟥').join('') || '⬛'.repeat(RUN_LEN);
   const t = d.timeMs ? ` in ${fmtTime(d.timeMs)}` : "";
   const url = (d.idx && d.idx.length>=2)
     ? "https://playyearworm.com/#c=" + d.idx.join(".") + "&s=" + (d.score||0) + (d.timeMs?("&t="+Math.round(d.timeMs/1000)):"")
     : "https://playyearworm.com";
-  shareText(`Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`);
+  const text = `Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`;
+  const file = await dailyShareFile(d);
+  if(file && navigator.share){
+    try{ await navigator.share({ files:[file], text }); track("share-daily-image"); return; }
+    catch(e){ if(e && e.name === "AbortError") return; }   // user closed the sheet — don't re-prompt with the fallback
+  }
+  shareText(text);
 }
 function shareChallenge(score){
   if(!S.runCards || S.runCards.length < 2) return;
