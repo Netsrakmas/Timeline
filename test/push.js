@@ -21,10 +21,10 @@ const srv=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('
    try{ Object.defineProperty(window,'Notification',{ configurable:true, get:()=>N }); }catch(e){}
    try{ localStorage.setItem('tl_nick','Sam'); localStorage.setItem('tl_user', JSON.stringify({code:'YW-ME0001'})); }catch(e){}
  });
- let pushSub=null;
+ let pushSub=null, pushTz;
  await pg.route(/lb\.test/, route=>{ const req=route.request();
    if(/\/social/.test(req.url())){ let bd={}; try{bd=JSON.parse(req.postData());}catch(e){}
-     if(bd.action==='push-sub'){ pushSub=bd.sub; return route.fulfill({contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify({ok:true})}); }
+     if(bd.action==='push-sub'){ pushSub=bd.sub; pushTz=bd.tz; return route.fulfill({contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify({ok:true})}); }
      return route.fulfill({contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify({me:{handle:'Sam',code:'YW-ME0001'},friends:[],requests:[],outgoing:0,inbox:[]})}); }
    return route.fulfill({contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify({day:16,total:1,me:null,top:[]})});
  });
@@ -38,6 +38,7 @@ const srv=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('
  // 2) enable flow: click Turn on → subscribe → push-sub POST → tl_push set → flips to Turn off
  await pg.click('button:has-text("Turn on")'); await pg.waitForTimeout(500);
  if(!pushSub || !/push.example/.test(pushSub.endpoint)) throw new Error('push-sub not posted: '+JSON.stringify(pushSub));
+ if(!Number.isFinite(pushTz)) throw new Error('tz missing from push-sub (streak nudge needs it): '+pushTz);
  if((await pg.evaluate(()=>store.get('tl_push')))!=='1') throw new Error('tl_push not set');
  if((await pg.evaluate(()=>pushEnabled()))!==true) throw new Error('pushEnabled() false after enable');
  await pg.waitForTimeout(200);

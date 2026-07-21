@@ -16,3 +16,8 @@ VAPID_SUBJECT = "mailto:samkarsten@gmail.com"
 binding = "DB"
 database_name = "yearworm"
 database_id = "PASTE_DATABASE_ID_HERE"
+
+# hourly streak-saver check (scheduled handler in worker.js): pushes a nudge at
+# ~19:00 local time when a user's daily is unplayed and a streak is at stake
+[triggers]
+crons = ["0 * * * *"]

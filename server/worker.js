@@ -449,6 +449,11 @@ async function handleSocialPost(env, b, cors, ctx){
         "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth"
       ).bind(endpoint, me.id, p256dh, auth, Date.now()).run();
     }catch(e){ return json({ error: "push not available" }, 200, cors); }   // table not migrated → soft-ok
+    // timezone (minutes east of UTC) for the evening streak-saver nudge —
+    // separate statement: the column arrives via the cron's lazy migration
+    const tz = parseInt(b.tz, 10);
+    if(Number.isFinite(tz) && Math.abs(tz) <= 14 * 60)
+      try{ await env.DB.prepare("UPDATE push_subs SET tz=?1 WHERE endpoint=?2").bind(tz, endpoint).run(); }catch(e){}
     return json({ ok: true }, 200, cors);
   }
 
@@ -630,5 +635,46 @@ export default {
     }
 
     return json({ error: "not found" }, 404, cors);
+  },
+
+  // hourly cron (wrangler.toml [triggers]): the streak-saver nudge. Around 19:00
+  // LOCAL time (tz stored per subscription), users who played yesterday (streak
+  // ≥ 1) but not today get one push: "your streak is on the line".
+  async scheduled(event, env, ctx){
+    // lazy self-migration — harmless duplicate-column errors after the first run
+    try{ await env.DB.prepare("ALTER TABLE push_subs ADD COLUMN tz INTEGER").run(); }catch(e){}
+    try{ await env.DB.prepare("ALTER TABLE push_subs ADD COLUMN nudged INTEGER").run(); }catch(e){}
+    if(!env.VAPID_PRIVATE || !env.VAPID_PUBLIC) return;
+    const today = dayNow();
+    const utcHour = new Date().getUTCHours();
+    const subs = (await env.DB.prepare("SELECT endpoint, user_id, p256dh, auth, tz, nudged FROM push_subs LIMIT 500").all()).results || [];
+    const perUser = new Map();   // user_id -> { played, streak }
+    for(const s of subs){
+      if(!Number.isFinite(s.tz)) continue;                     // tz unknown — never guess
+      const localHour = ((utcHour + Math.round(s.tz / 60)) % 24 + 24) % 24;
+      if(localHour !== 19) continue;                           // nudge in the local evening
+      if(s.nudged === today) continue;                         // once per day per device
+      let info = perUser.get(s.user_id);
+      if(!info){
+        const devs = ((await env.DB.prepare("SELECT device FROM devices WHERE user_id=?1 LIMIT 10").bind(s.user_id).all()).results || []).map(d => d.device);
+        let played = false, streak = 0;
+        if(devs.length){
+          const q = "SELECT DISTINCT day FROM scores WHERE device IN (" + devs.map((_, i) => "?" + (i + 1)).join(",") + ") ORDER BY day DESC LIMIT 60";
+          const days = new Set((((await env.DB.prepare(q).bind(...devs).all()).results) || []).map(r => r.day));
+          played = days.has(today);
+          for(let d = today - 1; days.has(d); d--) streak++;
+        }
+        info = { played, streak };
+        perUser.set(s.user_id, info);
+      }
+      if(info.played || info.streak < 1) continue;             // nothing at stake (or already safe)
+      await env.DB.prepare("UPDATE push_subs SET nudged=?1 WHERE endpoint=?2").bind(today, s.endpoint).run();
+      ctx.waitUntil((async () => { try{
+        const payload = JSON.stringify({ title: "🔥 Your " + info.streak + "-day streak is on the line",
+          body: "Today's daily is still open — keep it alive!", tab: "play" });
+        if(await sendWebPush(env, s, payload) === "gone")
+          await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?1").bind(s.endpoint).run();
+      }catch(e){} })());
+    }
   }
 };

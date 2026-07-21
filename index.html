@@ -439,7 +439,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.10.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.11.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -480,7 +480,7 @@ async function enablePush(){
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC) });
-    const r = await socialPost({ action:'push-sub', sub: sub.toJSON() });
+    const r = await socialPost({ action:'push-sub', sub: sub.toJSON(), tz: -new Date().getTimezoneOffset() });
     if(r && r.ok && r.body && r.body.ok){ store.set('tl_push','1'); toast("Notifications on 🔔"); }
     else toast("Couldn't turn on notifications — try again in a moment");
   }catch(e){ toast("Couldn't turn on notifications"); }
@@ -4606,7 +4606,7 @@ async function onGoogleCred(resp){
     if(pushEnabled()){ try{
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
-      if(sub) socialPost({ action:"push-sub", sub: sub.toJSON() });
+      if(sub) socialPost({ action:"push-sub", sub: sub.toJSON(), tz: -new Date().getTimezoneOffset() });
     }catch(e){} }
   }catch(e){ toast("Sign-in didn't work — no connection."); }
 }

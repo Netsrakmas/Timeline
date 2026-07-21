@@ -101,8 +101,12 @@ CREATE TABLE IF NOT EXISTS push_subs (
   user_id  TEXT NOT NULL,
   p256dh   TEXT NOT NULL,          -- subscription public key (b64url)
   auth     TEXT NOT NULL,          -- subscription auth secret (b64url)
-  created  INTEGER NOT NULL
+  created  INTEGER NOT NULL,
+  tz       INTEGER,                -- minutes east of UTC (evening streak nudge)
+  nudged   INTEGER                 -- last daily number a streak nudge was sent for
 );
+-- NB: on an EXISTING database the tz/nudged columns arrive via the scheduled
+-- handler's lazy ALTERs (worker.js) — this file only shapes fresh installs.
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs(user_id);
 
 -- who created a shared challenge set (first submitter), so we can notify them
