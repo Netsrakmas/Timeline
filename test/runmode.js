@@ -113,7 +113,7 @@ async function placeN(pg, n, collectTitles){
   if(!/DAILY #/.test(sheet) || !/streak/.test(sheet)) throw new Error('daily results wrong: '+sheet.slice(0,140));
   // grab a challenge link from the daily result
   if(!/Challenge friends/.test(sheet)) throw new Error('daily results missing challenge button');
-  await pg.click('text=⚔️ Challenge friends');
+  await pg.click('text=Challenge friends');
   await pg.waitForTimeout(300);
   const shared = await pg.evaluate(()=>window.__shared);
   const m = shared && shared.match(/#c=[\d.]+&s=\d+(?:&t=\d+)?/);

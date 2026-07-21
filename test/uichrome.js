@@ -74,6 +74,21 @@ const server = http.createServer((req,res)=>{
   if(await pg.evaluate(()=>localStorage.getItem('tl_sfx')) !== '1') throw new Error('toggle back on did not persist');
   console.log('sfx: default on, cues run, toggle persists + silences OK');
 
+  // 5) the chrome sweep: friends eyebrow + settings cards use inline icons,
+  // share/link/swords emoji are gone from buttons (emoji stay in content rows)
+  await pg.evaluate(()=>goTab('friends'));
+  await pg.waitForTimeout(300);
+  const fCard = await pg.$eval('#friendsCard', e=>({ svg: !!e.querySelector('.eyebrow svg.ico'), txt: e.innerText }));
+  if(!fCard.svg) throw new Error('friends eyebrow missing its svg icon');
+  if(/[👥📤🔗]/u.test(fCard.txt)) throw new Error('chrome emoji still on the friends card: '+fCard.txt.slice(0,200));
+  await pg.evaluate(()=>goTab('profile'));
+  await pg.waitForTimeout(300);
+  const pIcons = await pg.$$eval('#app .card svg.ico.ii', els=>els.length);
+  if(pIcons < 2) throw new Error('profile settings cards missing inline icons: '+pIcons);
+  const pTxt = await pg.$eval('#app', e=>e.innerText);
+  if(/🔔 Notifications|🔊 Sound/u.test(pTxt)) throw new Error('settings emoji not replaced');
+  console.log('chrome sweep: friends + profile inline icons, emoji gone OK');
+
   await browser.close(); server.close();
   console.log('UI CHROME TEST PASS ✓');
 })().catch(e=>{ console.error('UI CHROME TEST FAIL ✗', e); process.exit(1); });

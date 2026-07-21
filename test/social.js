@@ -348,7 +348,7 @@ const server = http.createServer((req,res)=>{
     throw new Error('friend challenge did not auto-send: '+JSON.stringify(autoChal));
   const sheet2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/Challenge sent to Jesse!/.test(sheet2) || !/You set \d\/5 to beat/.test(sheet2)) throw new Error('sent hero missing: '+sheet2.slice(0,260));
-  if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear on the results sheet');
+  if(await pg.$$eval('#sheet .ovrow', els=>els.some(e=>/Jesse/.test(e.innerText)))) throw new Error('target friend should not reappear on the results sheet');
   // the pass-on button covers "challenge someone else"; Jesse is excluded inside it
   if(!/Challenge friends/.test(sheet2)) throw new Error('pass-on button missing after auto-send: '+sheet2.slice(0,260));
   await pg.click('#sheet button:has-text("Challenge friends")');
@@ -377,7 +377,7 @@ const server = http.createServer((req,res)=>{
   if(!/last 7 days: 👑 you lead — 2–0/.test(dtl)) throw new Error('7-day line wrong: '+dtl.slice(0,240));
   if(!/yesterday · you 5\/5 vs 4\/5 🏆/.test(dtl)) throw new Error('recent duel line wrong: '+dtl.slice(0,300));
   if(!/3 days ago · you 2\/5 vs 4\/5/.test(dtl)) throw new Error('older duel line wrong: '+dtl.slice(0,300));
-  if(!/⚔️ Challenge Jesse/.test(dtl)) throw new Error('challenge button missing in detail sheet');
+  if(!/Challenge Jesse/.test(dtl)) throw new Error('challenge button missing in detail sheet');
   await pg.click('#sheet button:has-text("Close")');
   await pg.waitForTimeout(200);
   if(await pg.$eval('#overlay', e=>e.classList.contains('show'))) throw new Error('detail sheet did not close');

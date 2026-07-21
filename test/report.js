@@ -62,7 +62,7 @@ const server = http.createServer((req,res)=>{
   await pg.click('.report-yr summary');
   const oldYear = await pg.$eval('#sheet .rev-yr', e=>Number(e.value));
   await pg.$eval('#sheet .rev-yr', e=>{ e.value = String(Number(e.value)+1); e.dispatchEvent(new Event('change')); });
-  await pg.click('text=📤 Report this fix');
+  await pg.click('text=Report this fix');
   await pg.waitForTimeout(500);
 
   if(!reported) throw new Error('no POST reached docs.google.com');
