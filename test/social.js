@@ -55,7 +55,7 @@ const server = http.createServer((req,res)=>{
         }
         if(b.action==='accept'){ state.requests = []; state.friends = [{id:'f1', handle:'Jesse', avatar:'m:12'}]; }
         if(b.action==='seen'){ state.inbox = state.inbox.filter(m=>!b.ids.includes(m.id)); }
-        if(b.action==='challenge'){ /* recorded via actions */ }
+        if(b.action==='challenge'){ state.sent = [{to:b.to, handle: b.to==='f9'?'Zoe':'Jesse', at: Date.now()}]; }
       }
       route.fulfill({contentType:'application/json', body: JSON.stringify(state),
         headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});
@@ -214,6 +214,15 @@ const server = http.createServer((req,res)=>{
   const sent = actions.find(a=>a.action==='challenge');
   if(!sent || sent.to!=='f9' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
   console.log('direct-send passes the set to another friend (Zoe), not the challenger OK ·', JSON.stringify({to:sent.to, score:sent.score}));
+
+  // 5b-bis0) the outstanding challenge shows as ⏳ on Zoe's friend row + in the feed
+  await pg.evaluate(()=>{ document.getElementById('overlay').classList.remove('show'); goTab('friends'); });
+  await pg.waitForTimeout(500);
+  const fcNow = await pg.$eval('#friendsCard', e=>e.innerHTML);
+  if(!/⏳/.test(fcNow)) throw new Error('outstanding-challenge hourglass missing on friend row');
+  const feedNow = await pg.$eval('#feedCard', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/You challenged Zoe[\s\S]*⏳/.test(feedNow) && !/⏳/.test(feedNow)) throw new Error('feed missing waiting marker: '+feedNow.slice(0,200));
+  console.log('outstanding challenge: ⏳ on friend row + feed OK');
 
   // 5b-bis) the activity feed logged all of it: incoming challenge, duel verdict,
   // outgoing challenge — and renders on the Friends tab

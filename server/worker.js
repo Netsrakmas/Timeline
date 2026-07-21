@@ -282,7 +282,16 @@ async function socialState(env, me, cors){
   }
   const linked = await env.DB.prepare("SELECT user_id FROM logins WHERE user_id=?1 LIMIT 1").bind(me.id).first();
   let myAv = null; try{ const a = await env.DB.prepare("SELECT avatar FROM users WHERE id=?1").bind(me.id).first(); myAv = a && a.avatar || null; }catch(e){}
-  return json({ me: { handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox }, 200, cors);
+  // challenges I sent that the recipient hasn't answered yet — "⏳ waiting" UI
+  const sent = [];
+  for(const r of ((await env.DB.prepare(
+    "SELECT to_user, created FROM inbox WHERE from_user=?1 AND kind='challenge' AND seen=0 ORDER BY created DESC LIMIT 20"
+  ).bind(me.id).all()).results || [])){
+    let h = named[r.to_user];
+    if(!h){ const u = await env.DB.prepare("SELECT handle FROM users WHERE id=?1").bind(r.to_user).first(); h = u && u.handle; }
+    if(h) sent.push({ to: r.to_user, handle: h, at: r.created });
+  }
+  return json({ me: { handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox, sent }, 200, cors);
 }
 async function handleSocialPost(env, b, cors, ctx){
   // schedule a push without delaying the response (falls back to inline await)
@@ -382,8 +391,8 @@ async function handleSocialPost(env, b, cors, ctx){
   }
 
   if(action === "react"){
-    // structured reactions only — a fixed emoji set, no free text ever
-    const REACTIONS = ["🔥","😱","😂","👏","🎯","GG"];
+    // structured reactions only — a fixed set (emoji + quick phrases), no free text ever
+    const REACTIONS = ["🔥","😱","😂","👏","🎯","🤯","💀","🐐","GG","Rematch?","So close!","Lucky 🍀"];
     const to = String(b.to || "");
     const emoji = String(b.emoji || "");
     const score = Number.isFinite(parseInt(b.score, 10)) ? parseInt(b.score, 10) : null;
@@ -391,8 +400,20 @@ async function handleSocialPost(env, b, cors, ctx){
     const [a, bb] = pair(me.id, to);
     const fr = await env.DB.prepare("SELECT status FROM friends WHERE a=?1 AND b=?2").bind(a, bb).first();
     if(!fr || fr.status !== "accepted") return json({ error: "not a friend" }, 403, cors);
-    await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'react',?3,?4)")
-      .bind(to, me.id, JSON.stringify({ emoji, score }), Date.now()).run();
+    // bundling: if my unseen RESULT for their challenge is still in their inbox,
+    // attach the reaction to it — one message ("X played your challenge — 4/5 🔥")
+    // instead of two separate rows
+    const res = await env.DB.prepare(
+      "SELECT id, payload FROM inbox WHERE to_user=?1 AND from_user=?2 AND kind='result' AND seen=0 ORDER BY created DESC LIMIT 1"
+    ).bind(to, me.id).first();
+    if(res){
+      let pay = {}; try{ pay = JSON.parse(res.payload); }catch(e){}
+      pay.emoji = emoji;
+      await env.DB.prepare("UPDATE inbox SET payload=?1 WHERE id=?2").bind(JSON.stringify(pay), res.id).run();
+    } else {
+      await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'react',?3,?4)")
+        .bind(to, me.id, JSON.stringify({ emoji, score }), Date.now()).run();
+    }
     push(to, { title: me.handle + " reacted " + emoji, body: "on your challenge result", tab: "friends" });
     return socialState(env, me, cors);
   }

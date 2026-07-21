@@ -85,11 +85,12 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(600);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/#7 of 42 today/.test(sheet)) throw new Error('rank line missing: '+sheet.slice(0,220));
-  // per-song recap: one row per placement, each with verdict emoji + year + title
-  const recapRows = await pg.$$eval('#runRecap > div', els=>els.map(e=>e.innerText.replace(/\s+/g,' ')));
+  // per-song recap: collapsed <details> by default, one row per placement
+  const recapRows = await pg.$$eval('#runRecap > div', els=>els.map(e=>e.textContent.replace(/\s+/g,' ')));
   if(recapRows.length !== 5) throw new Error('recap should list 5 songs, got '+recapRows.length);
   if(!recapRows.every(r=>/[🟩🟥]/u.test(r) && /\d{4}/.test(r))) throw new Error('recap rows malformed: '+JSON.stringify(recapRows));
-  console.log('per-song recap: 5 rows with verdict + year OK');
+  if(await pg.$eval('#runRecap', e=>e.closest('details').open)) throw new Error('recap should start collapsed');
+  console.log('per-song recap: 5 rows behind a collapsed toggle OK');
   if(!/Ace 5\/5/.test(sheet) || !/Cy 4\/5/.test(sheet)) throw new Error('top-3 missing: '+sheet.slice(0,220));
   if(!/playing as/.test(sheet)) throw new Error('nickname field missing');
   if(posts.length!==1) throw new Error('expected 1 submit, got '+posts.length);

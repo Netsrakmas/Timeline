@@ -454,7 +454,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.12.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.13.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4833,7 +4833,7 @@ async function playInboxChal(id){
   await startChallenge();
   S.reactTo = from;   // after startGame (which clears it) — offer a reaction on the results screen
 }
-const REACT_EMOJI = ["🔥","😱","😂","👏","🎯","GG"];
+const REACT_EMOJI = ["🔥","😱","😂","👏","🎯","🤯","💀","🐐","GG","Rematch?","So close!","Lucky 🍀"];
 async function sendReact(to, emoji, score){
   const r = await socialPost({ action:"react", to, emoji, score });
   toast(r && r.ok ? "Sent " + emoji : "Couldn't send that — no connection?");
@@ -5095,7 +5095,7 @@ function feedFromInbox(st){
     if(m.kind === "challenge") logFeed({ id:m.id, k:"chal-in", who:m.handle, s:m.payload && m.payload.score });
     else if(m.kind === "friend") logFeed({ id:m.id, k:"friend", who:m.handle });
     else if(m.kind === "react") logFeed({ id:m.id, k:"react", who:m.handle, e:(m.payload && m.payload.emoji)||"👏" });
-    else if(m.kind === "result") logFeed({ id:m.id, k:"result", who:m.handle, s:m.payload && m.payload.score, w:m.payload && m.payload.w });
+    else if(m.kind === "result") logFeed({ id:m.id, k:"result", who:m.handle, u:m.from, s:m.payload && m.payload.score, w:m.payload && m.payload.w, e:m.payload && m.payload.emoji });
   }
 }
 function fmtAgo(t){
@@ -5116,11 +5116,13 @@ function feedRowHTML(e){
                          : e.r==="l" ? `${who} held it — ${e.mine}–${e.theirs}`
                          : `Dead even with ${who} — ${e.mine}–${e.theirs}`; break;
     case "result":  icon = e.w==="you" ? "🛡" : e.w==="them" ? "😱" : "🤝";
-                    text = e.w==="you" ? `${who} played your challenge — you held it (their ${e.s}/${RUN_LEN})`
+                    text = (e.w==="you" ? `${who} played your challenge — you held it (their ${e.s}/${RUN_LEN})`
                          : e.w==="them" ? `${who} beat your challenge — ${e.s}/${RUN_LEN}`
-                         : `${who} tied your challenge — ${e.s}/${RUN_LEN}`; break;
+                         : `${who} tied your challenge — ${e.s}/${RUN_LEN}`)
+                         + (e.e ? ` <span style="font-size:15px">${esc(e.e)}</span>` : ``); break;
     case "chal-in": icon = "⚔️"; text = `${who} challenged you${e.s!=null ? ` — beat ${e.s}/${RUN_LEN}` : ``}`; break;
-    case "chal-out":icon = "⚔️"; text = `You challenged ${who} — ${e.s}/${RUN_LEN} to beat`; break;
+    case "chal-out":icon = "⚔️"; text = `You challenged ${who} — ${e.s}/${RUN_LEN} to beat`
+                         + ((_social && _social.sent || []).some(x => x.handle === e.who) ? ` <span title="Still waiting" style="font-size:13px">⏳</span>` : ``); break;
     case "friend":  icon = "🎉"; text = `${who} added you as a friend`; break;
     case "react":   icon = esc(e.e || "👏"); text = `${who} reacted to your result`; break;
     case "run":     icon = e.kind==="turbo" ? "⚡" : "🎯";
@@ -5128,11 +5130,27 @@ function feedRowHTML(e){
     case "survival":icon = "🎧"; text = `Survival — <b>${e.c}</b> card${e.c===1?"":"s"}${e.nb ? ` · 🎉 new best` : ``}`; break;
     default: return "";
   }
-  return `<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line)">
-    <span style="flex:0 0 30px; text-align:center; font-size:17px" aria-hidden="true">${icon}</span>
-    <span style="flex:1; min-width:0; font-size:13px">${text}</span>
-    <span class="muted" style="flex:0 0 auto; font-size:10.5px; font-family:var(--mono)">${fmtAgo(e.t)}</span>
-  </div>`;
+  // a friend's result on YOUR challenge is reactable after the fact — tap the row
+  const reactable = e.k === "result" && e.u && LB.url;
+  const inner = `<span style="flex:0 0 30px; text-align:center; font-size:17px" aria-hidden="true">${icon}</span>
+    <span style="flex:1; min-width:0; font-size:13px; text-align:left">${text}</span>
+    <span class="muted" style="flex:0 0 auto; font-size:10.5px; font-family:var(--mono)">${fmtAgo(e.t)}</span>`;
+  return reactable
+    ? `<button type="button" style="display:flex; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line); width:100%; background:none; border-left:none; border-right:none; border-bottom:none; color:var(--text); font:inherit; cursor:pointer"
+        onclick="openReactSheet('${e.u}','${esc(e.who || "")}')" aria-label="React to ${esc(e.who || "this result")}">${inner}</button>`
+    : `<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line)">${inner}</div>`;
+}
+/* react later, from the feed: same fixed reaction set, aimed at a specific friend */
+function openReactSheet(user, handle){
+  const sheet = document.getElementById("sheet"); if(!sheet) return;
+  sheet.innerHTML = `
+    <div class="winner-emoji">💬</div>
+    <div class="verdict good" style="margin-top:2px">React to ${esc(handle || "them")}</div>
+    <div class="row" style="gap:6px; justify-content:center; flex-wrap:wrap; margin-top:12px" id="reactRow">
+      ${REACT_EMOJI.map(em=>`<button class="btn sm" onclick="sendReact('${user}','${em}',null); closeOverlay();">${em}</button>`).join("")}
+    </div>
+    <button class="btn ghost" style="margin-top:14px" onclick="closeOverlay()">Close</button>`;
+  showSheet();
 }
 function feedCardHTML(){
   const f = loadFeed();
@@ -5225,7 +5243,7 @@ function friendsCardHTML(st){
                       : w === "them" ? `<b style="color:var(--bad)">they beat you</b>`
                       : `<b>dead even 🤝</b>`;
         return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
-        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> played your challenge${sc != null ? ` — ${sc}/${RUN_LEN}` : ``} · ${verdict}</span>
+        <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> played your challenge${sc != null ? ` — ${sc}/${RUN_LEN}` : ``} · ${verdict}${m.payload && m.payload.emoji ? ` <span style="font-size:15px">${esc(m.payload.emoji)}</span>` : ``}</span>
         <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
       </div>`;}).join("")}
       ${reacts.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
@@ -5246,6 +5264,7 @@ function friendsCardHTML(st){
             <button class="frname" onclick="friendDetail('${f.id}')" aria-label="Duel record with ${esc(f.handle)}">${esc(f.handle)}</button>
           </span>
           <span style="display:inline-flex; gap:9px; align-items:center; flex:0 0 auto">
+            ${(st && st.sent || []).some(x => x.to === f.id) ? `<span title="Your challenge is waiting for them" aria-label="Challenge outstanding" style="font-size:13px">⏳</span>` : ``}
             ${any ? `<span style="font-size:12.5px; color:${col}">${w > l ? "👑 " : ""}you ${w}–${l}${t ? ` · ${t} tie${t===1?"":"s"}` : ``}</span>` : ``}
             <button class="btn sm" style="padding:6px 11px" onclick="challengeFriend('${f.id}')" aria-label="Challenge ${esc(f.handle)}">⚔️</button>
           </span>
@@ -6191,7 +6210,7 @@ function achievementsHTML(){
   const nFriends = ((_social && _social.friends) || []).length;
   const streakBest = Math.max(d.streak||0, d.maxStreak||0);
   // n(current, target) → a count-up badge with an x/y progress readout
-  const n = (v, t) => ({ done: (v|0) >= t, prog: `${Math.min(v|0, t)}/${t}` });
+  const n = (v, t) => ({ done: (v|0) >= t, prog: (v|0) > 0 ? `${Math.min(v|0, t)}/${t}` : "—" });
   const A = [
     // — the daily grind —
     { icon:"📅", name:"Regular",        desc:"Play a Daily Challenge",            ...n((life.dailies|0) || (d.num!=null?1:0), 1) },
@@ -6635,8 +6654,7 @@ function overlayRunOver(){
   const sheet = document.getElementById("sheet");
   // the run's final placement reveals right here — no separate in-between screen
   const last = S.lastReveal; S.lastReveal = null;
-  // the per-song recap (solo runs) already lists the final song — no separate line then
-  const lastLine = (last && !(solo && S.runLog && S.runLog.length)) ? `<div style="font-size:14px; margin:2px 0 6px">last song:
+  const lastLine = last ? `<div style="font-size:14px; margin:2px 0 6px">last song:
       <span style="color:${last.correct?'var(--good)':'var(--bad)'}; font-weight:700">${last.correct?'✓':'✗'} ${last.year}</span>
       <span class="muted">— ${esc(last.name)} · ${esc(last.artist)}</span></div>` : ``;
 
@@ -6745,12 +6763,14 @@ function overlayRunOver(){
     <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>
     <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
     <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
-    ${(solo && S.runLog && S.runLog.length) ? `<div id="runRecap" style="margin:10px auto 2px; max-width:320px; text-align:left">
+    ${(solo && S.runLog && S.runLog.length) ? `<details style="margin:8px auto 2px; max-width:320px">
+      <summary class="muted" style="cursor:pointer; font-size:12px; list-style-position:inside">Show the songs</summary>
+      <div id="runRecap" style="margin-top:6px; text-align:left">
       ${S.runLog.map(r=>`<div style="display:flex; gap:8px; align-items:center; font-size:12.5px; padding:3px 0">
         <span aria-hidden="true">${r.ok?'🟩':'🟥'}</span>
         <b style="font-family:var(--mono); flex:0 0 auto">${r.year}</b>
         <span class="muted" style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(r.name)} — ${esc(r.artist)}</span>
-      </div>`).join("")}</div>` : ``}
+      </div>`).join("")}</div></details>` : ``}
     ${lastLine}
     ${streakLine}
     ${sentLine}
@@ -6764,7 +6784,7 @@ function overlayRunOver(){
     ${last ? flagBlockHTML(last.id, last.year) : ``}
     ${S.reactTo ? `
       <div class="muted" style="font-size:12px; margin-top:12px">react to <b>${esc(S.reactTo.handle)}</b>:</div>
-      <div class="row" style="gap:6px; justify-content:center; margin-top:6px" id="reactRow">
+      <div class="row" style="gap:6px; justify-content:center; flex-wrap:wrap; margin-top:6px" id="reactRow">
         ${REACT_EMOJI.map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
       </div>` : ``}
     ${(_social && _social.friends && _social.friends.some(f=>!(S.chalTarget && f.id===S.chalTarget.user) && !(S.reactTo && f.id===S.reactTo.user)) && setIdx && setIdx.length>=2) ? `
