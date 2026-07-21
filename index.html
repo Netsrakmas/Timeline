@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.4.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.5.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4396,12 +4396,40 @@ function dailyPlayedToday(){
    is the real cheat (grinding fresh sets is just picking your proudest score) */
 function chalKey(idx){ return (idx||[]).join("."); }
 function loadChals(){ try{ return JSON.parse(store.get("tl_chals")||"{}")||{}; }catch(e){ return {}; } }
-function recordChal(idx, score, timeMs, mine){
+function recordChal(idx, score, timeMs, mine, daily){
   if(!idx || idx.length<2) return;
-  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0, m:mine?1:0, at:Date.now(), n:0 };
+  // d:1 marks the daily set — still "mine" (own-link card works when you share
+  // it), but chalNews must skip it: the whole world plays the daily, so "new
+  // results on your challenges" would just list strangers
+  const c = loadChals(); c[chalKey(idx)] = { s:score, t:timeMs||0, m:mine?1:0, ...(daily?{d:1}:{}), at:Date.now(), n:0 };
   store.set("tl_chals", JSON.stringify(c));
 }
 function chalPlayed(idx){ return (idx && idx.length>=2) ? loadChals()[chalKey(idx)] : null; }
+/* anti-cheat: seeded sets are one-shot, but results used to be recorded only at
+   the END of a run — quitting mid-run after seeing reveals allowed a clean replay
+   with known answers. So persist progress after EVERY placement: abandoning a
+   daily or an incoming challenge burns the attempt with the score so far (a
+   partial record carries p:1 and is finalized — overwritten — at run over). */
+function recordRunProgress(){
+  const me = S.players && S.players[0]; if(!me) return;
+  const partial = (me.tries||0) < RUN_LEN;
+  if(S.mode === "daily"){
+    const d = loadDaily(), today = localDay(0);
+    if(d.last === today && !d.p) return;   // already finished today — never downgrade
+    // streak is computed on the first write of the local day, then carried
+    const streak = (d.last === today) ? (d.streak||1) : (d.last === localDay(-1)) ? (d.streak||0)+1 : 1;
+    saveDaily({ last: today, streak, best: Math.max(me.hits||0, d.best||0), score: me.hits||0,
+                results: (me.results||[]).slice(), num: S.dailyNum || dailyNumber(),
+                idx: (S.runCards && S.runCards.length>=2) ? S.runCards.slice() : null,
+                timeMs: me.timeMs||0, ...(partial ? { p:1 } : {}) });
+  } else if(S.mode === "challenge" && S.challenge && S.challenge.idx){
+    const c = loadChals(), k = chalKey(S.challenge.idx), prev = c[k];
+    if(prev && !prev.p) return;            // finished before — never downgrade
+    c[k] = { s: me.hits||0, t: me.timeMs||0, m: 0, at: (prev && prev.at) || Date.now(),
+             n: (prev && prev.n) || 0, ...(partial ? { p:1 } : {}) };
+    store.set("tl_chals", JSON.stringify(c));
+  }
+}
 function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="classic" && S.turbo); }
 // classic race: after someone hits the target, only players ONE card short can
 // still force a tie (+1 max per turn). If none remain this round, it's over.
@@ -4462,11 +4490,13 @@ function lbNick(){
   }
   return n.slice(0,20);
 }
-async function lbSubmitDaily(score, timeMs){
+async function lbSubmitDaily(score, timeMs, day){
   if(!LB.url) return null;
   try{
+    // day: the puzzle number stamped at run START — finishing after UTC midnight
+    // must not post the score onto the next day's board (server accepts ±1)
     const r = await fetch(LB.url+"/daily", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ day: dailyNumber(), device: deviceId(), nick: lbNick(), score, timeMs }) });
+      body: JSON.stringify({ day: day || dailyNumber(), device: deviceId(), nick: lbNick(), score, timeMs }) });
     return r.ok ? await r.json() : null;
   }catch(e){ return null; }
 }
@@ -4502,7 +4532,7 @@ function saveNickTop(v){
 function saveNick(v){
   store.set("tl_nick", (v||"").replace(/\s+/g," ").trim().slice(0,20));
   const d = loadDaily();
-  if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0).then(b=>{
+  if(d.last === localDay(0)) lbSubmitDaily(d.score||0, d.timeMs||0, d.num).then(b=>{
     const el = document.getElementById("lbline"); if(el && b) el.innerHTML = lbLineHTML(b);
   });
   // refresh the name on recent set boards too (server keeps the score, takes the nick)
@@ -5159,7 +5189,7 @@ function chalOthersHTML(b){
 async function chalNews(){
   if(!LB.url) return;
   const c = loadChals();
-  const own = Object.entries(c).filter(([k,v])=>v.m && v.at).sort((a,b)=>b[1].at-a[1].at).slice(0,3);
+  const own = Object.entries(c).filter(([k,v])=>v.m && v.at && !v.d).sort((a,b)=>b[1].at-a[1].at).slice(0,3);   // !v.d: never poll the daily — the world plays that set
   const lines = []; let changed = false;
   for(const [k,v] of own){
     const b = await lbFetchChal(k); if(!b) continue;
@@ -5733,6 +5763,7 @@ function chooseSlot(idx){
   S.used.add(S.current.id);
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
+  if(run) recordRunProgress();   // one-shot sets burn from the first reveal on
   // last placement of a run: skip the in-between reveal — the results screen
   // carries the final song's reveal line itself (one screen, not two)
   if(run && S.players.every(pl => (pl.tries||0) >= RUN_LEN)){
@@ -6472,21 +6503,14 @@ function overlayRunOver(){
   // S.challenge only owns this result if this WAS a challenge run — a pending
   // link left on setup must not hijack a later daily/turbo run's recording
   const setIdx = (chal && S.challenge && S.challenge.idx) || S.runCards;
-  // "mine" sets are watched by chalNews for new results. The daily is NOT mine —
-  // the whole world plays that set, so news about it would just list strangers.
-  const mine = !daily && !(chal && S.challenge && S.challenge.idx);
-  if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0, mine);
+  const mine = !(chal && S.challenge && S.challenge.idx);   // own run vs an incoming link
+  // a partial record (p:1, written per-placement for one-shot sets) is finalized here
+  const exChal = chalPlayed(setIdx);
+  if(setIdx && setIdx.length>=2 && (!exChal || exChal.p)) recordChal(setIdx, score, me.timeMs||0, mine, daily);
   let streakLine = "", title = 'TURBO RUN', duelWon = false;
   if(daily){
-    title = 'DAILY #'+dailyNumber();
-    const d = loadDaily();
-    if(d.last !== localDay(0)){
-      const streak = (d.last === localDay(-1)) ? (d.streak||0)+1 : 1;
-      saveDaily({ last: localDay(0), streak, best: Math.max(score, d.best||0),
-                  score, results: (me.results||[]).slice(), num: dailyNumber(),
-                  idx: (S.runCards && S.runCards.length>=2) ? S.runCards : null,
-                  timeMs: me.timeMs||0 });
-    }
+    title = 'DAILY #'+(S.dailyNum || dailyNumber());
+    recordRunProgress();   // final write (all placements done → no p flag)
     streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
   } else if(chal){
     title = 'CHALLENGE';
@@ -6560,7 +6584,7 @@ function overlayRunOver(){
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
   `;
   showSheet();
-  if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0).then(b=>{
+  if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0, S.dailyNum).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
   });
   if(LB.url && setIdx && setIdx.length>=2) lbSubmitChal(chalKey(setIdx), score, me.timeMs||0, daily).then(b=>{
@@ -6640,8 +6664,13 @@ async function startChallenge(){
   unlockAudio();
   S.deck = []; S.deckSeen = new Set(); S.loadingMore = false;
   renderLoading(0, songs.length);
-  const got = await resolveInitial(songs, (d,t)=>renderLoading(d,t), ()=> S.deck.length >= 2);
-  if(S.deck.length < 2){
+  // a link-derived set carries EXACTLY the songs played (no spares): resolve all
+  // of them up front, and abort cleanly if any fail — starting short would end
+  // the run early and burn the recipient's one-shot on a partial score. Fresh
+  // challenges (idx includes spares) keep the fast early start + streaming.
+  const strict = S.challenge.idx.length <= RUN_LEN + 1;
+  const got = await resolveInitial(songs, (d,t)=>renderLoading(d,t), ()=> !strict && S.deck.length >= 2);
+  if(S.deck.length < (strict ? songs.length : 2)){
     showError("Couldn't load the challenge songs — Apple may be rate-limiting. Try again in a moment.");
     renderSetup(); return;
   }
@@ -6741,6 +6770,8 @@ async function startDaily(){
   if(dailyPlayedToday()){ toast("You already played today's daily — come back tomorrow!"); return; }
   track("start-daily");
   S.mode = "daily"; S.turbo = false;
+  S.dailyNum = dailyNumber();   // stamped at START: crossing UTC midnight mid-run
+                                // must not book the score on the next day's puzzle
   stashRoster();
   S.players = [{ name:"You", timeline:[] }];
   const songs = dailySongs(RUN_LEN + 5);   // anchor + run + spares for dead previews
