@@ -213,13 +213,28 @@
     border:2px solid var(--s1); line-height:1;}
   .idmeta{flex:1; min-width:0;}
   .namerow{display:flex; align-items:center; gap:8px;}
-  input.nameinput{background:none; border:none; border-bottom:1px dashed rgba(255,255,255,.20); padding:0 0 3px; flex:1; min-width:0;
+  input.nameinput{background:none; border:none; border-bottom:1px solid transparent; padding:0 0 3px; flex:1; min-width:0;
     color:var(--text); font:inherit; font-size:21px; font-weight:800; outline:none; border-radius:0;}
-  input.nameinput:focus{color:var(--gold); border-bottom-color:var(--gold); border-bottom-style:solid;}
+  input.nameinput:focus{color:var(--gold); border-bottom-color:var(--gold);}
   .nameedit{flex:0 0 auto; width:30px; height:30px; border-radius:9px; display:grid; place-items:center; cursor:pointer;
     font-size:13px; color:var(--muted); background:var(--s2); border:1px solid var(--line);}
   .nameedit:active{transform:scale(.94);}
-  .idsub{font-size:11.5px; margin-top:6px;}
+  .idsub{font-size:11.5px; margin-top:8px;}
+  /* profile stats: a real grid — 3 columns, rows always line up */
+  .statgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px 8px; text-align:center;}
+  .statgrid .sv{font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold);}
+  .statgrid .sl{font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin-top:3px; color:var(--muted);}
+  /* achievements: compact 3-up tiles (30 badges — rows would be a scroll marathon) */
+  .achgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .ach{display:flex; flex-direction:column; align-items:center; gap:4px; padding:11px 6px 9px;
+    border-radius:12px; background:var(--s2); border:1px solid var(--line); cursor:pointer;
+    font:inherit; color:var(--text);}
+  .ach:not(.done){opacity:.72;}
+  .ach.done{border-color:rgba(246,185,59,.45); background:rgba(246,185,59,.10); opacity:1;}
+  .ach .aicon{font-size:22px; line-height:1;}
+  .ach .aname{font-size:10.5px; font-weight:700; text-align:center; line-height:1.25;}
+  .ach .aprog{font-family:var(--mono); font-size:9.5px; color:var(--muted);}
+  .ach.done .aprog{color:var(--good);}
   /* avatar picker grid (in the sheet) */
   .avgrid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
   .avopt{aspect-ratio:1; font-size:23px; line-height:1; border-radius:12px; display:grid; place-items:center; cursor:pointer;
@@ -439,7 +454,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.11.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.12.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4414,7 +4429,8 @@ function recordRunProgress(){
     if(d.last === today && !d.p) return;   // already finished today — never downgrade
     // streak is computed on the first write of the local day, then carried
     const streak = (d.last === today) ? (d.streak||1) : (d.last === localDay(-1)) ? (d.streak||0)+1 : 1;
-    saveDaily({ last: today, streak, best: Math.max(me.hits||0, d.best||0), score: me.hits||0,
+    saveDaily({ last: today, streak, maxStreak: Math.max(streak, d.maxStreak||0),
+                best: Math.max(me.hits||0, d.best||0), score: me.hits||0,
                 results: (me.results||[]).slice(), num: S.dailyNum || dailyNumber(),
                 idx: (S.runCards && S.runCards.length>=2) ? S.runCards.slice() : null,
                 timeMs: me.timeMs||0, ...(partial ? { p:1 } : {}) });
@@ -4706,6 +4722,7 @@ async function sendChal(to, set, score, timeMs){
   if(r && r.ok){
     const f = _social && _social.friends && _social.friends.find(x => x.id === to);
     logFeed({ k:"chal-out", who: f && f.handle, s: score });
+    bumpLife("sent");
   }
 }
 // tap the friends header: ALL standings in one sheet; each row opens the detail
@@ -6171,28 +6188,61 @@ function ranksBoardHTML(b){
 function achievementsHTML(){
   const d = loadDaily(), best = loadBest(), life = loadLife();
   const wins = ((_social && _social.friends) || []).reduce((s,f)=>s+(f.w|0), 0);
+  const nFriends = ((_social && _social.friends) || []).length;
+  const streakBest = Math.max(d.streak||0, d.maxStreak||0);
+  // n(current, target) → a count-up badge with an x/y progress readout
+  const n = (v, t) => ({ done: (v|0) >= t, prog: `${Math.min(v|0, t)}/${t}` });
   const A = [
-    { icon:"📅", name:"Regular", desc:"Play a Daily Challenge", done:(d.streak||0)>=1 || (d.num!=null) },
-    { icon:"💯", name:"Perfect Day", desc:"Score 5/5 on a Daily", done:(d.best||0)>=RUN_LEN, prog:`best ${d.best||0}/${RUN_LEN}` },
-    { icon:"🔥", name:"On Fire", desc:"7-day Daily streak", done:(d.streak||0)>=7, prog:`${d.streak||0}/7` },
-    { icon:"⚔️", name:"First Blood", desc:"Win a duel", done:wins>=1, prog:wins?`${wins} won`:"0 won" },
-    { icon:"⚡", name:"Speed Demon", desc:"Score 5/5 in Turbo", done:(best.turbo||0)>=RUN_LEN, prog:`best ${best.turbo||0}/${RUN_LEN}` },
-    { icon:"🎧", name:"Crate Digger", desc:"Place 100 cards in Survival", done:(best.cards||0)>=100, prog:`${best.cards||0}/100` },
-    { icon:"🎯", name:"Bullseye", desc:"Place 250 cards in total", done:(life.cards|0)>=250, prog:`${life.cards|0}/250` },
-    { icon:"🏅", name:"Century", desc:"Play 100 games", done:(life.games|0)>=100, prog:`${life.games|0}/100` },
-    { icon:"👑", name:"Champion", desc:"Finish top-10 on a Daily", done:!!d.bestRank && d.bestRank<=10, prog: d.bestRank?`best #${d.bestRank}`:"🔒" },
+    // — the daily grind —
+    { icon:"📅", name:"Regular",        desc:"Play a Daily Challenge",            ...n((life.dailies|0) || (d.num!=null?1:0), 1) },
+    { icon:"🗓️", name:"Daily Devotee",  desc:"Play 10 Daily Challenges",          ...n(life.dailies, 10) },
+    { icon:"📆", name:"Daily Addict",   desc:"Play 50 Daily Challenges",          ...n(life.dailies, 50) },
+    { icon:"💯", name:"Perfect Day",    desc:"Score 5/5 on a Daily",              done:(d.best||0)>=RUN_LEN, prog:`best ${d.best||0}/${RUN_LEN}` },
+    { icon:"🔥", name:"On Fire",        desc:"7-day Daily streak",                ...n(streakBest, 7) },
+    { icon:"🌋", name:"Unstoppable",    desc:"30-day Daily streak",               ...n(streakBest, 30) },
+    { icon:"👑", name:"Champion",       desc:"Finish top-10 on a Daily",          done:!!d.bestRank && d.bestRank<=10, prog:d.bestRank?`best #${d.bestRank}`:"—" },
+    { icon:"🌍", name:"World Beater",   desc:"Finish #1 on a Daily",              done:d.bestRank===1, prog:d.bestRank?`best #${d.bestRank}`:"—" },
+    // — duels & friends —
+    { icon:"⚔️", name:"First Blood",    desc:"Win a duel",                        ...n(wins, 1) },
+    { icon:"🗡️", name:"Duelist",        desc:"Win 10 duels",                      ...n(wins, 10) },
+    { icon:"🏰", name:"Warlord",        desc:"Win 25 duels",                      ...n(wins, 25) },
+    { icon:"📤", name:"Gauntlet Thrower", desc:"Challenge friends 5 times",       ...n(life.sent, 5) },
+    { icon:"🤝", name:"Better Together", desc:"Add a friend",                     ...n(nFriends, 1) },
+    { icon:"👥", name:"Squad",          desc:"Have 5 friends",                    ...n(nFriends, 5) },
+    { icon:"🎪", name:"Entourage",      desc:"Have 10 friends",                   ...n(nFriends, 10) },
+    // — skill —
+    { icon:"⚡", name:"Speed Demon",    desc:"Score 5/5 in Turbo",                done:(best.turbo||0)>=RUN_LEN, prog:`best ${best.turbo||0}/${RUN_LEN}` },
+    { icon:"✨", name:"Flawless",       desc:"3 perfect runs",                    ...n(life.perfect, 3) },
+    { icon:"💎", name:"Perfectionist",  desc:"10 perfect runs",                   ...n(life.perfect, 10) },
+    // — survival —
+    { icon:"🛟", name:"Survivor",       desc:"25 cards in one Survival run",      ...n(best.cards, 25) },
+    { icon:"🎧", name:"Crate Digger",   desc:"100 cards in one Survival run",     ...n(best.cards, 100) },
+    { icon:"🧨", name:"Hot Streak",     desc:"15 in a row in Survival",           ...n(best.streak, 15) },
+    // — the long haul —
+    { icon:"🚀", name:"Getting Started", desc:"Play 10 games",                    ...n(life.games, 10) },
+    { icon:"🏅", name:"Century",        desc:"Play 100 games",                    ...n(life.games, 100) },
+    { icon:"🏆", name:"Marathon",       desc:"Play 500 games",                    ...n(life.games, 500) },
+    { icon:"🎯", name:"Bullseye",       desc:"Place 250 cards in total",          ...n(life.cards, 250) },
+    { icon:"🗄️", name:"Collector",      desc:"Place 1,000 cards in total",        ...n(life.cards, 1000) },
+    { icon:"📚", name:"Librarian",      desc:"Place 2,500 cards in total",        ...n(life.cards, 2500) },
+    // — around the app —
+    { icon:"🛠️", name:"Deck Builder",   desc:"Create a custom deck",              ...n((S.customDecks||[]).length, 1) },
+    { icon:"🎤", name:"Signed Up",      desc:"Claim a player name",               done:!!loadProfile(), prog:loadProfile()?"✓":"—" },
+    { icon:"🔔", name:"Plugged In",     desc:"Turn on notifications",             done:pushSupported() && pushEnabled(), prog:"—" },
   ];
   const unlocked = A.filter(a=>a.done).length;
-  const grid = A.map(a=>`<div style="display:flex; gap:10px; align-items:center; padding:9px 0; ${a===A[0]?'':'border-top:1px solid var(--line)'}; opacity:${a.done?1:.6}">
-    <div style="width:38px; height:38px; flex:0 0 auto; border-radius:11px; display:grid; place-items:center; font-size:19px; background:${a.done?'rgba(246,185,59,.16)':'rgba(255,255,255,.04)'}; border:1px solid ${a.done?'rgba(246,185,59,.35)':'var(--line)'}">${a.icon}</div>
-    <div style="flex:1; min-width:0"><div style="font-weight:700; font-size:14px">${a.name}</div><div class="muted" style="font-size:11.5px">${a.desc}</div></div>
-    <span style="flex:0 0 auto; font-family:var(--mono); font-size:11.5px; color:${a.done?'var(--good)':'var(--muted)'}">${a.done?'✓':(a.prog||'🔒')}</span></div>`).join("");
+  const grid = `<div class="achgrid">` + A.map(a=>`<button class="ach ${a.done?'done':''}" type="button"
+      onclick="toast('${esc(a.name)} — ${esc(a.desc)}')" aria-label="${esc(a.name)}: ${esc(a.desc)}${a.done?' (unlocked)':''}">
+      <span class="aicon" aria-hidden="true">${a.icon}</span>
+      <span class="aname">${a.name}</span>
+      <span class="aprog">${a.done?'✓':(a.prog||'—')}</span>
+    </button>`).join("") + `</div>`;
   return { grid, label:`Achievements · ${unlocked}/${A.length}` };
 }
 function profileTabHTML(){
   const prof = loadProfile();
   const best = loadBest(), d = loadDaily();
-  const stat = (v,l)=>`<div style="flex:1; min-width:70px; text-align:center"><div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold)">${v}</div><div class="muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin-top:2px">${l}</div></div>`;
+  const stat = (v,l)=>`<div><div class="sv">${v}</div><div class="sl">${l}</div></div>`;
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Profile</h2></div>
     <div class="card idcard">
@@ -6209,7 +6259,7 @@ function profileTabHTML(){
       </div>
     </div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">your stats</div><div style="height:12px"></div>
-      <div class="row" style="gap:8px; flex-wrap:wrap">${(l=>`${stat(l.games|0,'Games')}${stat(l.cards|0,'Cards placed')}${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}`)(loadLife())}</div></div>
+      <div class="statgrid">${(l=>`${stat(l.games|0,'Games')}${stat(l.cards|0,'Cards placed')}${stat('🔥&#8202;'+(d.streak||0),'Daily streak')}${stat(best.streak||0,'Best streak')}${stat(best.cards||0,'Survival')}${stat(best.turbo||0,'Turbo best')}`)(loadLife())}</div></div>
     ${recentGamesHTML()}
     ${(()=>{ const a=achievementsHTML(); return `<div class="card" style="margin-top:12px"><div class="eyebrow" style="margin-top:0">${a.label}</div><div style="height:6px"></div>${a.grid}</div>`; })()}
     ${pushSupported() ? (()=>{ const on = pushEnabled(); return `<div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between; align-items:center; gap:10px">
@@ -6631,6 +6681,7 @@ function overlayRunOver(){
     recordRunProgress();   // final write (all placements done → no p flag)
     streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
     logFeed({ k:"daily", n: S.dailyNum || dailyNumber(), s: score, streak: loadDaily().streak||1 });
+    bumpLife("dailies");
   } else if(chal){
     title = 'CHALLENGE';
     const beat = S.challenge && S.challenge.beat;
@@ -6674,6 +6725,7 @@ function overlayRunOver(){
     if(score > (best.turbo||0)){ best.turbo = score; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
     if(S.players.length === 1) logFeed({ k:"run", kind:"turbo", s: score });   // solo turbo → recent games
   }
+  if(solo && perfect) bumpLife("perfect");   // lifetime flawless-run counter
   buzz(perfect ? [0,30,40,30,40,90] : [0,25,40,25]);
   if(duelWon || (daily && perfect)) confettiBurst();   // beat a real person, or a perfect daily 🎉
   const canChallenge = S.runCards && S.runCards.length >= 2;

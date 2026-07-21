@@ -129,7 +129,10 @@ const server = http.createServer((req,res)=>{
   // the submitted rank (stubbed #7) is remembered for the Champion badge
   if((await pg.evaluate(()=>loadDaily().bestRank)) !== 7) throw new Error('bestRank not recorded');
   // stubbed rank #7 ≤ 10 → Champion unlocks outright (counted in the unlock tally)
-  if(!/Champion/.test(prof) || !/ACHIEVEMENTS · 2\/9/i.test(prof)) throw new Error('Champion badge missing/not unlocked: '+prof.slice(0,600));
+  if(!/Champion/.test(prof) || !/ACHIEVEMENTS · 2\/30/i.test(prof)) throw new Error('Champion badge missing/not unlocked: '+prof.slice(0,600));
+  // the 30-badge grid renders as tiles
+  const achTiles = await pg.$$eval('.ach', els=>els.length);
+  if(achTiles !== 30) throw new Error('expected 30 achievement tiles, got '+achTiles);
   console.log('daily mini rank + profile rename + recent games + lifetime stats + bestRank OK');
 
   // avatar picker: tap the pfp, choose a generated musician, it sticks + persists a reload
