@@ -211,7 +211,7 @@
   .pfp-edit{position:absolute; right:-2px; bottom:-2px; width:22px; height:22px; border-radius:50%;
     display:grid; place-items:center; font-size:11px; color:var(--bg); background:var(--gold);
     border:2px solid var(--s1); line-height:1;}
-  .idmeta{flex:1; min-width:0;}
+  .idmeta{flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center;}
   .namerow{display:flex; align-items:center; gap:8px;}
   input.nameinput{background:none; border:none; border-bottom:1px solid transparent; padding:0 0 3px; flex:1; min-width:0;
     color:var(--text); font:inherit; font-size:21px; font-weight:800; outline:none; border-radius:0;}
@@ -219,7 +219,12 @@
   .nameedit{flex:0 0 auto; width:30px; height:30px; border-radius:9px; display:grid; place-items:center; cursor:pointer;
     font-size:13px; color:var(--muted); background:var(--s2); border:1px solid var(--line);}
   .nameedit:active{transform:scale(.94);}
-  .idsub{font-size:11.5px; margin-top:8px;}
+  .idsub{font-size:11.5px; margin-top:3px;}
+  /* the friend-code renders as a .btn for the tap target, but must READ as a
+     text line: kill the chrome and cancel the padding with negative margins so
+     "code …" left-aligns exactly under the name instead of floating indented */
+  .idsub .btn{border:none; background:none; min-height:0; padding:8px 10px; margin:-8px -10px;
+    font-size:11.5px; color:var(--muted); font-weight:400; width:auto;}
   /* profile stats: a real grid — 3 columns, rows always line up */
   .statgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px 8px; text-align:center;}
   .statgrid .sv{font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold);}
@@ -458,7 +463,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.15.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.15.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
