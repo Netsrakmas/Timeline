@@ -472,7 +472,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.20.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.20.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5679,6 +5679,7 @@ function playClip(card){
   S.buffering = false; syncBuffer();
   try{
     if(vizEnabled) a.crossOrigin = "anonymous";   // keep clips CORS-clean once routed through WebAudio
+    clearTimeout(_duckT1); clearTimeout(_duckT2); a.volume = 1;   // a duck must never outlive its cue into the next clip
     if(a.src !== card.previewUrl){ a.src = card.previewUrl; }
     a.currentTime = 0;
     const p = a.play();
@@ -5930,8 +5931,19 @@ function buzz(pattern){ try{ if("vibrate" in navigator) navigator.vibrate(patter
 /* SFX — tiny synthesized cues over WebAudio (no assets, mixes fine under the
    music preview). Kinds: good (placement ding), bad (soft thunk), win (finish
    arpeggio), end (neutral two-tone close). Toggle lives on Profile. */
-let _sfxCtx = null;
+let _sfxCtx = null, _duckT1 = null, _duckT2 = null;
 function sfxEnabled(){ return store.get("tl_sfx") !== "0"; }   // default ON — it's a music game
+// duck the music preview while a cue plays — at full clip volume the little
+// dings are masked completely on phone speakers (that's why "I hear nothing")
+function duck(ms){
+  try{
+    const a = aud(); if(!a || a.paused) return;
+    clearTimeout(_duckT1); clearTimeout(_duckT2);
+    a.volume = 0.25;
+    _duckT1 = setTimeout(()=>{ try{ a.volume = 0.6; }catch(e){} }, ms * 0.7);
+    _duckT2 = setTimeout(()=>{ try{ a.volume = 1; }catch(e){} }, ms);
+  }catch(e){}   // iOS ignores media volume — cues just ride on top there
+}
 function sfx(kind){
   if(!sfxEnabled()) return;
   try{
@@ -5944,15 +5956,15 @@ function sfx(kind){
       o.frequency.setValueAtTime(f0, t0 + dt);
       if(f1) o.frequency.exponentialRampToValueAtTime(f1, t0 + dt + dur);
       g.gain.setValueAtTime(0, t0 + dt);
-      g.gain.linearRampToValueAtTime(gain || .14, t0 + dt + .012);
+      g.gain.linearRampToValueAtTime(gain || .3, t0 + dt + .012);
       g.gain.exponentialRampToValueAtTime(.0001, t0 + dt + dur);
       o.connect(g); g.connect(_sfxCtx.destination);
       o.start(t0 + dt); o.stop(t0 + dt + dur + .05);
     };
-    if(kind === "good"){ tone(660, 880, 0, .10); tone(990, 1320, .07, .14, "sine", .10); }
-    else if(kind === "bad"){ tone(220, 145, 0, .20, "triangle", .12); }
-    else if(kind === "win"){ tone(523, 0, 0, .11); tone(659, 0, .09, .11); tone(784, 0, .18, .13); tone(1047, 0, .27, .26, "sine", .16); }
-    else if(kind === "end"){ tone(494, 0, 0, .12, "sine", .10); tone(392, 0, .11, .20, "sine", .10); }
+    if(kind === "good"){ duck(420); tone(660, 880, 0, .12, "triangle", .32); tone(990, 1320, .08, .16, "sine", .26); }
+    else if(kind === "bad"){ duck(420); tone(220, 145, 0, .22, "triangle", .30); tone(110, 80, 0, .22, "sine", .22); }
+    else if(kind === "win"){ duck(750); tone(523, 0, 0, .12, "triangle", .28); tone(659, 0, .10, .12, "triangle", .28); tone(784, 0, .20, .14, "triangle", .30); tone(1047, 0, .30, .30, "sine", .34); }
+    else if(kind === "end"){ duck(520); tone(494, 0, 0, .13, "triangle", .24); tone(392, 0, .12, .22, "sine", .24); }
   }catch(e){}
 }
 function toggleSfx(){

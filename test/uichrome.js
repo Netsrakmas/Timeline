@@ -17,7 +17,7 @@ const server = http.createServer((req,res)=>{
 
 (async()=>{
   await new Promise(r=>server.listen(8087,r));
-  const browser = await chromium.launch({executablePath:CHROME});
+  const browser = await chromium.launch({executablePath:CHROME,args:['--autoplay-policy=no-user-gesture-required']});
   const ctx = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
   const pg = await ctx.newPage();
   pg.on('pageerror',e=>console.log('PAGEERROR:',e.message));
@@ -88,6 +88,28 @@ const server = http.createServer((req,res)=>{
   const pTxt = await pg.$eval('#app', e=>e.innerText);
   if(/🔔 Notifications|🔊 Sound/u.test(pTxt)) throw new Error('settings emoji not replaced');
   console.log('chrome sweep: friends + profile inline icons, emoji gone OK');
+
+  // 6) ducking: a cue dips the playing music, then volume fully recovers
+  const wav = (()=>{ // 200ms of silence
+    const sr=8000,n=1600,d=Buffer.alloc(n*2),h=Buffer.alloc(44);
+    h.write('RIFF',0);h.writeUInt32LE(36+d.length,4);h.write('WAVEfmt ',8);
+    h.writeUInt32LE(16,16);h.writeUInt16LE(1,20);h.writeUInt16LE(1,22);h.writeUInt32LE(sr,24);
+    h.writeUInt32LE(sr*2,28);h.writeUInt16LE(2,32);h.writeUInt16LE(16,34);h.write('data',36);h.writeUInt32LE(d.length,40);
+    return Buffer.concat([h,d]).toString('base64');
+  })();
+  const dk = await pg.evaluate(async(b64)=>{
+    const a = document.getElementById('aud');
+    a.src = 'data:audio/wav;base64,'+b64; a.loop = true;
+    await a.play();
+    sfx('good');
+    const dipped = a.volume;
+    await new Promise(r=>setTimeout(r, 600));
+    return { dipped, restored: a.volume, paused: a.paused };
+  }, wav);
+  if(dk.paused) throw new Error('test audio did not play — ducking not exercised');
+  if(dk.dipped >= 0.9) throw new Error('music not ducked during the cue: volume '+dk.dipped);
+  if(dk.restored !== 1) throw new Error('music volume did not recover after the cue: '+dk.restored);
+  console.log('sfx ducking: dips to '+dk.dipped+' and recovers to 1 OK');
 
   await browser.close(); server.close();
   console.log('UI CHROME TEST PASS ✓');
