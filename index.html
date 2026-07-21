@@ -392,6 +392,10 @@
     max-height:88vh; max-height:88dvh; overflow-y:auto; -webkit-overflow-scrolling:touch;
     animation:pop .22s cubic-bezier(.2,.9,.3,1.3);}
   .sheet:focus{outline:none;}
+  /* sticky exit for long results sheets — Done stays visible while content scrolls */
+  .sheetfoot{position:sticky; bottom:0; margin:14px -24px -24px; padding:10px 24px 16px;
+    background:linear-gradient(to top, var(--s1) 72%, rgba(18,26,46,0));
+    border-radius:0 0 var(--r-sheet) var(--r-sheet);}
   @keyframes pop{from{transform:scale(.9); opacity:0}to{transform:scale(1); opacity:1}}
   .verdict{font-family:"Anton"; font-size:34px; letter-spacing:1px; margin-bottom:4px;}
   .verdict.good{color:var(--good);} .verdict.bad{color:var(--bad);}
@@ -454,7 +458,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.13.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.14.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5140,6 +5144,25 @@ function feedRowHTML(e){
         onclick="openReactSheet('${e.u}','${esc(e.who || "")}')" aria-label="React to ${esc(e.who || "this result")}">${inner}</button>`
     : `<div style="display:flex; gap:10px; align-items:center; padding:8px 0; border-top:1px solid var(--line)">${inner}</div>`;
 }
+/* pass the just-played set on: friends + a share link, in ONE sheet — replaces
+   the row of friend chips that crowded the results screen */
+function openPassOnSheet(){
+  const p = S.passSet; if(!p) return;
+  const skip = f => (S.chalTarget && f.id === S.chalTarget.user) || (S.reactTo && f.id === S.reactTo.user);
+  const fr = ((_social && _social.friends) || []).filter(f => !skip(f));
+  const sheet = document.getElementById("sheet"); if(!sheet) return;
+  const tSec = Math.round((p.timeMs||0)/1000);
+  sheet.innerHTML = `
+    <div class="winner-emoji">📤</div>
+    <div class="verdict good" style="margin-top:2px">Pass this set on</div>
+    <div class="muted" style="font-size:12.5px; margin:2px 0 10px">Same ${RUN_LEN} songs — you set <b style="color:var(--text)">${p.score}/${RUN_LEN}</b> to beat.</div>
+    ${fr.slice(0,8).map(f=>`<button class="ovrow" onclick="sendChal('${f.id}','${chalKey(p.idx)}',${p.score},${p.timeMs}); this.disabled=true; this.querySelector('span:last-child').textContent='sent ✓'">
+      <span class="avatar" aria-hidden="true">${friendAvatar(f)}</span><b>${esc(f.handle)}</b>
+      <span style="flex:0 0 auto" aria-hidden="true">⚔️</span></button>`).join("")}
+    <button class="btn pink" style="margin-top:12px" onclick="shareChallengeIdx(${JSON.stringify(p.idx)}, ${p.score}, ${tSec})">🔗 Share a link</button>
+    <div class="sheetfoot"><button class="btn ghost" style="margin-top:0" onclick="backToSetup()">Done</button></div>`;
+  showSheet();
+}
 /* react later, from the feed: same fixed reaction set, aimed at a specific friend */
 function openReactSheet(user, handle){
   const sheet = document.getElementById("sheet"); if(!sheet) return;
@@ -6757,12 +6780,15 @@ function overlayRunOver(){
       <div class="muted" style="font-size:12.5px; margin-top:3px">You set <b style="color:var(--text)">${score}/${RUN_LEN}</b> to beat — you'll hear about it when they play.</div>
     </div>`;
   }
+  // pass-on data for openPassOnSheet (one button instead of a row of friend chips)
+  S.passSet = (setIdx && setIdx.length >= 2) ? { idx: setIdx.slice(), score, timeMs: me.timeMs||0 } : null;
+  const isDuel = chal && S.challenge && S.challenge.beat != null;
+  const isInboxDuel = chal && S.challenge && S.challenge.msgId;
   sheet.innerHTML = `
     <div class="winner-emoji">${perfect ? '🏆' : daily ? '📅' : chal ? '🎯' : '⚡'}</div>
     <div class="verdict ${score>=3?'good':'bad'}" style="margin-top:6px">${title}</div>
-    <div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>
-    <div style="font-size:22px; letter-spacing:3px; margin:6px 0">${squares(me)}</div>
-    <div class="muted" style="font-size:13px">⏱ ${fmtTime(me.timeMs)}</div>
+    ${isDuel ? streakLine : `<div class="reveal-yr" style="font-size:54px; margin:8px 0 2px; color:${score>=3?'var(--good)':'var(--bad)'}">${score}/${RUN_LEN}</div>`}
+    <div style="font-size:20px; letter-spacing:3px; margin:6px 0">${squares(me)} <span class="muted" style="font-size:13px; letter-spacing:0">· ⏱ ${fmtTime(me.timeMs)}</span></div>
     ${(solo && S.runLog && S.runLog.length) ? `<details style="margin:8px auto 2px; max-width:320px">
       <summary class="muted" style="cursor:pointer; font-size:12px; list-style-position:inside">Show the songs</summary>
       <div id="runRecap" style="margin-top:6px; text-align:left">
@@ -6770,33 +6796,36 @@ function overlayRunOver(){
         <span aria-hidden="true">${r.ok?'🟩':'🟥'}</span>
         <b style="font-family:var(--mono); flex:0 0 auto">${r.year}</b>
         <span class="muted" style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(r.name)} — ${esc(r.artist)}</span>
-      </div>`).join("")}</div></details>` : ``}
+      </div>`).join("")}
+      ${chal && LB.url ? `<div id="chalBoard"></div>` : ``}</div></details>` : ``}
     ${lastLine}
-    ${streakLine}
+    ${isDuel ? `` : streakLine}
     ${sentLine}
-    ${(chal || (!daily && canChallenge)) && LB.url ? `<div id="chalBoard"></div>` : ``}
-    ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>
-    <div class="row" style="justify-content:center; align-items:center; gap:6px; margin:2px 0 4px">
-      <span class="muted" style="font-size:11px">playing as</span>
-      <input value="${esc(lbNick())}" maxlength="20" aria-label="Leaderboard nickname"
-        style="width:150px; text-align:center; font-size:13px; padding:6px 8px" onchange="saveNick(this.value)" />
-    </div>` : ``}
+    ${(!chal && !daily && canChallenge) && LB.url ? `<div id="chalBoard"></div>` : ``}
+    ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>` : ``}
     ${last ? flagBlockHTML(last.id, last.year) : ``}
     ${S.reactTo ? `
       <div class="muted" style="font-size:12px; margin-top:12px">react to <b>${esc(S.reactTo.handle)}</b>:</div>
-      <div class="row" style="gap:6px; justify-content:center; flex-wrap:wrap; margin-top:6px" id="reactRow">
-        ${REACT_EMOJI.map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
+      <div class="row" style="gap:6px; justify-content:center; margin-top:6px" id="reactRow">
+        ${REACT_EMOJI.slice(0,6).map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
+        <button class="btn sm" aria-label="More reactions" onclick="document.getElementById('reactMore').style.display='flex'; this.style.display='none'">…</button>
+      </div>
+      <div class="row" id="reactMore" style="display:none; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:6px">
+        ${REACT_EMOJI.slice(6).map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
       </div>` : ``}
-    ${(_social && _social.friends && _social.friends.some(f=>!(S.chalTarget && f.id===S.chalTarget.user) && !(S.reactTo && f.id===S.reactTo.user)) && setIdx && setIdx.length>=2) ? `
-      <div class="muted" style="font-size:12px; margin-top:12px">send this set straight to a friend:</div>
-      <div class="row" style="flex-wrap:wrap; gap:6px; justify-content:center; margin-top:6px">
-        ${_social.friends.filter(f=>!(S.chalTarget && f.id===S.chalTarget.user) && !(S.reactTo && f.id===S.reactTo.user)).slice(0,4).map(f=>`<button class="btn sm" onclick="sendChal('${f.id}','${chalKey(setIdx)}',${score},${me.timeMs||0}); this.disabled=true; this.textContent='sent ✓'">⚔️ ${esc(f.handle)}</button>`).join("")}
-      </div>` : ``}
+    ${isInboxDuel ? `<div style="color:var(--good); font-weight:700; font-size:14px; margin:12px 0 2px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">⚔️ Challenge friends</button>` : ``}
-    ${(chal && S.challenge && S.challenge.msgId) ? `<div style="color:var(--good); font-weight:700; font-size:14px; margin:12px 0 2px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
-    ${(!daily && canChallenge && !(chal && S.challenge && S.challenge.msgId)) ? `<button class="btn pink" style="margin-top:8px" onclick="shareChallenge(${score})">${(chal && S.challenge && S.challenge.beat != null) ? '📤 Send your result back' : S.chalTarget ? '🔗 Challenge someone else on these songs' : '🔗 Challenge a friend on these songs'}</button>` : ``}
+    ${isInboxDuel ? `<div class="row" style="gap:8px; margin-top:12px">
+      <button class="btn pink" onclick="closeOverlay(); challengeFriend('${S.reactTo ? S.reactTo.user : ''}')">⚔️ Rematch</button>
+      ${S.passSet ? `<button class="btn" onclick="openPassOnSheet()">📤 Pass on</button>` : ``}
+    </div>` : ``}
+    ${(isDuel && !isInboxDuel && canChallenge) ? `<div class="row" style="gap:8px; margin-top:12px">
+      <button class="btn pink" onclick="shareChallenge(${score})">📤 Send your result back</button>
+      ${S.passSet ? `<button class="btn" onclick="openPassOnSheet()">Pass on</button>` : ``}
+    </div>` : ``}
+    ${(!daily && !isDuel && canChallenge) ? `<button class="btn pink" style="margin-top:12px" onclick="openPassOnSheet()">⚔️ Challenge friends</button>` : ``}
     ${(!daily && !chal) ? `<button class="btn" style="margin-top:8px" onclick="playAgain()">⚡ Run it again</button>` : ``}
-    <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Done</button>
+    <div class="sheetfoot"><button class="btn ghost" style="margin-top:0" onclick="backToSetup()">Done</button></div>
   `;
   showSheet();
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0, S.dailyNum).then(b=>{

@@ -190,30 +190,39 @@ const server = http.createServer((req,res)=>{
   }
   await pg.waitForTimeout(500);
   const sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/straight to a friend/.test(sheet)) throw new Error('direct-send buttons missing: '+sheet.slice(0,240));
-  // you played JESSE's challenge — you must NOT be offered to send the same set
-  // back to Jesse; other friends (Zoe) are fair game
-  if(/⚔️ Jesse/.test(sheet)) throw new Error("offered to send the set back to the challenger: "+sheet.slice(0,240));
-  if(!/⚔️ Zoe/.test(sheet)) throw new Error('other friends missing from direct-send: '+sheet.slice(0,240));
-  // a friend's direct challenge is answered via the server — show a confirmation,
-  // NOT a "share a link back" button that looks like creating a new challenge
+  // decluttered duel sheet: scoreline is THE score (no separate big n/5), one
+  // [Rematch][Pass on] action row instead of a strip of friend chips, sticky Done
+  if(/straight to a friend/.test(sheet)) throw new Error('old direct-send row still present: '+sheet.slice(0,240));
+  if(!/Rematch/.test(sheet) || !/Pass on/.test(sheet)) throw new Error('Rematch/Pass-on row missing: '+sheet.slice(0,240));
   if(!/Result sent back to Jesse/.test(sheet)) throw new Error('friend-challenge "result sent" confirmation missing: '+sheet.slice(0,240));
   if(/Send your result back/.test(sheet)) throw new Error('redundant link-share shown for a friend challenge: '+sheet.slice(0,240));
-  console.log('friend challenge: result auto-sent, no send-back to challenger, confirmation shown OK');
-  // 5a) this run came from Jesse's inbox challenge -> reaction row present
+  if(!(await pg.$('#sheet .sheetfoot'))) throw new Error('sticky Done footer missing on duel sheet');
+  console.log('duel sheet: decluttered (no chip row), Rematch + Pass on + sticky Done OK');
+  // 5a) this run came from Jesse's inbox challenge -> reaction row present;
+  // 6 primary reactions + a "…" expander for the rest
   if(!/react to Jesse/.test(sheet)) throw new Error('reaction row missing: '+sheet.slice(0,240));
+  if((await pg.$eval('#reactMore', e=>getComputedStyle(e).display)) !== 'none') throw new Error('extra reactions should start hidden');
+  await pg.click('#reactRow button:has-text("…")');
+  await pg.waitForTimeout(150);
+  if((await pg.$eval('#reactMore', e=>getComputedStyle(e).display)) === 'none') throw new Error('… did not expand the extra reactions');
   await pg.click('#reactRow button:has-text("🔥")');
   await pg.waitForTimeout(300);
   const rAct = actions.find(a=>a.action==='react');
   if(!rAct || rAct.to!=='f1' || rAct.emoji!=='🔥') throw new Error('react POST wrong: '+JSON.stringify(rAct));
-  const disabled = await pg.$$eval('#reactRow button', bs=>bs.every(b=>b.disabled));
+  const disabled = await pg.$$eval('#reactRow button, #reactMore button', bs=>bs.every(b=>b.disabled));
   if(!disabled) throw new Error('reaction buttons should lock after one send');
-  console.log('reaction row: sends 🔥 to Jesse once OK');
-  await pg.click('#sheet button:has-text("⚔️ Zoe")');
+  console.log('reaction row: 6 + expander, sends 🔥 to Jesse once OK');
+  // pass the set on via the sheet: Jesse (the challenger) is excluded, Zoe is offered
+  await pg.click('#sheet button:has-text("Pass on")');
+  await pg.waitForTimeout(300);
+  const passSheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(/Jesse/.test(passSheet)) throw new Error('pass-on sheet offers the challenger: '+passSheet.slice(0,240));
+  if(!/Zoe/.test(passSheet) || !/Share a link/.test(passSheet)) throw new Error('pass-on sheet incomplete: '+passSheet.slice(0,240));
+  await pg.click('#sheet button:has-text("Zoe")');
   await pg.waitForTimeout(300);
   const sent = actions.find(a=>a.action==='challenge');
-  if(!sent || sent.to!=='f9' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('direct challenge POST wrong: '+JSON.stringify(sent));
-  console.log('direct-send passes the set to another friend (Zoe), not the challenger OK ·', JSON.stringify({to:sent.to, score:sent.score}));
+  if(!sent || sent.to!=='f9' || !/^\d+(\.\d+)+$/.test(sent.set) || sent.score==null) throw new Error('pass-on challenge POST wrong: '+JSON.stringify(sent));
+  console.log('pass-on sheet: challenger excluded, set sent to Zoe OK ·', JSON.stringify({to:sent.to, score:sent.score}));
 
   // 5b-bis0) the outstanding challenge shows as ⏳ on Zoe's friend row + in the feed
   await pg.evaluate(()=>{ document.getElementById('overlay').classList.remove('show'); goTab('friends'); });
@@ -338,9 +347,14 @@ const server = http.createServer((req,res)=>{
     throw new Error('friend challenge did not auto-send: '+JSON.stringify(autoChal));
   const sheet2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/Challenge sent to Jesse!/.test(sheet2) || !/You set \d\/5 to beat/.test(sheet2)) throw new Error('sent hero missing: '+sheet2.slice(0,260));
-  if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear in the direct-send row');
-  if(!/Challenge someone else on these songs/.test(sheet2)) throw new Error('share button should read "someone else" after auto-send: '+sheet2.slice(0,260));
-  console.log('friend ⚔️ button: fresh run + auto-sent gauntlet + someone-else label OK');
+  if(/⚔️ Jesse/.test(sheet2)) throw new Error('target friend should not reappear on the results sheet');
+  // the pass-on button covers "challenge someone else"; Jesse is excluded inside it
+  if(!/Challenge friends/.test(sheet2)) throw new Error('pass-on button missing after auto-send: '+sheet2.slice(0,260));
+  await pg.click('#sheet button:has-text("Challenge friends")');
+  await pg.waitForTimeout(300);
+  const pass2 = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
+  if(/Jesse/.test(pass2)) throw new Error('pass-on sheet offers the already-challenged friend: '+pass2.slice(0,200));
+  console.log('friend ⚔️ button: fresh run + auto-sent gauntlet + pass-on excludes target OK');
 
   // 5g) tapping a friend's NAME opens the head-to-head sheet (all-time,
   // rolling 7 days, recent duels), with a challenge button inside

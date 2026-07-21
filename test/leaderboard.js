@@ -92,17 +92,15 @@ const server = http.createServer((req,res)=>{
   if(await pg.$eval('#runRecap', e=>e.closest('details').open)) throw new Error('recap should start collapsed');
   console.log('per-song recap: 5 rows behind a collapsed toggle OK');
   if(!/Ace 5\/5/.test(sheet) || !/Cy 4\/5/.test(sheet)) throw new Error('top-3 missing: '+sheet.slice(0,220));
-  if(!/playing as/.test(sheet)) throw new Error('nickname field missing');
   if(posts.length!==1) throw new Error('expected 1 submit, got '+posts.length);
   const p0 = posts[0];
   if(!/^[a-f0-9]{32}$/.test(p0.device) || p0.score==null || p0.timeMs==null || p0.day==null) throw new Error('bad submit payload: '+JSON.stringify(p0));
   console.log('daily submit + rank line + top-3 OK ·', JSON.stringify({day:p0.day, score:p0.score}));
 
-  // nickname edit → resubmit with new nick (score untouched server-side)
-  await pg.$eval('#sheet input[aria-label="Leaderboard nickname"]', e=>{ e.value='Sam'; e.dispatchEvent(new Event('change')); });
-  await pg.waitForTimeout(400);
-  if(posts.length!==2 || posts[1].nick!=='Sam') throw new Error('nick resubmit missing: '+JSON.stringify(posts[1]||null));
-  console.log('nickname edit resubmits OK');
+  // the sheet's nickname input is gone (identity lives on Profile since 4.0);
+  // the Done button now sits in a sticky footer so it's visible without scrolling
+  if(/playing as/.test(sheet)) throw new Error('sheet still shows the redundant nickname field');
+  if(!(await pg.$eval('#sheet .sheetfoot button', b=>/Done/.test(b.textContent)))) throw new Error('sticky Done footer missing');
 
   // back on setup: daily card shows the mini rank (via GET)
   await pg.click('#sheet button:has-text("Done")');
@@ -116,10 +114,12 @@ const server = http.createServer((req,res)=>{
   await pg.evaluate(()=>goTab('profile'));
   await pg.waitForTimeout(300);
   const pName = await pg.$eval('#nickTop', e=>e.value);
-  if(!/Sam/.test(pName)) throw new Error('profile name missing: '+pName);
+  if(!pName || pName.length < 3) throw new Error('profile name missing: '+pName);
   await pg.$eval('#nickTop', e=>{ e.value='Sammy'; e.dispatchEvent(new Event('change')); });
   await pg.waitForTimeout(300);
   if((await pg.evaluate(()=>lbNick()))!=='Sammy') throw new Error('profile rename failed');
+  await pg.waitForTimeout(300);
+  if(!posts.some(p=>p.nick==='Sammy')) throw new Error('profile rename did not resubmit the daily nick: '+JSON.stringify(posts.map(p=>p.nick)));
   // the finished daily shows up in Profile's "recent games" (from the local feed log)
   const prof = await pg.$eval('#app', e=>e.innerText.replace(/\s+/g,' '));
   if(!/recent games/i.test(prof) || !/Daily #\d+ — \d\/5/.test(prof)) throw new Error('recent games missing the daily: '+prof.slice(0,300));
@@ -178,10 +178,13 @@ const server = http.createServer((req,res)=>{
     await pg.waitForTimeout(250);
   }
   await pg.waitForTimeout(600);
+  // the set board lives inside the "Show the songs" toggle now — open it first
+  await pg.click('#sheet summary');
+  await pg.waitForTimeout(200);
   const chalSheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/2 played this set/.test(chalSheet) || !/Jesse 4\/5/.test(chalSheet)) throw new Error('set board missing on results: '+chalSheet.slice(0,240));
   if(!/\(you\)/.test(chalSheet)) throw new Error('own row not marked (you): '+chalSheet.slice(0,240));
-  console.log('results sheet shows set board with Jesse + (you) marker OK');
+  console.log('results sheet shows set board (inside the songs toggle) with Jesse + (you) OK');
 
   // back on setup: Jesse counts as NEW on our own set -> news card
   await pg.click('#sheet button:has-text("Done")');

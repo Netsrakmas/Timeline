@@ -227,8 +227,10 @@ async function placeN(pg, n, collectTitles){
   await placeN(pg, 5);
   sheet = await pg.$eval('#sheet', e=>e.innerText.replace(/\s+/g,' '));
   if(!/CHALLENGE/.test(sheet)) throw new Error('fresh challenge results wrong: '+sheet.slice(0,140));
-  if(!/Challenge a friend on these songs/.test(sheet)) throw new Error('fresh challenge missing share button');
-  await pg.click('text=Challenge a friend on these songs');
+  if(!/Challenge friends/.test(sheet)) throw new Error('fresh challenge missing challenge button');
+  await pg.click('#sheet button:has-text("Challenge friends")');   // opens the pass-on sheet
+  await pg.waitForTimeout(300);
+  await pg.click('#sheet button:has-text("Share a link")');
   await pg.waitForTimeout(300);
   const shared2 = await pg.evaluate(()=>window.__shared);
   if(!shared2 || !/#c=[\d.]+&s=\d/.test(shared2)) throw new Error('fresh challenge share link missing: '+shared2);
