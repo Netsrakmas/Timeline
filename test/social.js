@@ -56,6 +56,7 @@ const server = http.createServer((req,res)=>{
         if(b.action==='accept'){ state.requests = []; state.friends = [{id:'f1', handle:'Jesse', avatar:'m:12'}]; }
         if(b.action==='seen'){ state.inbox = state.inbox.filter(m=>!b.ids.includes(m.id)); }
         if(b.action==='challenge'){ state.sent = [{to:b.to, handle: b.to==='f9'?'Zoe':'Jesse', at: Date.now()}]; }
+        if(b.action==='remove'){ state.friends = state.friends.filter(f=>f.id!==b.user); }
       }
       route.fulfill({contentType:'application/json', body: JSON.stringify(state),
         headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});
@@ -397,6 +398,24 @@ const server = http.createServer((req,res)=>{
   await pg.click('#sheet button:has-text("Close")');
   await pg.waitForTimeout(200);
   console.log('standings sheet: header tap + drill-down to detail OK');
+
+  // 5i) removing a friend: two-tap confirm in the detail sheet → action:remove
+  await pg.click('#friendsCard .frname:has-text("Jesse")');
+  await pg.waitForTimeout(200);
+  const rmBtn = await pg.$('#sheet button[aria-label="Remove Jesse as a friend"]');
+  if(!rmBtn) throw new Error('remove-friend button missing from detail sheet');
+  const nRem = actions.length;
+  await rmBtn.click();
+  await pg.waitForTimeout(200);
+  if(actions.slice(nRem).some(a=>a.action==='remove')) throw new Error('remove fired on FIRST tap — confirm step skipped');
+  if(!/Sure\? Tap again/.test(await pg.$eval('#sheet', e=>e.innerText))) throw new Error('remove button did not arm');
+  await pg.click('#sheet button[aria-label="Remove Jesse as a friend"]');
+  await pg.waitForTimeout(400);
+  const rem = actions.slice(nRem).find(a=>a.action==='remove');
+  if(!rem || rem.user!=='f1') throw new Error('remove action wrong: '+JSON.stringify(rem));
+  if(await pg.$eval('#overlay', e=>e.classList.contains('show'))) throw new Error('detail sheet still open after removal');
+  if(await pg.$('#friendsCard button[aria-label="Challenge Jesse"]')) throw new Error('removed friend still in the roster');
+  console.log('remove friend: armed confirm + POST + roster refresh OK');
 
   await ctx.close();
 
