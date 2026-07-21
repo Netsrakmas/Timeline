@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.4.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.4.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -461,10 +461,15 @@ if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   });
-  // a tapped notification asks us to open a specific tab
+  // a tapped notification asks us to open a specific tab. If a game is on
+  // screen (no .tabbar = not in the lobby), DON'T repaint over it — runs are
+  // never saved, so an instant goTab would destroy the attempt. Park the tab
+  // and let the next lobby render honor it.
   navigator.serviceWorker.addEventListener('message', e=>{
     const t = e.data && e.data.yearwormTab;
-    if(t && ["play","friends","ranks","profile"].includes(t) && typeof goTab==='function') goTab(t);
+    if(!t || !["play","friends","ranks","profile"].includes(t) || typeof goTab!=='function') return;
+    if(document.querySelector('.tabbar')) goTab(t);
+    else window._pendingTab = t;
   });
 }
 /* ---------- Web Push (notifications) ---------- */
@@ -4585,16 +4590,19 @@ async function onGoogleCred(resp){
 }
 function loadProfile(){ try{ return JSON.parse(store.get("tl_user")||"null"); }catch(e){ return null; } }
 function saveProfile(p){ store.set("tl_user", JSON.stringify(p)); }
+// the account's stored avatar wins on a device that never picked one — one
+// stable face across phones, instead of each device pushing its own seed
+function adoptAvatar(me){ if(me && me.avatar && !store.get("tl_avatar")) store.set("tl_avatar", me.avatar); }
 async function socialGet(){
   if(!LB.url) return null;
   try{
     // POST, not GET: the device token is a bearer credential and must not
     // end up in URL/proxy logs
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), action:"state", avatar: currentAvatarKey() }) });
+      body: JSON.stringify({ device: deviceId(), action:"state", ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}) }) });
     if(!r.ok) return null;
     const b = await r.json();
-    if(b && b.me) saveProfile(b.me);
+    if(b && b.me){ saveProfile(b.me); adoptAvatar(b.me); }
     _social = b;
     return b;
   }catch(e){ return null; }
@@ -4603,13 +4611,16 @@ async function socialPost(data){
   if(!LB.url) return null;
   try{
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), avatar: currentAvatarKey(), ...data }) });
+      body: JSON.stringify({ device: deviceId(), ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}), ...data }) });
     const b = await r.json().catch(()=>null);
-    if(r.ok && b && b.me){ saveProfile(b.me); _social = b; }
+    if(r.ok && b && b.me){ saveProfile(b.me); adoptAvatar(b.me); _social = b; }
     return { ok: r.ok, status: r.status, body: b };
   }catch(e){ return null; }
 }
 async function claimHandle(v){
+  // seed the account's face at claim time: lock in this device's default so the
+  // profile has ONE stable avatar from day one (other devices adopt it)
+  if(!store.get("tl_avatar")) store.set("tl_avatar", currentAvatarKey());
   const r = await socialPost({ action:"claim", handle:(v||"").trim() });
   if(!r){ toast("No connection — try again in a moment."); return false; }
   if(!r.ok){ toast(r.status===409 ? "That name is taken — try another." : "3–20 letters or numbers, please."); return false; }
@@ -5467,6 +5478,11 @@ function onAudioFail(){
   const a = aud();
   if(!S.current || !S.players || !S.players.length) return;
   if(!a || a.src !== S.current.previewUrl) return;   // ignore stale / silent-unlock errors
+  // a media error while an overlay is up (reveal/results — the clip loops under
+  // it) must NOT skip: the card is already placed, and skipTrack would splice a
+  // legitimately-played song out of S.runCards and double-advance the turn
+  const ov = document.getElementById("overlay");
+  if(ov && ov.classList.contains("show")){ try{ a.pause(); }catch(e){} return; }
   if(++autoSkips > 6){ autoSkips=0; showError("Several previews wouldn't load — Apple may be rate-limiting. Wait a few seconds, then tap ▶ Play."); return; }
   toast("Couldn't load that clip — skipping.");
   skipTrack();
@@ -5563,6 +5579,8 @@ function resumeSaved(){
   S.mode = d.mode || "classic";
   S.turbo = false;               // saved games are classic/survival — a turbo chip
                                  // toggled while browsing setup must not leak in
+  S.nextPick = null;             // a card primed by a DIFFERENT run must not be dealt here
+  S.turnStart = Date.now();      // …nor should another game's clock bill this player up to 60s
   S.lives = (typeof d.lives==="number") ? d.lives : 0;
   S.score = d.score||0; S.streak = d.streak||0; S.bestStreak = d.bestStreak||0;
   if(d.sel && d.sel.length) S.selectedIds = d.sel;
@@ -5823,6 +5841,8 @@ function syncDots(){
 }
 /* ===== 4.0 lobby: renderSetup is a tab router ===== */
 function renderSetup(){
+  // a notification tapped mid-game parked its target tab — honor it now that we're back in the lobby
+  if(window._pendingTab){ _tab = window._pendingTab; _playScreen = null; window._pendingTab = null; }
   if(!S.players.length) S.players=[{name:"",timeline:[]},{name:"",timeline:[]}];   // pass & play is 2+ by nature
   const el = app();
   const inLobby = !_playScreen;
@@ -6615,6 +6635,7 @@ async function startChallenge(){
   const songs = S.challenge.idx.map(i => stablePool()[i]).filter(Boolean);
   if(songs.length < 2){ toast("This challenge link doesn't work on this version."); return; }
   S.mode = "challenge"; S.turbo = false;
+  stashRoster();
   S.players = [{ name:"You", timeline:[] }];
   unlockAudio();
   S.deck = []; S.deckSeen = new Set(); S.loadingMore = false;
@@ -6663,10 +6684,17 @@ function renderLoading(done, total){
     </div>`;
 }
 
+// solo modes replace S.players; remember the Pass & Play roster so a quick
+// daily/survival between rounds doesn't wipe everyone's typed-in names
+function stashRoster(){
+  if(!S.prevRoster && S.players && S.players.length > 1)
+    S.prevRoster = S.players.map(p => ({ name: p.name }));
+}
 async function onStart(){
   let songs = selectedSongs();
   if(songs.length < 2){ toast("Pick at least one deck."); return; }
   if(S.mode==="survival"){
+    stashRoster();
     const nm = (S.players[0] && (S.players[0].name||"").trim()) || "You";
     S.players = [{ name:nm, timeline:[] }];   // survival is always solo
   }
@@ -6713,6 +6741,7 @@ async function startDaily(){
   if(dailyPlayedToday()){ toast("You already played today's daily — come back tomorrow!"); return; }
   track("start-daily");
   S.mode = "daily"; S.turbo = false;
+  stashRoster();
   S.players = [{ name:"You", timeline:[] }];
   const songs = dailySongs(RUN_LEN + 5);   // anchor + run + spares for dead previews
   unlockAudio();   // prime mobile audio within this tap
@@ -6843,6 +6872,11 @@ function playAgain(){
 function backToSetup(){ bgRun++; S.loadingMore=false;
   // runs are never saved — finishing one must not delete an unrelated saved classic game
   if(!(S.mode==="daily" || S.mode==="challenge" || S.turbo)) clearGame();
+  // a solo run replaced the Pass & Play roster — put the party back
+  if(S.prevRoster && (!S.players || S.players.length <= 1)){
+    S.players = S.prevRoster.map(p => ({ name: p.name, timeline: [] }));
+    S.prevRoster = null;
+  }
   closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
 
 /* ---------- boot ---------- */
