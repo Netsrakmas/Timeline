@@ -78,9 +78,8 @@ CREATE TABLE IF NOT EXISTS duels (
 CREATE INDEX IF NOT EXISTS idx_duels_a ON duels(a);
 CREATE INDEX IF NOT EXISTS idx_duels_b ON duels(b);
 
--- friends is queried "WHERE a=? OR b=?" (PK covers a); logins by user_id
+-- friends is queried "WHERE a=? OR b=?" (PK covers a)
 CREATE INDEX IF NOT EXISTS idx_friends_b ON friends(b);
-CREATE INDEX IF NOT EXISTS idx_logins_user ON logins(user_id);
 
 -- external logins attached to a user (Google for now). A login is how the
 -- same account comes back on a new phone; a user can exist without one.
@@ -92,6 +91,9 @@ CREATE TABLE IF NOT EXISTS logins (
   created  INTEGER NOT NULL,
   PRIMARY KEY (provider, subject)
 );
+-- the index must come AFTER the table: IF NOT EXISTS guards the index itself,
+-- not a missing table, so declaring it earlier breaks a fresh-database install
+CREATE INDEX IF NOT EXISTS idx_logins_user ON logins(user_id);
 
 -- Web Push subscriptions: one row per device endpoint a user opted in from.
 CREATE TABLE IF NOT EXISTS push_subs (

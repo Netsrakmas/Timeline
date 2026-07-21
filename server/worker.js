@@ -62,8 +62,10 @@ const DEVICE_RE = /^[a-f0-9]{16,64}$/i;
 
 /* ---------- social: users, friends, direct challenges ---------- */
 const HANDLE_RE = /^[\p{L}\p{N}][\p{L}\p{N} _\-.]{1,18}[\p{L}\p{N}]$/u;   // 3–20 chars, no edge junk
-// avatar token: a generated-avatar id (m:NN) or a short legacy emoji; kept tiny
-const AVATAR_RE = /^(m:\d{1,3}|.{1,8})$/u;
+// avatar token: a generated-avatar id (m:NN) or a short legacy emoji. The emoji
+// branch requires non-ASCII code points only — never <>&"' or other HTML-relevant
+// characters, so nothing attacker-shaped is stored and redistributed to friends.
+const AVATAR_RE = /^(m:\d{1,3}|[^\x00-\x7F]{1,8})$/u;
 function validAvatar(v){ v = String(v == null ? "" : v); return AVATAR_RE.test(v) ? v : null; }
 function friendCode(){
   const A = "ABCDEFGHJKMNPQRSTVWXYZ23456789";   // no 0/O/1/I/L/U lookalikes
@@ -451,8 +453,11 @@ async function handleSocialPost(env, b, cors, ctx){
   }
 
   if(action === "push-unsub"){
+    // delete by endpoint alone: presenting the (unguessable) endpoint proves you
+    // hold the device. Matching user_id too would strand rows after an account
+    // switch on the same browser (device now maps to a different user).
     const endpoint = String(b.endpoint || "");
-    if(endpoint) try{ await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?1 AND user_id=?2").bind(endpoint, me.id).run(); }catch(e){}
+    if(endpoint) try{ await env.DB.prepare("DELETE FROM push_subs WHERE endpoint=?1").bind(endpoint).run(); }catch(e){}
     return json({ ok: true }, 200, cors);
   }
 
@@ -528,13 +533,19 @@ export default {
       ).bind(set, device, nick, score, timeMs, Date.now()).run();
       // notify the set's creator when someone new plays it. The first submitter of
       // a set is treated as its owner (the creator plays their own run first).
-      if(!existed){ try{
+      // NOT for the daily (b.daily): the whole world shares that set, so its first
+      // finisher would get a push per player. Belt-and-braces: never push once a
+      // set has grown beyond friends-scale (a lied-about daily flag stays harmless).
+      if(!existed && !b.daily){ try{
         const submitter = await userByDevice(env, device);
         if(submitter) await env.DB.prepare("INSERT OR IGNORE INTO chal_owner (setkey, user_id, created) VALUES (?1,?2,?3)").bind(set, submitter.id, Date.now()).run();
         const owner = await env.DB.prepare("SELECT user_id FROM chal_owner WHERE setkey=?1").bind(set).first();
         if(owner && owner.user_id && (!submitter || submitter.id !== owner.user_id)){
-          const p = pushToUser(env, owner.user_id, { title: nick + " played your challenge 🎯", body: "They scored " + score + "/" + RUN_LEN + " on your set", tab: "play" });
-          if(ctx && ctx.waitUntil) ctx.waitUntil(p);
+          const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM chals WHERE setkey=?1").bind(set).first();
+          if(cnt && cnt.n <= 20){
+            const p = pushToUser(env, owner.user_id, { title: nick + " played your challenge 🎯", body: "They scored " + score + "/" + RUN_LEN + " on your set", tab: "play" });
+            if(ctx && ctx.waitUntil) ctx.waitUntil(p);
+          }
         }
       }catch(e){} }
       return chalBoardResp(env, set, device, cors);

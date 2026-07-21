@@ -453,7 +453,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.4.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.4.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5125,11 +5125,13 @@ function renderFriendsCard(st){
 
 /* challenge-set boards: every finished run on a shared set reports to /chal,
    so the challenger SEES who played their set — no send-back link needed */
-async function lbSubmitChal(setkey, score, timeMs){
+async function lbSubmitChal(setkey, score, timeMs, daily){
   if(!LB.url) return null;
   try{
+    // daily flag: the whole world shares the daily set — the server must NOT
+    // treat its first finisher as the set's "owner" (push-per-player spam)
     const r = await fetch(LB.url+"/chal", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ set:setkey, device:deviceId(), nick:lbNick(), score, timeMs }) });
+      body: JSON.stringify({ set:setkey, device:deviceId(), nick:lbNick(), score, timeMs, daily: !!daily }) });
     return r.ok ? await r.json() : null;
   }catch(e){ return null; }
 }
@@ -6450,7 +6452,9 @@ function overlayRunOver(){
   // S.challenge only owns this result if this WAS a challenge run — a pending
   // link left on setup must not hijack a later daily/turbo run's recording
   const setIdx = (chal && S.challenge && S.challenge.idx) || S.runCards;
-  const mine = !(chal && S.challenge && S.challenge.idx);   // own run (daily/turbo/fresh) vs an incoming link
+  // "mine" sets are watched by chalNews for new results. The daily is NOT mine —
+  // the whole world plays that set, so news about it would just list strangers.
+  const mine = !daily && !(chal && S.challenge && S.challenge.idx);
   if(setIdx && setIdx.length>=2 && !chalPlayed(setIdx)) recordChal(setIdx, score, me.timeMs||0, mine);
   let streakLine = "", title = 'TURBO RUN', duelWon = false;
   if(daily){
@@ -6539,7 +6543,7 @@ function overlayRunOver(){
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
   });
-  if(LB.url && setIdx && setIdx.length>=2) lbSubmitChal(chalKey(setIdx), score, me.timeMs||0).then(b=>{
+  if(LB.url && setIdx && setIdx.length>=2) lbSubmitChal(chalKey(setIdx), score, me.timeMs||0, daily).then(b=>{
     const el = document.getElementById("chalBoard"); if(el && b) el.innerHTML = chalOthersHTML(b);
   });
 }
