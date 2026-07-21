@@ -225,6 +225,10 @@
      "code …" left-aligns exactly under the name instead of floating indented */
   .idsub .btn{border:none; background:none; min-height:0; padding:8px 10px; margin:-8px -10px;
     font-size:11.5px; color:var(--muted); font-weight:400; width:auto;}
+  /* guided first round: the open slots breathe until the first tap lands */
+  .tutpulse .slot.active{animation:tutslot 1.6s ease-in-out infinite;}
+  @keyframes tutslot{0%,100%{box-shadow:0 0 0 0 rgba(246,185,59,0);} 50%{box-shadow:0 0 0 4px rgba(246,185,59,.22); border-color:var(--gold);}}
+  @media (prefers-reduced-motion: reduce){ .tutpulse .slot.active{animation:none; border-color:var(--gold);} }
   /* profile stats: a real grid — 3 columns, rows always line up */
   .statgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px 8px; text-align:center;}
   .statgrid .sv{font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold);}
@@ -463,7 +467,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.16.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.17.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4451,7 +4455,7 @@ function recordRunProgress(){
     store.set("tl_chals", JSON.stringify(c));
   }
 }
-function isRun(){ return S.mode==="daily" || S.mode==="challenge" || (S.mode==="classic" && S.turbo); }
+function isRun(){ return S.mode==="daily" || S.mode==="challenge" || S.mode==="tut" || (S.mode==="classic" && S.turbo); }
 // classic race: after someone hits the target, only players ONE card short can
 // still force a tie (+1 max per turn). If none remain this round, it's over.
 function raceOver(){
@@ -5722,7 +5726,7 @@ function drawCard(){
   }
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id));
   if(avail.length===0) return null;
-  if(S.mode==="daily" || S.mode==="challenge") return avail[0];   // deck order IS the seeded order
+  if(S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") return avail[0];   // deck order IS the seeded order
   return avail[Math.floor(Math.random()*avail.length)];
 }
 // pick next turn's card NOW and warm its clip in the hidden preloader, so the
@@ -5731,7 +5735,7 @@ function primeNext(){
   const cur = S.current && S.current.id;
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id) && c.id !== cur);
   S.nextPick = !avail.length ? null
-    : (S.mode==="daily" || S.mode==="challenge") ? avail[0]
+    : (S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") ? avail[0]
     : avail[Math.floor(Math.random()*avail.length)];
   const p = document.getElementById("pre");
   if(p && S.nextPick && p.src !== S.nextPick.previewUrl){
@@ -5743,7 +5747,7 @@ function inAnyTimeline(id){ return S.players.some(p => p.timeline.some(c => c.id
 /* ---------- save / resume (survives crashes & reloads) ---------- */
 function saveGame(){
   try{
-    if(S.mode==="daily" || S.mode==="challenge" || S.turbo) return;   // 3-minute runs aren't worth resuming
+    if(S.mode==="daily" || S.mode==="challenge" || S.mode==="tut" || S.turbo) return;   // 3-minute runs aren't worth resuming
     if(!S.players || !S.players.length) return;
     store.set("tl_game", JSON.stringify({
       v:2, target:S.target, turn:S.turn, deck:S.deck, used:[...S.used],
@@ -5805,7 +5809,7 @@ function startGame(){
   S.reactTo = null;   // reactions only belong to a run started from the inbox
   S.chalTarget = null; // auto-send only belongs to a run started via a friend's ⚔️
   S.nextPick = null;   // pre-buffered card belongs to the previous game's deck
-  if(S.mode!=="daily" && S.mode!=="challenge") shuffle(S.deck);   // seeded runs: the order IS the puzzle
+  if(S.mode!=="daily" && S.mode!=="challenge" && S.mode!=="tut") shuffle(S.deck);   // seeded runs: the order IS the puzzle
   if(isRun()){
     // runs play on ONE shared timeline: a single neutral anchor, and every
     // player's locked cards land on the same board (colored per player)
@@ -5938,7 +5942,14 @@ function chooseSlot(idx){
   bumpLife("cards");                        // lifetime cards-placed counter
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   saveGame();
-  if(run) recordRunProgress();   // one-shot sets burn from the first reveal on
+  if(run) recordRunProgress();   // one-shot sets burn from the first reveal on (no-op for the tutorial)
+  // the guided first round is over after TUT_LEN placements — its own finish
+  // sheet carries the final reveal, mirroring the normal run flow below
+  if(S.mode==="tut" && S.players.every(pl => (pl.tries||0) >= TUT_LEN)){
+    S.lastReveal = { correct, id:S.current.id, year:S.current.year, name:S.current.name, artist:S.current.artist };
+    overlayTutOver();
+    return;
+  }
   // last placement of a run: skip the in-between reveal — the results screen
   // carries the final song's reveal line itself (one screen, not two)
   if(run && S.players.every(pl => (pl.tries||0) >= RUN_LEN)){
@@ -6135,12 +6146,19 @@ function homeHTML(){
       <button class="btn primary" onclick="resumeSaved()">▶ Resume game</button>
       <button class="btn ghost sm" style="margin-top:8px" onclick="discardSaved()">Discard &amp; start fresh</button></div>` : ``;
   const chal = S.challenge ? `<div style="margin-top:12px">${challengeCardHTML()}</div>` : ``;
-  const intro = (S.challenge || resume) ? `` :
+  // brand-new player: ONE gold card, one tap into a guided round — the pitch
+  // lives inside it, so the intro paragraph would just repeat it
+  const hero = (!resume && showTutHero()) ? `<div class="card" style="border-color:var(--gold); margin-top:12px">
+      <div class="eyebrow">🎧 first time here?</div>
+      <div class="muted" style="font-size:13.5px; margin-top:6px">Hear a song, drop it where it belongs in time. You'll get it in three songs — one quick guided round.</div>
+      <button class="btn primary" style="margin-top:12px" onclick="startTutorial()">▶ Play your first round</button>
+    </div>` : ``;
+  const intro = (S.challenge || resume || hero) ? `` :
     `<p class="lobby-intro">Hear a mystery track and drop it into your timeline — no exact year, just where it belongs. The line grows, the gaps shrink, every guess gets harder.</p>`;
   return `${lobbyHeadHTML()}
     ${intro}
     <div id="chalNews"></div>
-    ${chal}${resume}
+    ${chal}${resume}${hero}
     <div class="modelist">
       ${modeCardHTML('📅','rgba(198,242,78,.16)','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
       ${modeCardHTML('⚔️','rgba(167,139,250,.16)','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','openChallengePicker()')}
@@ -6507,8 +6525,9 @@ function renderGame(){
 
   const survival = S.mode==="survival";
   const run = isRun();
+  const tut = S.mode==="tut", runLen = tut ? TUT_LEN : RUN_LEN;
   const hearts = "❤️".repeat(Math.max(0,S.lives)) + "🖤".repeat(Math.max(0,3-S.lives));
-  const runSquares = run ? (p.results||[]).map(r=>r?'🟩':'🟥').join('') + '⬛'.repeat(Math.max(0, RUN_LEN - (p.results||[]).length)) : '';
+  const runSquares = run ? (p.results||[]).map(r=>r?'🟩':'🟥').join('') + '⬛'.repeat(Math.max(0, runLen - (p.results||[]).length)) : '';
   const hud = survival
     ? `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
          <span style="font-size:17px; letter-spacing:2px; flex:0 0 auto">${hearts}</span>
@@ -6523,14 +6542,14 @@ function renderGame(){
          </div></div>`
       : `<div class="lb2"><div class="lb2-row me" style="justify-content:space-between; gap:8px">
            <span style="font-size:16px; letter-spacing:2px; flex:0 0 auto">${runSquares}</span>
-           <span class="lb2-sc" style="min-width:auto; flex:1; text-align:right">song <b style="color:var(--text)">${Math.min((p.tries||0)+1, RUN_LEN)}/${RUN_LEN}</b> · score ${p.hits||0}</span>
+           <span class="lb2-sc" style="min-width:auto; flex:1; text-align:right">song <b style="color:var(--text)">${Math.min((p.tries||0)+1, runLen)}/${runLen}</b> · score ${p.hits||0}</span>
          </div></div>`)
     : `<div class="lb2">${lbHTML}</div>`;
 
   app().innerHTML = `
     <div class="topbar">
       <div>
-        <div class="eyebrow">${survival ? 'survival · solo' : S.mode==="daily" ? 'daily challenge #'+dailyNumber() : S.mode==="challenge" ? 'friend challenge' : run ? 'turbo' : 'now placing'}</div>
+        <div class="eyebrow">${survival ? 'survival · solo' : S.mode==="daily" ? 'daily challenge #'+dailyNumber() : S.mode==="challenge" ? 'friend challenge' : tut ? 'your first round' : run ? 'turbo' : 'now placing'}</div>
         <div class="turn-name">${survival ? 'Keep the run alive' : run ? (S.players.length>1 ? esc(p.name) : 'Lock it in') : esc(p.name)}</div>
       </div>
       <button class="btn sm ghost" onclick="confirmQuit()">Quit</button>
@@ -6541,7 +6560,9 @@ function renderGame(){
       ${S.checkingTrack ? `` : `<div class="gvinyl ${S.playing?'':'paused'}" aria-hidden="true"><span class="glabel"></span></div>`}
       <div class="eq ${vizEnabled?'viz':''} ${S.playing?'':'paused'}"><span></span><span></span><span></span><span></span><span></span></div>
       <h2>${S.checkingTrack ? 'Checking track…' : (live ? 'Mystery track is playing' : '…')}</h2>
-      <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.') : 'Listen, then drop it into your timeline where it belongs.'}</p>
+      <p>${S.checkingTrack ? (S.checkMessage || 'We’re checking the result now.')
+          : (tut && (p.tries||0)===0 && live && tl[0]) ? `Does it sound <b>older</b> or <b>newer</b> than <b style="color:var(--gold)">${tl[0].year}</b>? Tap a gap on the line below 👇`
+          : 'Listen, then drop it into your timeline where it belongs.'}</p>
       ${S.checkingTrack ? `<div class="verify-state">still checking</div>` : ''}
       <div id="bufNote" class="bufnote ${S.buffering && !S.checkingTrack ?'show':''}">buffering…</div>
     </div>
@@ -6552,7 +6573,7 @@ function renderGame(){
 
     <div style="height:18px"></div>
     <p class="tl-label">${run ? (S.players.length>1 ? 'Shared timeline' : 'Your timeline') : survival ? 'Your timeline' : esc(p.name)+'’s timeline'} — tap a gap to place</p>
-    ${tl.length? `<div class="timeline">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
+    ${tl.length? `<div class="timeline ${tut && (p.tries||0)===0 && live ? 'tutpulse' : ''}">${slotsHTML}</div>` : `<div class="empty-tl">No cards yet.</div>`}
     <div class="footnote">Oldest first · reads left → right, top → bottom</div>
   `;
 }
@@ -6603,7 +6624,13 @@ function overlayReveal(correct, p){
     btn = dead ? '💀 See results' : 'Next song →';
     var extra = `<div style="font-size:22px; letter-spacing:3px; margin:14px 0 4px">${hearts}</div>`;
   } else if(run){
-    sub = `${correct ? 'Locked in place' : 'Locked at its true spot'} · song ${p.tries||0}/${RUN_LEN} · score ${p.hits||0}`;
+    const tut = S.mode==="tut", runLen = tut ? TUT_LEN : RUN_LEN;
+    // tutorial reveals COACH instead of scorekeeping — the mechanic is the lesson
+    sub = tut
+      ? ((p.tries||0) === 1
+          ? (correct ? "Nailed it — every song locks onto the line at its true year." : "No stress — it locks at its true year anyway, and the line grows.")
+          : "The line grows, the gaps get tighter — that's where it gets fun.")
+      : `${correct ? 'Locked in place' : 'Locked at its true spot'} · song ${p.tries||0}/${runLen} · score ${p.hits||0}`;
     const allDone = S.players.every(pl => (pl.tries||0) >= RUN_LEN);
     let nxtName = null;
     if(!allDone && S.players.length>1){
@@ -6612,7 +6639,7 @@ function overlayReveal(correct, p){
       if(t !== S.turn) nxtName = S.players[t].name;
     }
     btn = allDone ? '🏁 See results' : (nxtName ? '▶ Pass to '+esc(nxtName)+' →' : 'Next song →');
-    var extra = `<div style="font-size:19px; letter-spacing:2px; margin:12px 0 4px">${(p.results||[]).map(r=>r?'🟩':'🟥').join('')}${'⬛'.repeat(Math.max(0,RUN_LEN-(p.results||[]).length))}</div>${flagBlock}`;
+    var extra = `<div style="font-size:19px; letter-spacing:2px; margin:12px 0 4px">${(p.results||[]).map(r=>r?'🟩':'🟥').join('')}${'⬛'.repeat(Math.max(0,runLen-(p.results||[]).length))}</div>${tut ? `` : flagBlock}`;
   } else {
     sub = reached ? '🏁 '+esc(p.name)+' hits '+S.target+'!'+(won?'':' Last chance for anyone one card short.')
         : anyFinished ? (correct?'Card goes to '+esc(p.name):'Card is discarded')+' · 🏁 final chance'
@@ -6683,6 +6710,7 @@ function overlayGameOver(deckEmpty, winner){
 
 /* ---------- run results (turbo / daily / challenge) ---------- */
 function overlayRunOver(){
+  if(S.mode==="tut"){ overlayTutOver(); return; }   // safety: a dry deck mid-tutorial still ends on the tutorial sheet
   S.current = null;
   bumpLife("games");   // a finished run counts as a played game
   renderGame();   // repaint the final board behind the results (last card included)
@@ -6903,6 +6931,70 @@ function parseChallengeHash(){
            beatTime: m[3]!=null ? parseInt(m[3],10)*1000 : null };
 }
 // create-your-own challenge: random songs, play, then send the gauntlet
+/* ---------- guided first round (onboarding) ----------
+   A real run, three songs long, picked DECADES apart — the first placements are
+   near-impossible to miss, because the lesson is the loop (hear → place), not
+   the difficulty. Nothing is recorded or submitted; the finish sheet funnels
+   straight into the Daily. */
+const TUT_LEN = 3;
+function tutSeen(){ return !!store.get("tl_tut"); }
+// hero only for a genuinely blank player: never played, nothing in progress,
+// and not arriving via a challenge link (that flow IS their first round)
+function showTutHero(){ return !tutSeen() && !((loadLife().games|0) > 0) && !hasSavedGame() && !S.challenge; }
+function tutSongs(){
+  const pool = stablePool();
+  // anchor, 3 mysteries, 2 spares (failed preview lookups must not cut the run short)
+  const targets = [1988, 1964, 2016, 1975, 1996, 2005];
+  const chosen = [], years = [];
+  for(const t of targets){
+    for(let span = 5; span <= 40; span += 5){
+      const cand = pool.filter(s => Math.abs(s.year - t) <= span
+        && !chosen.includes(s) && years.every(y => Math.abs(y - s.year) >= 6));   // ≥6y apart: every gap stays obvious
+      if(cand.length){ const s = cand[Math.floor(Math.random()*cand.length)]; chosen.push(s); years.push(s.year); break; }
+    }
+  }
+  return chosen;
+}
+async function startTutorial(){
+  track("start-tutorial");
+  store.set("tl_tut", "1");   // offered once — quitting mid-way shouldn't re-nag forever
+  const songs = tutSongs();
+  if(songs.length < 3){ toast("Couldn't build the intro round — pick any mode instead!"); return; }
+  S.mode = "tut"; S.turbo = false;
+  stashRoster();
+  S.players = [{ name:"You", timeline:[] }];
+  unlockAudio();
+  S.deck = []; S.deckSeen = new Set(); S.loadingMore = false;
+  renderLoading(0, songs.length);
+  const got = await resolveInitial(songs, (d,t)=>renderLoading(d,t), ()=> S.deck.length >= 3);
+  if(S.deck.length < 2){
+    showError("Couldn't load the intro songs — Apple may be rate-limiting. Try again in a moment.");
+    renderSetup(); return;
+  }
+  S.used = new Set();
+  startGame();
+  loadRest(songs.slice(got), bgRun);
+}
+function overlayTutOver(){
+  S.current = null;
+  bumpLife("games");
+  renderGame();   // final board repaints behind the sheet, last card included
+  const me = S.players[0] || {};
+  const last = S.lastReveal; S.lastReveal = null;
+  const sq = (me.results||[]).map(r=>r?'🟩':'🟥').join('');
+  buzz([0,30,40,30,40,90]);
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="winner-emoji">🎓</div>
+    <div class="verdict good" style="margin-top:2px">THAT'S YEARWORM!</div>
+    ${last ? `<div class="muted" style="font-size:12.5px; margin-top:6px">last song: <b style="color:${last.correct?'var(--good)':'var(--bad)'}">${last.correct?'✓':'✗'} ${last.year}</b> — ${esc(last.name)} · ${esc(last.artist)}</div>` : ``}
+    <div style="font-size:19px; letter-spacing:2px; margin:10px 0 2px">${sq}</div>
+    <div style="font-size:14px; margin:6px 0 2px">You placed <b style="color:var(--good)">${me.hits||0}/${TUT_LEN}</b> — and that's the whole game.</div>
+    <div class="muted" style="font-size:13px; margin:10px 4px 2px">Every mode is this loop with a twist. The <b style="color:var(--text)">Daily</b> is the same ${RUN_LEN} songs for the whole world, once a day — start your streak:</div>
+    <button class="btn primary" style="margin-top:14px" onclick="closeOverlay(); startDaily()">📅 Play today's Daily</button>
+    <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Explore the modes</button>`;
+  showSheet();
+}
 async function startFreshChallenge(){
   // same clustered picker as the daily, just with a random seed — WITH spare
   // candidates: if a preview lookup fails the run still fills its 5 songs.
@@ -7173,7 +7265,7 @@ function playAgain(){
 }
 function backToSetup(){ bgRun++; S.loadingMore=false;
   // runs are never saved — finishing one must not delete an unrelated saved classic game
-  if(!(S.mode==="daily" || S.mode==="challenge" || S.turbo)) clearGame();
+  if(!(S.mode==="daily" || S.mode==="challenge" || S.mode==="tut" || S.turbo)) clearGame();
   // a solo run replaced the Pass & Play roster — put the party back
   if(S.prevRoster && (!S.players || S.players.length <= 1)){
     S.players = S.prevRoster.map(p => ({ name: p.name, timeline: [] }));
