@@ -38,9 +38,21 @@ function limited(ip){
 }
 
 async function board(env, day, device, cors){
-  const top = (await env.DB.prepare(
-    "SELECT nick, score, time_ms FROM scores WHERE day=?1 ORDER BY score DESC, time_ms ASC, created ASC LIMIT " + TOP_N
-  ).bind(day).all()).results || [];
+  // avatar rides along when the scoring device belongs to a claimed profile —
+  // the world board shows real faces, not just initials. Wrapped fallback keeps
+  // the board alive on a database without the avatar column.
+  let top;
+  try{
+    top = (await env.DB.prepare(
+      "SELECT s.nick, s.score, s.time_ms, u.avatar FROM scores s " +
+      "LEFT JOIN devices d ON d.device = s.device LEFT JOIN users u ON u.id = d.user_id " +
+      "WHERE s.day=?1 ORDER BY s.score DESC, s.time_ms ASC, s.created ASC LIMIT " + TOP_N
+    ).bind(day).all()).results || [];
+  }catch(e){
+    top = (await env.DB.prepare(
+      "SELECT nick, score, time_ms FROM scores WHERE day=?1 ORDER BY score DESC, time_ms ASC, created ASC LIMIT " + TOP_N
+    ).bind(day).all()).results || [];
+  }
   const total = (await env.DB.prepare("SELECT COUNT(*) AS n FROM scores WHERE day=?1").bind(day).first()).n;
   let me = null;
   if(device){
@@ -54,7 +66,7 @@ async function board(env, day, device, cors){
     }
   }
   return json({ day, total, me,
-    top: top.map(r => ({ nick: r.nick, score: r.score, timeMs: r.time_ms })) }, 200, cors);
+    top: top.map(r => ({ nick: r.nick, score: r.score, timeMs: r.time_ms, avatar: r.avatar || null })) }, 200, cors);
 }
 
 const SET_RE = /^\d+(\.\d+){1,8}$/;   // pool indices joined with dots (anchor + up to 8)
