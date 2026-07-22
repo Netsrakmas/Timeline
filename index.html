@@ -180,7 +180,7 @@
   /* the header disc is the in-game gvinyl in miniature — one record, one brand */
   .vinyl{width:54px; height:54px; border-radius:50%; flex:0 0 auto; position:relative;
     background:repeating-radial-gradient(circle at 50% 50%, #05070F 0 1.5px, #12182B 1.5px 3px);
-    box-shadow:0 0 0 2px #05070F, 0 4px 14px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.55);
+    box-shadow:0 0 0 2px #05070F, 0 0 0 4px var(--gold), 0 4px 14px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.55);
     display:flex; align-items:center; justify-content:center; animation:yw-spin 6s linear infinite;}
   .vinyl::before{content:""; position:absolute; inset:0; border-radius:50%; pointer-events:none;
     background:linear-gradient(118deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.14) 49%, rgba(255,255,255,.03) 53%, rgba(255,255,255,0) 62%);}
@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.24.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.24.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -6363,9 +6363,7 @@ function configScreenHTML(mode){
         <span class="hint" id="deckTally" style="margin:0">${tallyHTML()}</span>
       </div>`;
   const body = survival ? `
-      <div class="eyebrow" id="youSect">you</div><div style="height:10px"></div>
-      <input id="soloName" type="text" placeholder="Your name (optional)" value="${esc((S.players[0]&&S.players[0].name)||'')}" oninput="renamePlayer(0, this.value)" />
-      <div class="hint">3 lives — a wrong guess costs one. Go as long as you can.</div>
+      <div class="hint" style="margin-top:0">3 lives — a wrong guess costs one. Go as long as you can.</div>
       <div style="height:14px"></div>${music}
       <div style="height:12px"></div>
       <div class="lb2"><div class="lb2-row" style="justify-content:space-around">
@@ -6921,6 +6919,7 @@ function overlayGameOver(deckEmpty, winner){
       <div class="muted" style="font-size:12px; margin-bottom:16px">All-time best · ${nb.cards} placed · ${nb.streak} streak</div>
       <button class="btn pink" onclick="playAgain()">Play again</button>
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
+      <button class="btn ghost sm" style="margin-top:6px" onclick="backToMenu()">Quit to menu</button>
     `;
     showSheet();
     checkAchievements();
@@ -7592,6 +7591,8 @@ function backToSetup(){ bgRun++; S.loadingMore=false;
     S.prevRoster = null;
   }
   closeOverlay(); S.current=null; const a=aud(); if(a) a.pause(); S.playing=false; renderSetup(); }
+// "Quit to menu": same teardown, but land on the Play tab instead of the mode's config screen
+function backToMenu(){ _playScreen = null; backToSetup(); }
 
 /* ---------- boot ---------- */
 /* Arriving on a playable challenge link: don't make the guest hunt for the
