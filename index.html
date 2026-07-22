@@ -472,7 +472,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.21.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.21.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5950,8 +5950,8 @@ function duck(ms){
   try{
     const a = aud(); if(!a || a.paused) return;
     clearTimeout(_duckT1); clearTimeout(_duckT2);
-    a.volume = 0.25;
-    _duckT1 = setTimeout(()=>{ try{ a.volume = 0.6; }catch(e){} }, ms * 0.7);
+    a.volume = 0.15;
+    _duckT1 = setTimeout(()=>{ try{ a.volume = 0.55; }catch(e){} }, ms * 0.7);
     _duckT2 = setTimeout(()=>{ try{ a.volume = 1; }catch(e){} }, ms);
   }catch(e){}   // iOS ignores media volume — cues just ride on top there
 }
@@ -5972,10 +5972,10 @@ function sfx(kind){
       o.connect(g); g.connect(_sfxCtx.destination);
       o.start(t0 + dt); o.stop(t0 + dt + dur + .05);
     };
-    if(kind === "good"){ duck(420); tone(660, 880, 0, .12, "triangle", .32); tone(990, 1320, .08, .16, "sine", .26); }
-    else if(kind === "bad"){ duck(420); tone(220, 145, 0, .22, "triangle", .30); tone(110, 80, 0, .22, "sine", .22); }
-    else if(kind === "win"){ duck(750); tone(523, 0, 0, .12, "triangle", .28); tone(659, 0, .10, .12, "triangle", .28); tone(784, 0, .20, .14, "triangle", .30); tone(1047, 0, .30, .30, "sine", .34); }
-    else if(kind === "end"){ duck(520); tone(494, 0, 0, .13, "triangle", .24); tone(392, 0, .12, .22, "sine", .24); }
+    if(kind === "good"){ duck(420); tone(660, 880, 0, .12, "triangle", .5); tone(990, 1320, .08, .16, "sine", .42); }
+    else if(kind === "bad"){ duck(420); tone(220, 145, 0, .22, "triangle", .48); tone(110, 80, 0, .22, "sine", .34); }
+    else if(kind === "win"){ duck(750); tone(523, 0, 0, .12, "triangle", .44); tone(659, 0, .10, .12, "triangle", .44); tone(784, 0, .20, .14, "triangle", .46); tone(1047, 0, .30, .30, "sine", .52); }
+    else if(kind === "end"){ duck(520); tone(494, 0, 0, .13, "triangle", .38); tone(392, 0, .12, .22, "sine", .38); }
   }catch(e){}
 }
 function toggleSfx(){
