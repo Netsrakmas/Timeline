@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.24.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.24.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -7136,66 +7136,73 @@ async function dailyShareCanvas(d){
   const W = 1080, H = 1080;
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const x = cv.getContext("2d"); if(!x) return null;
-  try{ await Promise.all([document.fonts.load('900 120px Rubik'), document.fonts.load('700 40px Rubik'),
-    document.fonts.load('400 34px "DM Mono"'), document.fonts.load('400 150px Anton')]); }catch(e){}
-  // Composed from the APP'S OWN components at ~2.45× the 440px layout — header
-  // row, a real .card surface, eyebrow type, tiles, the cyan action button —
-  // so the share reads as "a piece of the game", not a separate poster.
+  try{ await Promise.all([document.fonts.load('900 72px Rubik'), document.fonts.load('700 27px Rubik'),
+    document.fonts.load('600 36px Rubik'), document.fonts.load('400 27px "DM Mono"'), document.fonts.load('400 224px Anton')]); }catch(e){}
+  // Composed from the APP'S OWN components — header lockup, a real .card
+  // surface, eyebrow type, tiles, the cyan action button — so the share reads
+  // as "a piece of the game", not a separate poster. FOUR type sizes only
+  // (27 / 36 / 72 / 224): small-caps meta, body, wordmark, and one hero score.
+  // The header runs at ~1.8× the 440px layout while the card keeps the app's
+  // ~2.45×, so the RESULT — not the brand — is the undisputed hero.
   const bg = x.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#0D1526"); bg.addColorStop(1,"#0B1120");
   x.fillStyle = bg; x.fillRect(0,0,W,H);
-  // header row: mini ringed record + wordmark + subtag, centered like the lobby
-  const hy = 172, vr = 66;
-  const vx = W/2 - 320;
-  x.strokeStyle = "#F6B93B"; x.lineWidth = 6;
-  x.beginPath(); x.arc(vx,hy,vr+7,0,7); x.stroke();
-  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(vx,hy,vr,0,7); x.fill();
+  // header: ringed record + wordmark centered as one lockup, subtag centered below
+  const hy = 130;
+  x.font = "900 72px Rubik, sans-serif";
+  const wordW = x.measureText("Yearworm").width;
+  const lockL = W/2 - (110 + 28 + wordW)/2;      // vinyl (110) + gap (28) + wordmark
+  const vx = lockL + 55, tx = lockL + 138;
+  x.strokeStyle = "#F6B93B"; x.lineWidth = 5;
+  x.beginPath(); x.arc(vx,hy,55,0,7); x.stroke();
+  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(vx,hy,48,0,7); x.fill();
   x.strokeStyle = "rgba(255,255,255,.06)"; x.lineWidth = 2;
-  for(let r = 30; r < vr-4; r += 8){ x.beginPath(); x.arc(vx,hy,r,0,7); x.stroke(); }
-  let g = x.createLinearGradient(vx-24,hy-24,vx+24,hy+24); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
-  x.fillStyle = g; x.beginPath(); x.arc(vx,hy,24,0,7); x.fill();
-  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(vx,hy,4,0,7); x.fill();
+  for(let r = 24; r < 45; r += 6){ x.beginPath(); x.arc(vx,hy,r,0,7); x.stroke(); }
+  let g = x.createLinearGradient(vx-18,hy-18,vx+18,hy+18); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
+  x.fillStyle = g; x.beginPath(); x.arc(vx,hy,18,0,7); x.fill();
+  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(vx,hy,3.5,0,7); x.fill();
   x.textAlign = "left";
-  g = x.createLinearGradient(vx+100,0,vx+640,0); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
-  x.fillStyle = g; x.font = "900 96px Rubik, sans-serif"; x.fillText("Yearworm", vx+100, hy+12);
-  x.fillStyle = "#8EA0C9"; x.font = '400 24px "DM Mono", monospace';
-  try{ x.letterSpacing = "7px"; }catch(e){}
-  x.fillText("GUESS THE YEAR · BUILD THE LINE", vx+102, hy+58);
+  g = x.createLinearGradient(tx,0,tx+wordW,0); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
+  x.fillStyle = g; x.fillText("Yearworm", tx, hy+26);
+  x.textAlign = "center";
+  x.fillStyle = "#8EA0C9"; x.font = '400 27px "DM Mono", monospace';
+  try{ x.letterSpacing = "6px"; }catch(e){}
+  x.fillText("GUESS THE YEAR · BUILD THE LINE", W/2 + 3, hy+90);   // +3 rebalances the trailing letterspace
   try{ x.letterSpacing = "0px"; }catch(e){}
-  // the results card — the app's .card surface (s1 fill, 18px→44 radius)
-  const cardX = 49, cardW = W-98, cardY = 300, cardH = 606;
+  // the results card — the app's .card surface (s1 fill, 18px→44 radius),
+  // 72px margins outside, 72px padding inside, ~48px rhythm between rows
+  const cardX = 72, cardW = W-144, cardY = 272, cardH = 704;
   x.fillStyle = "#121A2E";
   x.beginPath(); x.roundRect(cardX, cardY, cardW, cardH, 44); x.fill();
   x.strokeStyle = "rgba(255,255,255,.06)"; x.lineWidth = 2;
   x.beginPath(); x.roundRect(cardX, cardY, cardW, cardH, 44); x.stroke();
-  x.textAlign = "center";
-  // eyebrow, exactly the app's: 11px→27, .14em spacing, uppercase, muted
+  // eyebrow, exactly the app's daily card: 11px→27, .14em spacing, gold
   const wTh = weekTheme(d.num || dailyNumber());
-  x.fillStyle = "#8EA0C9"; x.font = "700 27px Rubik, sans-serif";
+  x.fillStyle = "#F6B93B"; x.font = "700 27px Rubik, sans-serif";
   try{ x.letterSpacing = "4px"; }catch(e){}
-  x.fillText("DAILY CHALLENGE #" + (d.num||dailyNumber()) + (wTh ? " · " + wTh.emoji + " " + wTh.name.toUpperCase() : ""), W/2, cardY + 78);
+  x.fillText("DAILY CHALLENGE #" + (d.num||dailyNumber()) + (wTh ? " · " + wTh.emoji + " " + wTh.name.toUpperCase() : ""), W/2 + 2, cardY + 96);
   try{ x.letterSpacing = "0px"; }catch(e){}
-  // the score, Anton like the duel scoreline
-  x.fillStyle = "#EEF2FF"; x.font = "400 168px Anton, Rubik, sans-serif";
-  x.fillText((d.score||0) + "/" + RUN_LEN, W/2, cardY + 250);
+  // the score — the single hero of the card, Anton like the duel scoreline
+  x.fillStyle = "#EEF2FF"; x.font = "400 224px Anton, Rubik, sans-serif";
+  x.fillText((d.score||0) + "/" + RUN_LEN, W/2, cardY + 312);
   // result tiles
   const res = (d.results||[]).slice(0, RUN_LEN), n = Math.max(res.length, RUN_LEN);
-  const sq = 72, gap = 20, x0 = W/2 - (n*sq + (n-1)*gap)/2, ty = cardY + 296;
+  const sq = 72, gap = 24, x0 = W/2 - (n*sq + (n-1)*gap)/2, ty = cardY + 352;
   for(let i=0;i<n;i++){
     x.fillStyle = i < res.length ? (res[i] ? "#4ADE80" : "#FF6B6B") : "#212C4A";
     x.beginPath(); x.roundRect(x0 + i*(sq+gap), ty, sq, sq, 16); x.fill();
   }
   // streak + time, in the results sheet's own words
-  x.fillStyle = "#B9C6EA"; x.font = "600 34px Rubik, sans-serif";
-  x.fillText("🔥 streak · " + (d.streak||1) + " day" + ((d.streak||1)===1?"":"s") + (d.timeMs ? "    ·    ⏱ " + fmtTime(d.timeMs) : ""), W/2, ty + 150);
+  x.fillStyle = "#B9C6EA"; x.font = "600 36px Rubik, sans-serif";
+  x.fillText("🔥 streak · " + (d.streak||1) + " day" + ((d.streak||1)===1?"":"s") + (d.timeMs ? "    ·    ⏱ " + fmtTime(d.timeMs) : ""), W/2, cardY + 488);
   // the app's cyan action button, verbatim (bg cyan, dark text, darker bottom edge)
-  const bw = 640, bh = 96, bx = W/2 - bw/2, by = cardY + cardH - 140;
+  const bw = 640, bh = 96, bx = W/2 - bw/2, by = cardY + 532;
   x.fillStyle = "#3FA8C6"; x.beginPath(); x.roundRect(bx, by+6, bw, bh, 28); x.fill();
   x.fillStyle = "#5EE0D6"; x.beginPath(); x.roundRect(bx, by, bw, bh-6, 28); x.fill();
   x.fillStyle = "#00303F"; x.font = "800 36px Rubik, sans-serif";
-  x.fillText("Beat me on the same songs", W/2, by + 60);
-  // footnote, app-style
+  x.fillText("Beat me on the same songs", W/2, by + 58);
+  // footnote, app-style, centered in the bottom band
   x.fillStyle = "#8EA0C9"; x.font = '400 27px "DM Mono", monospace';
-  x.fillText("playyearworm.com · free · no app needed", W/2, 990);
+  x.fillText("playyearworm.com · free · no app needed", W/2, 1032);
   return cv;
 }
 async function dailyShareFile(d){
