@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.25.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.25.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -515,7 +515,7 @@ document.addEventListener('keydown', e=>{
   if(ov && ov.classList.contains('show') && document.querySelector('.tabbar')) closeOverlay();
 });
 /* ---------- Web Push (notifications) ---------- */
-const VAPID_PUBLIC = "BJa44HnxApm2zTubV0QUaheLtNxT5Cmyp1Tg3yZj-DdUwibFwZ3o574Pl4aeVmheAVXsrnQxZ9zCpogm0I9Csrc";
+const VAPID_PUBLIC = "BMjZSG0qf5xGGWcAadUijl9M6eDaEbIWf1nIkvXwcuCm1Fad0F7uf3uQhM-XIscMP8vcaehIk8TxJNlnkkvMAVU";
 function pushSupported(){ return ('serviceWorker' in navigator) && ('PushManager' in window) && (typeof Notification !== 'undefined'); }
 function pushEnabled(){ return pushSupported() && Notification.permission === 'granted' && store.get('tl_push') === '1'; }
 function urlB64ToU8(b64){ const pad='='.repeat((4-b64.length%4)%4); const s=(b64+pad).replace(/-/g,'+').replace(/_/g,'/'); const raw=atob(s); const o=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)o[i]=raw.charCodeAt(i); return o; }

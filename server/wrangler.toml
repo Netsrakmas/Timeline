@@ -9,7 +9,7 @@ account_id = "068a305342a3734354d0697da0dec1a5"
 GOOGLE_CLIENT_ID = "317631093714-6ceeite114c7mgggaj9mt0af3rn4g3k1.apps.googleusercontent.com"
 # Web Push (VAPID). Public values live here; the private key is a SECRET set with
 # `wrangler secret put VAPID_PRIVATE` (PKCS8 base64). Empty VAPID_PRIVATE = push off.
-VAPID_PUBLIC = "BJa44HnxApm2zTubV0QUaheLtNxT5Cmyp1Tg3yZj-DdUwibFwZ3o574Pl4aeVmheAVXsrnQxZ9zCpogm0I9Csrc"
+VAPID_PUBLIC = "BMjZSG0qf5xGGWcAadUijl9M6eDaEbIWf1nIkvXwcuCm1Fad0F7uf3uQhM-XIscMP8vcaehIk8TxJNlnkkvMAVU"
 VAPID_SUBJECT = "mailto:contact@playyearworm.com"
 
 [[d1_databases]]
