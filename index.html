@@ -481,7 +481,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.22.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.23.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4407,14 +4407,25 @@ function poolIndexOf(card){   // -1 if the song isn't in the shared pool (e.g. c
 // tight gaps are what make a run hard. Tune difficulty with RUN_YEAR_SPAN.
 // slot 0 = the anchor card, 1..RUN_LEN = mysteries, rest = spares for failed lookups
 const RUN_YEAR_SPAN = 8;   // ± years around the set's center
-function seededIdx(seed, n){
+function seededIdx(seed, n, filter){
   const pool = stablePool();
   const rnd = mulberry32(seed % 2147483647);
-  const center = pool[Math.floor(rnd() * pool.length)].year;
+  // themed weeks narrow the eligible slice; a too-thin slice falls back to the
+  // full pool — a broken daily is worse than an off-theme one. Indices stay
+  // FULL-POOL indices either way, so challenge links resolve unchanged.
+  let idxs = null;
+  if(filter){
+    idxs = [];
+    for(let i=0;i<pool.length;i++) if(filter(pool[i])) idxs.push(i);
+    if(idxs.length < n * 6) idxs = null;
+  }
+  const size = idxs ? idxs.length : pool.length;
+  const at = j => idxs ? idxs[j] : j;
+  const center = pool[at(Math.floor(rnd() * size))].year;
   let span = RUN_YEAR_SPAN, cand = [];
   for(;;){
     cand = [];
-    for(let i=0;i<pool.length;i++) if(Math.abs(pool[i].year - center) <= span) cand.push(i);
+    for(let j=0;j<size;j++){ const i = at(j); if(Math.abs(pool[i].year - center) <= span) cand.push(i); }
     if(cand.length >= n*4 || span > 60) break;   // sparse era: widen until there's real choice
     span += 2;
   }
@@ -4426,8 +4437,31 @@ function seededIdx(seed, n){
   }
   return picked;
 }
-function seededSongs(seed, n){ return seededIdx(seed, n).map(i => stablePool()[i]); }
-function dailySongs(n){ return seededSongs(dailyNumber() * 2654435761, n); }
+function seededSongs(seed, n, filter){ return seededIdx(seed, n, filter).map(i => stablePool()[i]); }
+/* ---------- themed weeks ----------
+   Every 7 dailies the daily's song pool takes a theme — recurring "news" for
+   pushes/posts and a reason to come back Wednesday. APPEND-ONLY list: weekNum %
+   length picks the theme, so reordering would reshuffle every future week. */
+const WEEK_THEMES = [
+  { key:"wild", name:"Wildcard Week", emoji:"🃏", tag:"Anything goes — the whole century",  min:0,    max:9999 },
+  { key:"80s",  name:"80s Week",      emoji:"🕶️", tag:"Synths, spandex & big choruses",     min:1980, max:1989 },
+  { key:"90s",  name:"90s Week",      emoji:"📼", tag:"Grunge, eurodance & boybands",       min:1990, max:1999 },
+  { key:"00s",  name:"00s Week",      emoji:"💿", tag:"Ringtones & indie sleaze",           min:2000, max:2009 },
+  { key:"gold", name:"Golden Oldies", emoji:"📻", tag:"Everything before 1980",             min:0,    max:1979 },
+  { key:"now",  name:"Modern Era",    emoji:"📱", tag:"2010 to right now",                  min:2010, max:9999 },
+];
+// themes start at a FUTURE boundary — flipping them on mid-week would change a
+// LIVE day's set under players who already played it
+const THEMES_FROM_WEEK = 4;   // first themed week = daily #29
+function weekTheme(dNum){
+  const wk = Math.floor(((dNum || dailyNumber()) - 1) / 7);
+  if(wk < THEMES_FROM_WEEK) return null;
+  return WEEK_THEMES[wk % WEEK_THEMES.length];
+}
+function dailySongs(n){
+  const th = weekTheme(dailyNumber());
+  return seededSongs(dailyNumber() * 2654435761, n, th && (s => s.year >= th.min && s.year <= th.max));
+}
 function loadDaily(){ try{ return JSON.parse(store.get("tl_daily")||"{}")||{}; }catch(e){ return {}; } }
 function saveDaily(d){ store.set("tl_daily", JSON.stringify(d)); }
 function dailyPlayedToday(){
@@ -6272,8 +6306,10 @@ function modeCardHTML(emoji, chipColor, title, badge, badgeCls, desc, onclick){
 // Play tab home: header + pending challenge + resume + 5 mode cards
 function homeHTML(){
   const dNum = dailyNumber(), dState = loadDaily(), dailyDone = dailyPlayedToday();
+  const dTheme = weekTheme(dNum);
   const dailyDesc = dailyDone
     ? `Done · <b style="color:var(--text)">${dState.score}/${RUN_LEN}</b> · streak 🔥${dState.streak||1}<span id="dailyLbMini"></span>`
+    : dTheme ? `<b style="color:var(--text)">${dTheme.emoji} ${dTheme.name}</b> — ${esc(dTheme.tag)}. Same ${RUN_LEN} songs worldwide.`
     : `Same ${RUN_LEN} songs worldwide. Streaks &amp; leaderboard.`;
   const resume = hasSavedGame() ? `<div class="card" style="border-color:var(--cyan); margin-top:12px">
       <div class="eyebrow">resume</div><div style="height:8px"></div>
@@ -6737,7 +6773,7 @@ function renderGame(){
   app().innerHTML = `
     <div class="topbar">
       <div>
-        <div class="eyebrow">${survival ? 'survival · solo' : S.mode==="daily" ? 'daily challenge #'+dailyNumber() : S.mode==="challenge" ? 'friend challenge' : tut ? 'your first round' : run ? 'turbo' : 'now placing'}</div>
+        <div class="eyebrow">${survival ? 'survival · solo' : S.mode==="daily" ? 'daily challenge #'+dailyNumber()+((w=>w?' · '+w.name.toLowerCase():'')(weekTheme(S.dailyNum||dailyNumber()))) : S.mode==="challenge" ? 'friend challenge' : tut ? 'your first round' : run ? 'turbo' : 'now placing'}</div>
         <div class="turn-name">${survival ? 'Keep the run alive' : run ? (S.players.length>1 ? esc(p.name) : 'Lock it in') : esc(p.name)}</div>
       </div>
       <button class="btn sm ghost" onclick="confirmQuit()">Quit</button>
@@ -6960,7 +6996,11 @@ function overlayRunOver(){
   if(daily){
     title = 'DAILY #'+(S.dailyNum || dailyNumber());
     recordRunProgress();   // final write (all placements done → no p flag)
-    streakLine = `<div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>`;
+    const dTh = weekTheme(S.dailyNum || dailyNumber());
+    const nTh = weekTheme((S.dailyNum || dailyNumber()) + 7);
+    streakLine = `${dTh ? `<div class="muted" style="font-size:12.5px; margin-top:2px">${dTh.emoji} ${dTh.name}</div>` : ``}
+      <div style="font-size:15px; margin:6px 0 2px">🔥 streak · <b>${loadDaily().streak||1}</b> day${(loadDaily().streak||1)===1?'':'s'}</div>
+      ${nTh ? `<div class="muted" style="font-size:11.5px; margin-top:2px">next week: ${nTh.emoji} ${nTh.name}</div>` : ``}`;
     logFeed({ k:"daily", n: S.dailyNum || dailyNumber(), s: score, streak: loadDaily().streak||1 });
     bumpLife("dailies");
   } else if(chal){
@@ -7118,7 +7158,8 @@ async function dailyShareCanvas(d){
   try{ x.letterSpacing = "0px"; }catch(e){}
   // the result: daily number, big score, squares, time + streak
   x.fillStyle = "#8EA0C9"; x.font = "700 40px Rubik, sans-serif";
-  x.fillText(("DAILY  #" + (d.num||dailyNumber())), W/2, 732);
+  const wTh = weekTheme(d.num || dailyNumber());
+  x.fillText("DAILY  #" + (d.num||dailyNumber()) + (wTh ? "  ·  " + wTh.name.toUpperCase() : ""), W/2, 732);
   x.fillStyle = "#EEF2FF"; x.font = "400 148px Anton, sans-serif";
   x.fillText((d.score||0) + " / " + RUN_LEN, W/2, 862);
   const res = (d.results||[]).slice(0, RUN_LEN), n = Math.max(res.length, RUN_LEN);
@@ -7151,7 +7192,8 @@ async function shareDaily(){
   const url = (d.idx && d.idx.length>=2)
     ? "https://playyearworm.com/#c=" + d.idx.join(".") + "&s=" + (d.score||0) + (d.timeMs?("&t="+Math.round(d.timeMs/1000)):"")
     : "https://playyearworm.com";
-  const text = `Yearworm Daily #${d.num||dailyNumber()} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`;
+  const th = weekTheme(d.num || dailyNumber());
+  const text = `Yearworm Daily #${d.num||dailyNumber()}${th ? ` · ${th.emoji} ${th.name}` : ``} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`;
   const file = await dailyShareFile(d);
   if(file && navigator.share){
     try{ await navigator.share({ files:[file], text }); track("share-daily-image"); return; }
