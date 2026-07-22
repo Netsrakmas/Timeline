@@ -156,6 +156,24 @@ const server = http.createServer((req,res)=>{
   if(await pg.$('#achpop.show')) throw new Error('already-seen achievement popped again');
   console.log('achievement popup: silent baseline + fresh unlock + no re-pop OK');
 
+  // 5d) anti-repeat memory: recently-heard songs sort behind fresh ones
+  const rep = await pg.evaluate(()=>{
+    localStorage.removeItem('tl_played');
+    notePlayed({ name:'Song B', artist:'X' });
+    notePlayed({ name:'Song D', artist:'X' });
+    const order = freshFirst([
+      { title:'Song A', artist:'X' }, { title:'Song B', artist:'X' },
+      { title:'Song C', artist:'X' }, { title:'Song D', artist:'X' },
+    ]).map(s=>s.title).join('');
+    // LRU dedupe + cap
+    notePlayed({ name:'Song B', artist:'X' });
+    const lru = JSON.parse(localStorage.getItem('tl_played'));
+    return { order, lru };
+  });
+  if(rep.order !== 'Song ASong CSong BSong D') throw new Error('freshFirst order wrong: '+rep.order);
+  if(rep.lru.length !== 2 || rep.lru[1] !== 'song b|x') throw new Error('LRU dedupe wrong: '+JSON.stringify(rep.lru));
+  console.log('anti-repeat memory: fresh-first partition + LRU dedupe OK');
+
   // 6) ducking: a cue dips the playing music, then volume fully recovers
   const wav = (()=>{ // 200ms of silence
     const sr=8000,n=1600,d=Buffer.alloc(n*2),h=Buffer.alloc(44);

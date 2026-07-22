@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.24.6";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.25.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5827,6 +5827,30 @@ function togglePlay(){
 
 /* ---------- game logic ---------- */
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+/* anti-repeat memory: the shuffle is a fair Fisher-Yates, but the default deck
+   is ~71 songs — consecutive games are FORCED to overlap ("we keep getting the
+   same songs"). Remember the last ~250 heard songs across games and deal the
+   ones you haven't heard recently first. Recent songs stay available as
+   backfill (small decks must never run dry), and seeded runs (daily/challenge)
+   are untouched — determinism is their whole point. */
+const PLAYED_LRU = "tl_played", PLAYED_CAP = 250;
+function loadPlayed(){ try{ return JSON.parse(store.get(PLAYED_LRU)||"[]")||[]; }catch(e){ return []; } }
+function notePlayed(c){
+  if(!c || !c.name) return;
+  try{
+    const k = (c.name+"|"+c.artist).toLowerCase();
+    let l = loadPlayed().filter(x => x !== k); l.push(k);
+    if(l.length > PLAYED_CAP) l = l.slice(l.length - PLAYED_CAP);
+    store.set(PLAYED_LRU, JSON.stringify(l));
+  }catch(e){}
+}
+function freshFirst(list){
+  const rec = new Set(loadPlayed());
+  const key = sg => ((sg.title || sg.name || "")+"|"+(sg.artist||"")).toLowerCase();
+  const fresh = [], heard = [];
+  for(const sg of list) (rec.has(key(sg)) ? heard : fresh).push(sg);
+  return fresh.concat(heard);   // stable: preserves the shuffle inside each half
+}
 function drawCard(){
   // a pre-picked (and pre-buffered) card wins, if it's still playable
   if(S.nextPick && !S.used.has(S.nextPick.id) && !inAnyTimeline(S.nextPick.id)){
@@ -5923,14 +5947,14 @@ function startGame(){
     // player's locked cards land on the same board (colored per player)
     const c = drawCard();
     const board = [];
-    if(c){ S.used.add(c.id); c.owner = -1; c.wrong = false; board.push(c); }   // deck cards are reused across replays — clear a stale miss flag
+    if(c){ S.used.add(c.id); notePlayed(c); c.owner = -1; c.wrong = false; board.push(c); }   // deck cards are reused across replays — clear a stale miss flag
     S.players.forEach(p => { p.timeline = board; });   // same array reference
   } else {
     // classic/survival: seed each player their own freebie reference card
     S.players.forEach(p=>{
       p.timeMs = 0;
       const c = drawCard();
-      if(c){ S.used.add(c.id); c.wrong = false; p.timeline = [c]; }
+      if(c){ S.used.add(c.id); notePlayed(c); c.wrong = false; p.timeline = [c]; }
     });
   }
   S.turn = 0;
@@ -6122,6 +6146,7 @@ function chooseSlot(idx){
   if(run){ p.tries=(p.tries||0)+1; (p.results=p.results||[]).push(!!correct); if(correct) p.hits=(p.hits||0)+1;
     (S.runLog = S.runLog||[]).push({ name:S.current.name, artist:S.current.artist, year:S.current.year, ok:!!correct }); }
   S.used.add(S.current.id);
+  notePlayed(S.current);                    // cross-game anti-repeat memory
   bumpLife("cards");                        // lifetime cards-placed counter
   buzz(correct ? 18 : [0,45,45,45]);        // crisp tick vs penalty buzz-buzz
   sfx(correct ? "good" : "bad");
@@ -7441,7 +7466,7 @@ async function onStart(){
   const cap = S.mode==="survival" ? Math.min(songs.length, 350)
             : turboRun ? Math.min(songs.length, 30 + (S.players.length||1)*15)
             : Math.max(120, Math.min(400, need * 4));
-  songs = shuffle(songs.slice());
+  songs = freshFirst(shuffle(songs.slice()));   // fair shuffle, then recently-heard songs to the back
   if(songs.length > cap){ songs = songs.slice(0, cap); }
   unlockAudio();   // prime mobile audio within this tap
   // Resolve only what's needed to start — one seed card per player + the first
