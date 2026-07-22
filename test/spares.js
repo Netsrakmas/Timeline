@@ -59,7 +59,10 @@ const server = http.createServer((req,res)=>{
   if(failed < 1) throw new Error('stub never failed a lookup — test proves nothing');
   console.log('run reached 5/5 with', failed, 'failed lookups · deck', st.deck, '· runCards', st.run);
   // the share link carries exactly the played set (anchor + 5), all resolvable
-  await pg.click('text=Challenge a friend on these songs');
+  // (4.14.0 declutter: the share button lives inside the pass-on sheet now)
+  await pg.click('text=Challenge friends');
+  await pg.waitForTimeout(300);
+  await pg.click('text=Share a link');
   await pg.waitForTimeout(300);
   const shared = await pg.evaluate(()=>window.__shared);
   const m = shared && shared.match(/#c=([\d.]+)/);

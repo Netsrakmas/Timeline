@@ -472,7 +472,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.21.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.21.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5590,18 +5590,31 @@ async function resolveInitial(list, onProgress, enough){
   }
   return list.length;
 }
-// the rest — streamed in slowly while the game is played
+// the rest — streamed in while the game is played, DEMAND-PACED: Apple's
+// search endpoint tolerates ~20 calls/min, and eagerly resolving 80 spare
+// songs slams that limit — the resulting timeouts trip the watchdog and read
+// as "connection trouble" mid-run (it was us, not the player's wifi). A game
+// consumes ~2-3 cards/min, so keep a small cushion ahead and otherwise idle;
+// on lookup failures back off exponentially instead of hammering on.
 async function loadRest(list, myRun){
   S.loadingMore = true;
-  const BATCH = 2, DELAY = 2200;
-  for(let i=0;i<list.length;i+=BATCH){
+  const BATCH = 2, CUSHION = 10;
+  let i = 0, delay = 1500;
+  while(i < list.length){
     // a newer game owns the flag now — dying loaders must NOT touch it, or
     // they'd kill the new game's starvation-wait mid-run (early "ran dry")
     if(bgRun !== myRun) return;
-    await resolveBatch(list.slice(i, i+BATCH));
+    const unused = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id)).length;
+    if(unused >= CUSHION){ await new Promise(r => setTimeout(r, 1200)); continue; }
+    const failsBefore = _netFails;
+    const added = await resolveBatch(list.slice(i, i+BATCH));
+    i += BATCH;
     // the deck may have been too thin to pre-pick a next card — retry now
     if(bgRun === myRun && !S.nextPick && S.current) primeNext();
-    await new Promise(r => setTimeout(r, DELAY));
+    delay = (_netFails > failsBefore || !added) ? Math.min(delay * 2, 20000) : 1500;
+    // a starving player (empty-ish deck, waiting screen) shouldn't sit out a
+    // full 20s backoff — cap it while the game is actually blocked on us
+    await new Promise(r => setTimeout(r, unused < 3 ? Math.min(delay, 5000) : delay));
   }
   if(bgRun === myRun) S.loadingMore = false;
 }
@@ -5897,8 +5910,9 @@ async function nextTurn(){
     S.checkingTrack = true; renderGame();
     for(let t=0; !c; t++){
       if(bgRun !== myRun) return;   // the game was quit/replaced mid-wait
-      const offline = S.netTrouble || isOffline();
-      S.checkMessage = offline ? "Waiting for connection…" : "Loading more songs…";
+      // only a REAL offline browser gets blamed on the connection — rate-limit
+      // trouble while online reads as loading, which is what it actually is
+      S.checkMessage = isOffline() ? "Waiting for connection…" : "Loading more songs…";
       if(document.querySelector('.verify-state') && document.querySelector('.stage h2'))
         document.querySelector('.stage p').textContent = S.checkMessage;
       else renderGame();
