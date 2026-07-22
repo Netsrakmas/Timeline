@@ -176,7 +176,7 @@
   .badge.live{background:rgba(94,224,214,.16); color:var(--cyan);}
   .badge.hot{background:rgba(246,185,59,.16); color:var(--gold);}
   /* lobby header (wordmark + spinning vinyl) */
-  .lobbyhead{display:flex; align-items:center; gap:12px; margin:8px 0 4px;}
+  .lobbyhead{display:flex; align-items:center; justify-content:center; gap:12px; margin:8px 0 4px;}
   .vinyl{width:54px; height:54px; border-radius:50%; flex:0 0 auto;
     background:repeating-radial-gradient(circle, #0C1122 0 2px, #1A2340 2px 4px);
     box-shadow:0 0 0 3px #05070F, 0 0 0 5px var(--gold);
@@ -481,7 +481,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.23.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.23.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
