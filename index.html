@@ -472,7 +472,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.21.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.21.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -6251,7 +6251,7 @@ function homeHTML(){
       ${modeCardHTML(ico('target'),'rgba(255,93,177,.16); color:#FF5DB1','Survival','Solo','','Endless run, 3 lives. Chase your personal best.',"openMode('survival')")}
     </div>
     <div class="footnote">No account needed · 30-second previews courtesy of Apple Music, all rights with their owners<br>
-      <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
+      <a href="mailto:contact@playyearworm.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
 }
 // per-mode config screen (Pass & Play / Turbo / Survival)
 function configScreenHTML(mode){
@@ -6452,7 +6452,7 @@ function profileTabHTML(){
       <div class="muted" style="font-size:12.5px">${prof && prof.linked ? '✓ Google-linked — your name &amp; friends survive a new phone' : '🔐 Link Google so your account survives a new phone:'}</div>
       ${prof && prof.linked ? `` : `<div id="gsiBtn" style="margin-top:8px"></div>`}</div>` : ``}
     <div class="footnote">No account needed · 30-second previews courtesy of Apple Music, all rights with their owners<br>
-      <a href="mailto:samkarsten@gmail.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
+      <a href="mailto:contact@playyearworm.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
 }
 // after-render hooks per lobby tab
 function afterLobby(tab){

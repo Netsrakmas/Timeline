@@ -144,7 +144,7 @@ async function vapidAuthHeader(endpoint, env){
   const aud = new URL(endpoint).origin;
   const header = bytesToB64u(PUSH_ENC.encode(JSON.stringify({ typ:"JWT", alg:"ES256" })));
   const now = Math.floor(Date.now() / 1000);
-  const payload = bytesToB64u(PUSH_ENC.encode(JSON.stringify({ aud, exp: now + 12 * 3600, sub: env.VAPID_SUBJECT || "mailto:hello@playyearworm.com" })));
+  const payload = bytesToB64u(PUSH_ENC.encode(JSON.stringify({ aud, exp: now + 12 * 3600, sub: env.VAPID_SUBJECT || "mailto:contact@playyearworm.com" })));
   const signingInput = header + "." + payload;
   const pk = Uint8Array.from(atob(env.VAPID_PRIVATE), c => c.charCodeAt(0));
   const key = await crypto.subtle.importKey("pkcs8", pk, { name:"ECDSA", namedCurve:"P-256" }, false, ["sign"]);
