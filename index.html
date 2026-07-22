@@ -230,6 +230,15 @@
      "code …" left-aligns exactly under the name instead of floating indented */
   .idsub .btn{border:none; background:none; min-height:0; padding:8px 10px; margin:-8px -10px;
     font-size:11.5px; color:var(--muted); font-weight:400; width:auto;}
+  /* achievement-unlocked popup: slides in over everything, even result sheets */
+  .achpop{position:fixed; top:14px; left:50%; transform:translate(-50%,-140%); z-index:60; display:flex; gap:11px; align-items:center; pointer-events:none;
+    background:var(--s2); border:1px solid var(--gold); border-radius:14px; padding:10px 16px; max-width:min(86vw,360px);
+    box-shadow:0 10px 34px rgba(0,0,0,.55); font-size:12.5px; line-height:1.35;
+    transition:transform .38s cubic-bezier(.2,.9,.3,1.18);}
+  .achpop.show{transform:translate(-50%,0);}
+  .achpop .apicon{font-size:27px; flex:0 0 auto;}
+  .achpop b{color:var(--gold); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;}
+  @media (prefers-reduced-motion: reduce){ .achpop{transition:none;} }
   /* guided first round: the open slots breathe until the first tap lands */
   .tutpulse .slot.active{animation:tutslot 1.6s ease-in-out infinite;}
   @keyframes tutslot{0%,100%{box-shadow:0 0 0 0 rgba(246,185,59,0);} 50%{box-shadow:0 0 0 4px rgba(246,185,59,.22); border-color:var(--gold);}}
@@ -472,7 +481,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.21.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.22.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4716,6 +4725,7 @@ async function claimHandle(v){
   store.set("tl_nick", r.body.me.handle);   // boards and profile share one name
   renderFriendsCard(r.body);
   toast("Welcome, "+r.body.me.handle+"! Share your code to add friends.");
+  checkAchievements();   // "Signed Up" pops right where it was earned
   tryPendingAdd(r.body);   // came in via an invite link? add the friend + jump to Friends
   return true;
 }
@@ -5986,10 +5996,37 @@ function sfx(kind){
       o.connect(g); g.connect(_sfxCtx.destination);
       o.start(t0 + dt); o.stop(t0 + dt + dur + .05);
     };
-    if(kind === "good"){ duck(420); tone(660, 880, 0, .12, "triangle", .5); tone(990, 1320, .08, .16, "sine", .42); }
-    else if(kind === "bad"){ duck(420); tone(220, 145, 0, .22, "triangle", .48); tone(110, 80, 0, .22, "sine", .34); }
-    else if(kind === "win"){ duck(750); tone(523, 0, 0, .12, "triangle", .44); tone(659, 0, .10, .12, "triangle", .44); tone(784, 0, .20, .14, "triangle", .46); tone(1047, 0, .30, .30, "sine", .52); }
-    else if(kind === "end"){ duck(520); tone(494, 0, 0, .13, "triangle", .38); tone(392, 0, .12, .22, "sine", .38); }
+    // filtered white noise — the "crowd" in the win cheer
+    const noise = (dt, dur, gain, freq) => {
+      const len = Math.ceil(_sfxCtx.sampleRate * dur);
+      const buf = _sfxCtx.createBuffer(1, len, _sfxCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+      const src = _sfxCtx.createBufferSource(); src.buffer = buf;
+      const bp = _sfxCtx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq || 2600; bp.Q.value = .7;
+      const g = _sfxCtx.createGain();
+      g.gain.setValueAtTime(0, t0 + dt);
+      g.gain.linearRampToValueAtTime(gain, t0 + dt + dur * .35);
+      g.gain.exponentialRampToValueAtTime(.0001, t0 + dt + dur);
+      src.connect(bp); bp.connect(g); g.connect(_sfxCtx.destination);
+      src.start(t0 + dt); src.stop(t0 + dt + dur + .05);
+    };
+    if(kind === "good"){ duck(420); tone(660, 880, 0, .12, "triangle", .62); tone(990, 1320, .08, .16, "sine", .52); }
+    // miss: MID-range sawtooth buzz — the old 110-220Hz version was below what
+    // a phone speaker can reproduce, so players heard nothing on a wrong answer
+    else if(kind === "bad"){ duck(480); tone(420, 250, 0, .18, "sawtooth", .5); tone(315, 185, .13, .24, "sawtooth", .42); }
+    // win: fanfare + a noise swell that reads as a little crowd cheer
+    else if(kind === "win"){ duck(1100);
+      tone(523, 0, 0, .12, "triangle", .5); tone(659, 0, .10, .12, "triangle", .5);
+      tone(784, 0, .20, .14, "triangle", .52); tone(1047, 0, .30, .40, "sine", .58);
+      noise(.26, .28, .22, 3200); noise(.42, .85, .3, 2400); }
+    // defeat: the descending "wah wah waah", last note bending down
+    else if(kind === "lose"){ duck(950);
+      tone(330, 0, 0, .17, "triangle", .48); tone(294, 0, .20, .17, "triangle", .48);
+      tone(262, 220, .40, .5, "triangle", .52); }
+    else if(kind === "end"){ duck(520); tone(494, 0, 0, .13, "triangle", .42); tone(392, 0, .12, .22, "sine", .42); }
+    // achievement sparkle — bright and short, sits on top of any result sheet
+    else if(kind === "ach"){ duck(380); tone(1175, 0, 0, .09, "sine", .45); tone(1568, 0, .09, .2, "sine", .5); }
   }catch(e){}
 }
 function toggleSfx(){
@@ -6375,7 +6412,7 @@ function ranksBoardHTML(b){
   return `<div class="muted" style="font-size:11.5px; margin-bottom:4px">${b.total} played today${b.me?` · you're #${meRank}${pct?` · top ${pct}%`:``}`:''}</div>${rows}${meLine}`;
 }
 // a few achievements computed from REAL local + social data (no fake progress)
-function achievementsHTML(){
+function achievementsList(){
   const d = loadDaily(), best = loadBest(), life = loadLife();
   const wins = ((_social && _social.friends) || []).reduce((s,f)=>s+(f.w|0), 0);
   const nFriends = ((_social && _social.friends) || []).length;
@@ -6420,6 +6457,10 @@ function achievementsHTML(){
     { icon:"🎤", name:"Signed Up",      desc:"Claim a player name",               done:!!loadProfile(), prog:loadProfile()?"✓":"—" },
     { icon:"🔔", name:"Plugged In",     desc:"Turn on notifications",             done:pushSupported() && pushEnabled(), prog:"—" },
   ];
+  return A;
+}
+function achievementsHTML(){
+  const A = achievementsList();
   const unlocked = A.filter(a=>a.done).length;
   const grid = `<div class="achgrid">` + A.map(a=>`<button class="ach ${a.done?'done':''}" type="button"
       onclick="toast('${esc(a.name)} — ${esc(a.desc)}')" aria-label="${esc(a.name)}: ${esc(a.desc)}${a.done?' (unlocked)':''}">
@@ -6428,6 +6469,32 @@ function achievementsHTML(){
       <span class="aprog">${a.done?'✓':(a.prog||'—')}</span>
     </button>`).join("") + `</div>`;
   return { grid, label:`Achievements · ${unlocked}/${A.length}` };
+}
+/* "Achievement unlocked" popup — diff the done-set against what the player has
+   already been shown. First ever check baselines SILENTLY (an existing player
+   must not get 6 popups at once for old glory). */
+const ACH_SEEN = "tl_achseen";
+function checkAchievements(){
+  let seen = null; try{ seen = JSON.parse(store.get(ACH_SEEN)||"null"); }catch(e){}
+  const A = achievementsList();
+  const done = A.filter(a=>a.done).map(a=>a.name);
+  if(!Array.isArray(seen)){ store.set(ACH_SEEN, JSON.stringify(done)); return; }
+  const fresh = done.filter(nm => !seen.includes(nm));
+  if(!fresh.length) return;
+  store.set(ACH_SEEN, JSON.stringify(done));
+  fresh.slice(0, 3).forEach((nm, i) =>
+    _achT.push(setTimeout(()=>achPop(A.find(x=>x.name===nm)), 700 + i * 3100)));
+}
+let _achT = [];   // pending popup timers — inspectable/cancelable (tests flush them)
+function achPop(a){
+  if(!a) return;
+  sfx("ach"); buzz([0,20,30,20]);
+  let el = document.getElementById("achpop");
+  if(!el){ el = document.createElement("div"); el.id = "achpop"; el.className = "achpop"; document.body.appendChild(el); }
+  el.innerHTML = `<span class="apicon" aria-hidden="true">${a.icon}</span>
+    <span><b>Achievement unlocked!</b><br>${esc(a.name)} — ${esc(a.desc)}</span>`;
+  el.classList.add("show");
+  clearTimeout(el._t); el._t = setTimeout(()=>el.classList.remove("show"), 3600);
 }
 function profileTabHTML(){
   const prof = loadProfile();
@@ -6486,6 +6553,7 @@ function afterLobby(tab){
       const rs=document.getElementById("ranksSurvival"); if(rs) rs.innerHTML = ranksSurvivalRows(); }
     // refresh the nav badge without a full re-render
     const bar=document.querySelector(".tabbar"); if(bar && _playScreen==null) bar.outerHTML = navHTML(_tab);
+    checkAchievements();   // friend/duel achievements depend on fresh social state
   } });
 }
 
@@ -6799,7 +6867,7 @@ function overlayGameOver(deckEmpty, winner){
     if(standardDecksOnly()){ bumpBSync("s", S.score); if(LB.url && loadProfile()) socialGet(); }   // sync rides along; server MAXes
     logFeed({ k:"survival", c: S.score, nb: newBest ? 1 : 0 });
     buzz(newBest ? [0,30,40,30,40,90] : [0,25,40,25]);
-    sfx(newBest ? "win" : "end");
+    sfx(newBest ? "win" : "lose");   // out of lives IS a defeat — sound like one (new best still celebrates)
     const sheet = document.getElementById("sheet");
     sheet.innerHTML = `
       <div class="winner-emoji">🎯</div>
@@ -6812,6 +6880,7 @@ function overlayGameOver(deckEmpty, winner){
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
     `;
     showSheet();
+    checkAchievements();
     return;
   }
   const rankedC = [...S.players].sort((a,b)=>(b.timeline.length-a.timeline.length) || ((a.timeMs||0)-(b.timeMs||0)));
@@ -6829,6 +6898,7 @@ function overlayGameOver(deckEmpty, winner){
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Change setup</button>
   `;
   showSheet();
+  checkAchievements();
 }
 
 /* ---------- run results (turbo / daily / challenge) ---------- */
@@ -6872,12 +6942,13 @@ function overlayRunOver(){
       <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Back to menu</button>
     `;
     showSheet();
+    checkAchievements();
     return;
   }
 
   const score = me.hits||0;
   const perfect = score === RUN_LEN;
-  sfx(score >= 4 ? "win" : "end");   // finish flourish scaled to how it went
+  let cue = score >= 4 ? "win" : "end";   // duel branches upgrade this to win/lose below
   // S.challenge only owns this result if this WAS a challenge run — a pending
   // link left on setup must not hijack a later daily/turbo run's recording
   const setIdx = (chal && S.challenge && S.challenge.idx) || S.runCards;
@@ -6928,6 +6999,7 @@ function overlayRunOver(){
     }
     if(beat != null){   // a real duel verdict — remember it in the activity feed
       const rr = duelWon ? "w" : (score < beat || (score === beat && beatT && myT > beatT)) ? "l" : "t";
+      cue = rr === "w" ? "win" : rr === "l" ? "lose" : "end";   // a duel has a real winner — sound like it
       logFeed({ k:"duel", who: S.reactTo && S.reactTo.handle, mine: score, theirs: beat, r: rr });
     } else logFeed({ k:"run", kind:"challenge", s: score });   // fresh challenge run
   } else {
@@ -6937,6 +7009,7 @@ function overlayRunOver(){
     if(S.players.length === 1) logFeed({ k:"run", kind:"turbo", s: score });   // solo turbo → recent games
   }
   if(solo && perfect) bumpLife("perfect");   // lifetime flawless-run counter
+  sfx(cue);
   buzz(perfect ? [0,30,40,30,40,90] : [0,25,40,25]);
   if(duelWon || (daily && perfect)) confettiBurst();   // beat a real person, or a perfect daily 🎉
   const canChallenge = S.runCards && S.runCards.length >= 2;
@@ -6998,6 +7071,7 @@ function overlayRunOver(){
     <div class="sheetfoot"><button class="btn ghost" style="margin-top:0" onclick="backToSetup()">Done</button></div>
   `;
   showSheet();
+  checkAchievements();
   if(daily && LB.url) lbSubmitDaily(score, me.timeMs||0, S.dailyNum).then(b=>{
     const el = document.getElementById("lbline"); if(el) el.innerHTML = lbLineHTML(b);
     // remember the best world rank ever reached — powers the Champion badge
@@ -7190,6 +7264,7 @@ function overlayTutOver(){
     <button class="btn primary" style="margin-top:14px" onclick="closeOverlay(); startDaily()">${ico('cal',1)} Play today's Daily</button>
     <button class="btn ghost" style="margin-top:8px" onclick="backToSetup()">Explore the modes</button>`;
   showSheet();
+  checkAchievements();
 }
 async function startFreshChallenge(){
   // same clustered picker as the daily, just with a random seed — WITH spare

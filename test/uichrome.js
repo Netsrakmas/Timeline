@@ -58,7 +58,7 @@ const server = http.createServer((req,res)=>{
   console.log('icon defs all non-empty OK');
 
   // 4) SFX: on by default, all cues run without throwing, toggle persists
-  const sfxRes = await pg.evaluate(()=>{ try{ sfx('good'); sfx('bad'); sfx('win'); sfx('end'); return 'ok'; }catch(e){ return e.message; } });
+  const sfxRes = await pg.evaluate(()=>{ try{ sfx('good'); sfx('bad'); sfx('win'); sfx('end'); sfx('lose'); sfx('ach'); return 'ok'; }catch(e){ return e.message; } });
   if(sfxRes !== 'ok') throw new Error('sfx threw: '+sfxRes);
   await pg.evaluate(()=>goTab('profile'));
   await pg.waitForTimeout(300);
@@ -103,8 +103,10 @@ const server = http.createServer((req,res)=>{
     S.selectedIds=[DECKS[0].id]; S.players=[{name:'You', timeline:[]}];
     overlayGameOver(false, S.players[0]);
     closeOverlay();
-    // …but a CUSTOM-deck run must not touch it
-    S.score=99; S.selectedIds=['uCUSTOM1']; overlayGameOver(false, S.players[0]); closeOverlay();
+    // …but a CUSTOM-deck run must not touch it (20, not 99: crossing the
+    // "Survivor" threshold here would leave an achievement popup mid-flight
+    // that races the popup assertions of the next section)
+    S.score=20; S.selectedIds=['uCUSTOM1']; overlayGameOver(false, S.players[0]); closeOverlay();
   });
   await pg.waitForTimeout(400);
   const bsync = await pg.evaluate(()=>JSON.parse(localStorage.getItem('tl_bsync')||'{}'));
@@ -126,6 +128,33 @@ const server = http.createServer((req,res)=>{
   if(!/survival best 23/.test(dtlOpen) || !/turbo best 4\/5/.test(dtlOpen)) throw new Error('friend detail missing bests: '+dtlOpen.slice(0,240));
   await pg.evaluate(()=>closeOverlay());
   console.log('survival friends board: record + sync + ranked render + detail line OK');
+
+  // 5c) achievement popup: silent baseline, pops on a fresh unlock, no re-pop
+  await pg.evaluate(()=>{
+    // flush pops left in flight by earlier sections (tab renders + game overs)
+    _achT.splice(0).forEach(clearTimeout);
+    const el = document.getElementById('achpop');
+    if(el){ clearTimeout(el._t); el.classList.remove('show'); }
+    localStorage.removeItem('tl_achseen');
+    checkAchievements();   // first ever check → baseline, NO popup
+  });
+  await pg.waitForTimeout(1000);
+  if(await pg.$('#achpop.show')) throw new Error('baseline check must not pop old achievements');
+  if(!await pg.evaluate(()=>!!localStorage.getItem('tl_achseen'))) throw new Error('baseline not stored');
+  await pg.evaluate(()=>{
+    const life = JSON.parse(localStorage.getItem('tl_life')||'{}');
+    life.games = 10; localStorage.setItem('tl_life', JSON.stringify(life));   // crosses "Getting Started"
+    checkAchievements();
+  });
+  await pg.waitForTimeout(1100);
+  const pop = await pg.$('#achpop.show');
+  if(!pop) throw new Error('fresh unlock did not pop');
+  const popTxt = await pg.$eval('#achpop', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Achievement unlocked!/i.test(popTxt) || !/Getting Started/.test(popTxt)) throw new Error('popup content wrong: '+popTxt);
+  await pg.evaluate(()=>{ document.getElementById('achpop').classList.remove('show'); checkAchievements(); });
+  await pg.waitForTimeout(1100);
+  if(await pg.$('#achpop.show')) throw new Error('already-seen achievement popped again');
+  console.log('achievement popup: silent baseline + fresh unlock + no re-pop OK');
 
   // 6) ducking: a cue dips the playing music, then volume fully recovers
   const wav = (()=>{ // 200ms of silence
