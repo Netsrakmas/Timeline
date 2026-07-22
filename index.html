@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.24.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.24.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -7138,47 +7138,66 @@ async function dailyShareCanvas(d){
   const x = cv.getContext("2d"); if(!x) return null;
   try{ await Promise.all([document.fonts.load('900 120px Rubik'), document.fonts.load('700 40px Rubik'),
     document.fonts.load('400 34px "DM Mono"'), document.fonts.load('400 150px Anton')]); }catch(e){}
-  // backdrop: app background with a faint gold glow behind the vinyl
-  const bg = x.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#0D1526"); bg.addColorStop(1,"#0B1120");
+  // backdrop: app navy with the icon's warm/cool corner glows for depth
+  const bg = x.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#0D1526"); bg.addColorStop(1,"#090E1B");
   x.fillStyle = bg; x.fillRect(0,0,W,H);
-  let g = x.createRadialGradient(W/2,270,40, W/2,270,440);
-  g.addColorStop(0,"rgba(246,185,59,.10)"); g.addColorStop(1,"rgba(246,185,59,0)");
-  x.fillStyle = g; x.fillRect(0,0,W,620);
-  // the vinyl: disc, grooves, gold label, spindle, light glint
-  const cx = W/2, cy = 268, R = 185;
+  let g = x.createRadialGradient(W*.28,220,30, W*.28,220,760);
+  g.addColorStop(0,"rgba(246,185,59,.16)"); g.addColorStop(1,"rgba(246,185,59,0)");
+  x.fillStyle = g; x.fillRect(0,0,W,H);
+  g = x.createRadialGradient(W*.82,H*.86,30, W*.82,H*.86,700);
+  g.addColorStop(0,"rgba(94,224,214,.10)"); g.addColorStop(1,"rgba(94,224,214,0)");
+  x.fillStyle = g; x.fillRect(0,0,W,H);
+  // ticket frame — makes the card read as a designed object, not a screenshot
+  x.strokeStyle = "rgba(246,185,59,.28)"; x.lineWidth = 3;
+  x.beginPath(); x.roundRect(36,36,W-72,H-72,44); x.stroke();
+  // the record — brand version: gold ring, grooves, glint, gold→cyan label
+  const cx = W/2, cy = 256, R = 168;
+  x.save();
+  x.shadowColor = "rgba(0,0,0,.6)"; x.shadowBlur = 46; x.shadowOffsetY = 14;
   x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,R,0,7); x.fill();
-  x.strokeStyle = "rgba(255,255,255,.05)"; x.lineWidth = 3;
-  for(let r = 84; r < R-8; r += 13){ x.beginPath(); x.arc(cx,cy,r,0,7); x.stroke(); }
-  g = x.createLinearGradient(cx-66,cy-66,cx+66,cy+66); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");   // gold→cyan label, same as the in-game record
-  x.fillStyle = g; x.beginPath(); x.arc(cx,cy,66,0,7); x.fill();
-  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,10,0,7); x.fill();
-  x.strokeStyle = "rgba(255,255,255,.10)"; x.lineWidth = 24;
-  x.beginPath(); x.arc(cx,cy,R-28,-2.3,-1.15); x.stroke();
-  // wordmark (gold→cyan, same gradient as the app header) + subtag
+  x.restore();
+  x.strokeStyle = "#F6B93B"; x.lineWidth = 7;
+  x.beginPath(); x.arc(cx,cy,R+11,0,7); x.stroke();
+  x.strokeStyle = "rgba(255,255,255,.055)"; x.lineWidth = 3;
+  for(let r = 74; r < R-8; r += 12){ x.beginPath(); x.arc(cx,cy,r,0,7); x.stroke(); }
+  x.strokeStyle = "rgba(255,255,255,.11)"; x.lineWidth = 22;
+  x.beginPath(); x.arc(cx,cy,R-26,-2.3,-1.15); x.stroke();
+  g = x.createLinearGradient(cx-60,cy-60,cx+60,cy+60); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
+  x.fillStyle = g; x.beginPath(); x.arc(cx,cy,60,0,7); x.fill();
+  x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,9,0,7); x.fill();
+  // wordmark + spaced subtag
   x.textAlign = "center";
-  g = x.createLinearGradient(W/2-260,0,W/2+260,0); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
-  x.fillStyle = g; x.font = "900 116px Rubik, sans-serif"; x.fillText("Yearworm", W/2, 598);
-  x.fillStyle = "#8EA0C9"; x.font = '400 26px "DM Mono", monospace';
-  try{ x.letterSpacing = "10px"; }catch(e){}
-  x.fillText("GUESS THE YEAR · BUILD THE LINE", W/2, 648);
+  g = x.createLinearGradient(W/2-250,0,W/2+250,0); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");
+  x.fillStyle = g; x.font = "900 104px Rubik, sans-serif"; x.fillText("Yearworm", W/2, 568);
+  x.fillStyle = "#7E90BA"; x.font = '400 23px "DM Mono", monospace';
+  try{ x.letterSpacing = "9px"; }catch(e){}
+  x.fillText("GUESS THE YEAR · BUILD THE LINE", W/2, 614);
   try{ x.letterSpacing = "0px"; }catch(e){}
-  // the result: daily number, big score, squares, time + streak
-  x.fillStyle = "#8EA0C9"; x.font = "700 40px Rubik, sans-serif";
+  // divider between brand and result
+  g = x.createLinearGradient(W*.22,0,W*.78,0);
+  g.addColorStop(0,"rgba(255,255,255,0)"); g.addColorStop(.5,"rgba(255,255,255,.16)"); g.addColorStop(1,"rgba(255,255,255,0)");
+  x.strokeStyle = g; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(W*.22, 660); x.lineTo(W*.78, 660); x.stroke();
+  // the result: DAILY #n (+ theme) in gold, big score, squares, meta, domain
   const wTh = weekTheme(d.num || dailyNumber());
-  x.fillText("DAILY  #" + (d.num||dailyNumber()) + (wTh ? "  ·  " + wTh.name.toUpperCase() : ""), W/2, 732);
-  x.fillStyle = "#EEF2FF"; x.font = "400 148px Anton, sans-serif";
-  x.fillText((d.score||0) + " / " + RUN_LEN, W/2, 862);
+  x.fillStyle = "#F6B93B"; x.font = "800 38px Rubik, sans-serif";
+  x.fillText("DAILY #" + (d.num||dailyNumber()) + (wTh ? "  ·  " + wTh.emoji + " " + wTh.name.toUpperCase() : ""), W/2, 726);
+  x.fillStyle = "#EEF2FF"; x.font = "400 156px Anton, Rubik, sans-serif";
+  x.fillText((d.score||0) + "/" + RUN_LEN, W/2, 868);
   const res = (d.results||[]).slice(0, RUN_LEN), n = Math.max(res.length, RUN_LEN);
-  const sq = 70, gap = 20, x0 = W/2 - (n*sq + (n-1)*gap)/2;
+  const sq = 66, gap = 18, x0 = W/2 - (n*sq + (n-1)*gap)/2;
   for(let i=0;i<n;i++){
+    const gx = x0 + i*(sq+gap);
     x.fillStyle = i < res.length ? (res[i] ? "#4ADE80" : "#FF6B6B") : "#212C4A";
-    x.beginPath(); x.roundRect(x0 + i*(sq+gap), 896, sq, sq, 16); x.fill();
+    x.beginPath(); x.roundRect(gx, 900, sq, sq, 15); x.fill();
+    x.fillStyle = "rgba(255,255,255,.22)";   // top bevel — the squares read as tiles, not flat blobs
+    x.beginPath(); x.roundRect(gx+7, 905, sq-14, 8, 4); x.fill();
   }
-  x.fillStyle = "#EEF2FF"; x.font = "700 36px Rubik, sans-serif";
-  const meta = (d.timeMs ? "⏱ " + fmtTime(d.timeMs) + "   ·   " : "") + "🔥 " + (d.streak||1) + " day streak";
-  x.fillText(meta, W/2, 1016);
-  x.fillStyle = "#5A6A92"; x.font = '400 28px "DM Mono", monospace';
-  x.fillText("playyearworm.com", W/2, 1058);
+  x.fillStyle = "#B9C6EA"; x.font = "700 33px Rubik, sans-serif";
+  const meta = (d.timeMs ? "⏱ " + fmtTime(d.timeMs) + "    ·    " : "") + "🔥 " + (d.streak||1) + " day streak";
+  x.fillText(meta, W/2, 998);
+  x.fillStyle = "#5A6A92"; x.font = '400 25px "DM Mono", monospace';
+  x.fillText("playyearworm.com", W/2, 1032);
   return cv;
 }
 async function dailyShareFile(d){

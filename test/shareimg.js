@@ -39,7 +39,7 @@ const server = http.createServer((req,res)=>{
   const f0 = got[0].files && got[0].files[0];
   if(!f0 || f0.type !== 'image/png' || !/yearworm-daily-21\.png/.test(f0.name)) throw new Error('share missing the PNG: '+JSON.stringify(got[0].files));
   if(f0.size < 20000) throw new Error('share image suspiciously small: '+f0.size+' bytes');
-  if(!/Yearworm Daily #21 🎧 4\/5/.test(got[0].text) || !/#c=3\.7\.11/.test(got[0].text)) throw new Error('share text/link wrong: '+got[0].text);
+  if(!/Yearworm Daily #21 · 📼 90s Week 🎧 4\/5/.test(got[0].text) || !/#c=3\.7\.11/.test(got[0].text)) throw new Error('share text/link wrong: '+got[0].text);
   console.log('image share: PNG ('+f0.size+'b) + text + challenge link OK');
 
   // 2) share target refuses files (canShare({files}) false) → text-only share
