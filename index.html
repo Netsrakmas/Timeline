@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.25.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.25.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4327,7 +4327,19 @@ const PARTY_SONGS = [
 ];
 (function buildBigDecks(){
   const seen = new Set(), pool = [];
-  const key = s => (s.title+"|"+s.artist).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  // dedupe on the CORE song, not the exact text: "Umbrella" vs "Umbrella
+  // (feat. Jay-Z)" and "Mark Ronson" vs "Mark Ronson & Bruno Mars" are the
+  // same record and must not BOTH enter the pool (they used to — 94 near-twin
+  // entries — and a single run could deal the same audible song twice).
+  // Parentheticals/feat-tails come off the title; the artist reduces to the
+  // primary act. Curated decks are added first, so their title/year wins.
+  const key = s => {
+    const t = String(s.title||"").replace(/\(.*?\)|\[.*?\]/g," ").replace(/\b(feat\.?|ft\.?|featuring)\b.*$/i," ");
+    const parts = String(s.artist||"").split(/\s*(?:&|,|\bfeat\.?\b|\bft\.?\b|\bfeaturing\b|\bwith\b|\bvs\.?\b)\s*/i);
+    const a = (parts[0]||"").trim().length >= 2 ? parts[0] : String(s.artist||"");   // never let a split empty the artist
+    const clean = v => v.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();   // per side — stray edge spaces must not split keys
+    return clean(t) + "|" + clean(a);
+  };
   const add = s => { const k = key(s); if(seen.has(k)) return; seen.add(k); pool.push(s); };
   for(const d of DECKS) for(const s of d.songs) add(s);   // curated decks first → their years win
   for(const s of EXTRA_SONGS) add(s);
