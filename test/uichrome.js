@@ -21,9 +21,14 @@ const server = http.createServer((req,res)=>{
   const ctx = await browser.newContext({viewport:{width:540,height:1200},hasTouch:true,serviceWorkers:'block'});
   const pg = await ctx.newPage();
   pg.on('pageerror',e=>console.log('PAGEERROR:',e.message));
-  await pg.route(/lb\.test/, route=>route.fulfill({contentType:'application/json',
-    body: JSON.stringify({me:null,friends:[],requests:[],outgoing:0,inbox:[]}),
-    headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}}));
+  const posts = [];
+  await pg.route(/lb\.test/, route=>{
+    const req = route.request();
+    if(req.method()==='POST'){ try{ posts.push(JSON.parse(req.postData())); }catch(e){} }
+    route.fulfill({contentType:'application/json',
+      body: JSON.stringify({me:null,friends:[],requests:[],outgoing:0,inbox:[]}),
+      headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});
+  });
   await pg.goto('http://localhost:8087/',{waitUntil:'load'});
   await pg.waitForTimeout(600);
   await pg.evaluate(()=>{ LB.url='https://lb.test'; goTab('play'); });
@@ -88,6 +93,39 @@ const server = http.createServer((req,res)=>{
   const pTxt = await pg.$eval('#app', e=>e.innerText);
   if(/🔔 Notifications|🔊 Sound/u.test(pTxt)) throw new Error('settings emoji not replaced');
   console.log('chrome sweep: friends + profile inline icons, emoji gone OK');
+
+  // 5b) survival friends board: standard-deck bests sync out and render ranked
+  await pg.evaluate(()=>{
+    localStorage.setItem('tl_user', JSON.stringify({id:'u1', handle:'Sam', code:'YW-XXXXXX'}));
+    localStorage.setItem('tl_lb_nick','Sam');
+    // survival end on a STANDARD deck records the syncable best…
+    S.mode='survival'; S.score=17; S.bestStreak=6; S.lives=0;
+    S.selectedIds=[DECKS[0].id]; S.players=[{name:'You', timeline:[]}];
+    overlayGameOver(false, S.players[0]);
+    closeOverlay();
+    // …but a CUSTOM-deck run must not touch it
+    S.score=99; S.selectedIds=['uCUSTOM1']; overlayGameOver(false, S.players[0]); closeOverlay();
+  });
+  await pg.waitForTimeout(400);
+  const bsync = await pg.evaluate(()=>JSON.parse(localStorage.getItem('tl_bsync')||'{}'));
+  if((bsync.s|0) !== 17) throw new Error('standard survival best not recorded (or custom run leaked in): '+JSON.stringify(bsync));
+  const withBest = posts.filter(p=>p.sbest===17);
+  if(!withBest.length) throw new Error('sbest never sent to the server: '+JSON.stringify(posts.slice(-3)));
+  await pg.evaluate(()=>goTab('ranks'));
+  await pg.waitForTimeout(600);   // let afterLobby's socialGet land before stubbing state
+  await pg.evaluate(()=>{
+    _social = { me:{handle:'Sam', code:'YW-XXXXXX'},
+      friends:[{id:'f1', handle:'Jesse', sbest:23, tbest:4, w:0,l:0,t:0}, {id:'f2', handle:'Kim', sbest:9, w:0,l:0,t:0}, {id:'f3', handle:'Noah', sbest:0, w:0,l:0,t:0}],
+      requests:[], outgoing:0, inbox:[] };
+    document.getElementById('ranksSurvival').innerHTML = ranksSurvivalRows();
+  });
+  const surv = await pg.$eval('#ranksSurvival', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Jesse.*23 placed.*\(you\).*17 placed.*Kim.*9 placed/.test(surv)) throw new Error('survival board wrong order/content: '+surv);
+  if(/Noah/.test(surv)) throw new Error('zero-best friend should not be listed: '+surv);
+  const dtlOpen = await pg.evaluate(()=>{ friendDetail('f1'); return document.getElementById('sheet').innerText.replace(/\s+/g,' '); });
+  if(!/survival best 23/.test(dtlOpen) || !/turbo best 4\/5/.test(dtlOpen)) throw new Error('friend detail missing bests: '+dtlOpen.slice(0,240));
+  await pg.evaluate(()=>closeOverlay());
+  console.log('survival friends board: record + sync + ranked render + detail line OK');
 
   // 6) ducking: a cue dips the playing music, then volume fully recovers
   const wav = (()=>{ // 200ms of silence

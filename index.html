@@ -472,7 +472,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.20.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.21.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4361,6 +4361,12 @@ const S = {
 /* survival personal bests, persisted in localStorage */
 function loadBest(){ try{ return JSON.parse(store.get("tl_best")||"{}")||{}; }catch(e){ return {}; } }
 function saveBest(b){ store.set("tl_best", JSON.stringify(b)); }
+/* friends-comparable bests: only runs on STANDARD decks count (a custom deck
+   you know by heart would make the number meaningless), synced to the account
+   with every social call — the server MAXes, so this can only ever go up */
+function loadBSync(){ try{ return JSON.parse(store.get("tl_bsync")||"{}")||{}; }catch(e){ return {}; } }
+function standardDecksOnly(){ return (S.selectedIds||[]).every(id => DECKS.some(d => d.id === id)); }
+function bumpBSync(k, v){ const b = loadBSync(); if((v|0) > (b[k]|0)){ b[k] = v|0; store.set("tl_bsync", JSON.stringify(b)); } }
 // lifetime counters — power the Profile stats + long-haul achievements
 function loadLife(){ try{ return JSON.parse(store.get("tl_life")||"{}")||{}; }catch(e){ return {}; } }
 function bumpLife(k, n){ const l = loadLife(); l[k] = (l[k]|0) + (n||1); store.set("tl_life", JSON.stringify(l)); }
@@ -4676,8 +4682,10 @@ async function socialGet(){
   try{
     // POST, not GET: the device token is a bearer credential and must not
     // end up in URL/proxy logs
+    const bs = loadBSync();
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), action:"state", ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}) }) });
+      body: JSON.stringify({ device: deviceId(), action:"state", ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}),
+        ...(bs.s ? { sbest: bs.s } : {}), ...(bs.t ? { tbest: bs.t } : {}) }) });
     if(!r.ok) return null;
     const b = await r.json();
     if(b && b.me){ saveProfile(b.me); adoptAvatar(b.me); }
@@ -4689,8 +4697,10 @@ async function socialGet(){
 async function socialPost(data){
   if(!LB.url) return null;
   try{
+    const bs = loadBSync();
     const r = await fetch(LB.url+"/social", { method:"POST", headers:{ "content-type":"application/json" },
-      body: JSON.stringify({ device: deviceId(), ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}), ...data }) });
+      body: JSON.stringify({ device: deviceId(), ...(store.get("tl_avatar") ? { avatar: store.get("tl_avatar") } : {}),
+        ...(bs.s ? { sbest: bs.s } : {}), ...(bs.t ? { tbest: bs.t } : {}), ...data }) });
     const b = await r.json().catch(()=>null);
     if(r.ok && b && b.me){ saveProfile(b.me); adoptAvatar(b.me); _social = b; feedFromInbox(b); }
     return { ok: r.ok, status: r.status, body: b };
@@ -4817,6 +4827,7 @@ function friendDetail(id){
     <div class="verdict ${w >= l ? 'good' : 'bad'}" style="margin-top:6px">${esc(f.handle)}</div>
     <div style="font-size:15px; margin:8px 0 2px">all-time: <b>you ${w}–${l}</b>${t ? ` · ${t} tie${t===1?'':'s'}` : ``}</div>
     <div style="font-size:14px; margin:4px 0 10px">last 7 days: ${weekLine}</div>
+    ${(f.sbest|0) || (f.tbest|0) ? `<div class="muted" style="font-size:12.5px; margin:0 0 8px">${(f.sbest|0) ? `🎯 survival best <b style="color:var(--text)">${f.sbest|0}</b>` : ``}${(f.sbest|0)&&(f.tbest|0) ? ' · ' : ''}${(f.tbest|0) ? `⚡ turbo best <b style="color:var(--text)">${f.tbest|0}/${RUN_LEN}</b>` : ``}</div>` : ``}
     ${rows ? `<div style="border-top:1px solid var(--line); padding-top:8px; margin-top:4px">${rows}</div>`
            : `<div class="muted" style="font-size:13.5px; margin:8px 0">No duels yet — throw the first gauntlet!</div>`}
     <button class="btn pink" style="margin-top:14px" onclick="closeOverlay(); challengeFriend('${f.id}')">${ico('swords',1)} Challenge ${esc(f.handle)}</button>
@@ -6306,13 +6317,29 @@ function ranksFriendsRows(){
       <span style="color:${col}; flex:0 0 auto">${any?`${w>l?'👑 ':''}you ${w}–${l}${t?` +${t}`:''}`:'—'}</span></div>`;
   }).join("");
 }
+// survival bests among friends: unlimited-attempt scores are only meaningful
+// among people who know each other — the world gets no all-time grind board
+function ranksSurvivalRows(){
+  const mine = loadBSync().s|0;
+  const rows = ((_social && _social.friends) || []).map(f => ({ f, handle: f.handle, best: f.sbest|0 }));
+  if(mine > 0 || loadProfile()) rows.push({ me: true, handle: lbNick(), best: mine });
+  const ranked = rows.filter(r => r.best > 0).sort((a,b) => b.best - a.best);
+  if(!ranked.length) return `<div class="muted" style="font-size:13.5px">Play Survival on the standard decks and your best lands here for friends to chase.</div>`;
+  return ranked.map((r,i)=>`<div class="row" style="align-items:center; gap:8px; padding:7px 2px; ${i?'border-top:1px solid var(--line)':''}">
+      <span style="flex:0 0 24px; text-align:center; font-family:var(--mono); font-weight:700; color:${i<3?'var(--gold)':'var(--faint)'}">${i<3?['🥇','🥈','🥉'][i]:i+1}</span>
+      <span class="avatar sm ${r.me?'me':''}" aria-hidden="true">${r.me ? myAvatar() : friendAvatar(r.f)}</span>
+      <b style="flex:1; min-width:0; font-size:14px; ${r.me?'color:var(--gold)':''}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(r.handle)}${r.me?' (you)':''}</b>
+      <span style="flex:0 0 auto; font-family:var(--mono); font-size:13px">${r.best} placed</span></div>`).join("");
+}
 function ranksTabHTML(){
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Ranks</h2></div>
     <div class="card"><div class="eyebrow" style="color:var(--gold); margin-top:0">🌍 today's daily · worldwide</div>
       <div id="ranksDaily" style="margin-top:10px"><div class="muted" style="font-size:13.5px">${LB.url ? 'Loading…' : 'Play the daily to join the worldwide board.'}</div></div></div>
-    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:var(--cyan); margin-top:0">⚔️ friends standings</div>
-      <div style="height:8px"></div><div id="ranksFriends">${ranksFriendsRows()}</div></div>`;
+    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:var(--cyan); margin-top:0">${ico('swords',1)} friends standings</div>
+      <div style="height:8px"></div><div id="ranksFriends">${ranksFriendsRows()}</div></div>
+    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:#FF5DB1; margin-top:0">${ico('target',1)} survival · friends best</div>
+      <div style="height:8px"></div><div id="ranksSurvival">${ranksSurvivalRows()}</div></div>`;
 }
 // world daily board rows from the real /daily top[]
 function ranksBoardHTML(b){
@@ -6441,7 +6468,8 @@ function afterLobby(tab){
     if(_tab==="friends"){ renderFriendsCard(st);
       const fc=document.getElementById("feedCard"); if(fc) fc.innerHTML = feedCardHTML(); }
     // fresh social state landed: refresh the ranks standings in place too
-    if(_tab==="ranks"){ const rf=document.getElementById("ranksFriends"); if(rf) rf.innerHTML = ranksFriendsRows(); }
+    if(_tab==="ranks"){ const rf=document.getElementById("ranksFriends"); if(rf) rf.innerHTML = ranksFriendsRows();
+      const rs=document.getElementById("ranksSurvival"); if(rs) rs.innerHTML = ranksSurvivalRows(); }
     // refresh the nav badge without a full re-render
     const bar=document.querySelector(".tabbar"); if(bar && _playScreen==null) bar.outerHTML = navHTML(_tab);
   } });
@@ -6754,6 +6782,7 @@ function overlayGameOver(deckEmpty, winner){
     const newBest = S.score > (best.cards||0) || S.bestStreak > (best.streak||0);
     const nb = { cards: Math.max(S.score, best.cards||0), streak: Math.max(S.bestStreak, best.streak||0) };
     saveBest(nb);
+    if(standardDecksOnly()){ bumpBSync("s", S.score); if(LB.url && loadProfile()) socialGet(); }   // sync rides along; server MAXes
     logFeed({ k:"survival", c: S.score, nb: newBest ? 1 : 0 });
     buzz(newBest ? [0,30,40,30,40,90] : [0,25,40,25]);
     sfx(newBest ? "win" : "end");
@@ -6890,6 +6919,7 @@ function overlayRunOver(){
   } else {
     const best = loadBest();
     if(score > (best.turbo||0)){ best.turbo = score; saveBest(best); streakLine = `<div style="color:var(--good); font-weight:700; font-size:14px; margin:6px 0">🎉 New turbo best!</div>`; }
+    if(standardDecksOnly()){ bumpBSync("t", score); if(LB.url && loadProfile()) socialGet(); }
     if(S.players.length === 1) logFeed({ k:"run", kind:"turbo", s: score });   // solo turbo → recent games
   }
   if(solo && perfect) bumpLife("perfect");   // lifetime flawless-run counter

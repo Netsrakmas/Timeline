@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS users (
   handle_lc TEXT NOT NULL UNIQUE,  -- lowercased for uniqueness
   code      TEXT NOT NULL UNIQUE,  -- friend code, e.g. YW-7F3KQ2
   avatar    TEXT,                  -- profile picture id (e.g. m:12) or short emoji; NULL = default
+  sbest     INTEGER,               -- survival best (standard decks only) — friends leaderboard
+  tbest     INTEGER,               -- turbo best (standard decks only)
   created   INTEGER NOT NULL
 );
 -- migration for existing databases (safe to run once; errors if already added):

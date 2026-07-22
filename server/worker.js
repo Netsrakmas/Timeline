@@ -240,11 +240,17 @@ async function socialState(env, me, cors){
   }
   // profile pictures for those users, one batched query. Wrapped so a server
   // running before the `avatar` column migration simply returns no avatars.
-  const avatars = {};
+  const avatars = {}, bests = {};
   const capIds = ids.slice(0, 100);
   if(capIds.length){ try{
     const q = "SELECT id, avatar FROM users WHERE id IN (" + capIds.map((_, i) => "?" + (i + 1)).join(",") + ")";
     for(const r of ((await env.DB.prepare(q).bind(...capIds).all()).results || [])) if(r.avatar) avatars[r.id] = r.avatar;
+  }catch(e){} }
+  // survival/turbo bests, same shape — separate try so a server without the
+  // sbest/tbest columns still returns avatars
+  if(capIds.length){ try{
+    const q = "SELECT id, sbest, tbest FROM users WHERE id IN (" + capIds.map((_, i) => "?" + (i + 1)).join(",") + ")";
+    for(const r of ((await env.DB.prepare(q).bind(...capIds).all()).results || [])) bests[r.id] = { s: r.sbest || 0, t: r.tbest || 0 };
   }catch(e){} }
   // head-to-head duel tallies per friend, from my perspective (w = my wins),
   // plus a rolling last-7-days window and the most recent duels for the
@@ -273,8 +279,9 @@ async function socialState(env, me, cors){
     if(!(other in named)) continue;
     if(r.status === "accepted"){
       const t = tally[other] || { w:0, l:0, t:0, w7:0, l7:0, t7:0, recent:[] };
+      const pb = bests[other] || {};
       friends.push({ id: other, handle: named[other], avatar: avatars[other] || null, w: t.w, l: t.l, t: t.t,
-                     w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent });
+                     w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent, sbest: pb.s || 0, tbest: pb.t || 0 });
     }
     else if(r.requester === me.id) outgoing++;
     else requests.push({ id: other, handle: named[other], avatar: avatars[other] || null });
@@ -317,6 +324,12 @@ async function handleSocialPost(env, b, cors, ctx){
   // a server deployed before the `avatar` column migration can't 500 on it.
   const av = validAvatar(b.avatar);
   if(me && av){ try{ await env.DB.prepare("UPDATE users SET avatar=?1 WHERE id=?2").bind(av, me.id).run(); }catch(e){} }
+  // personal bests ride along the same way (friends-level survival/turbo board).
+  // MAX() server-side: a device with a stale local best can never downgrade the
+  // account's number, and the caps keep absurd client-submitted values out.
+  const sb = parseInt(b.sbest, 10), tb = parseInt(b.tbest, 10);
+  if(me && Number.isFinite(sb) && sb > 0){ try{ await env.DB.prepare("UPDATE users SET sbest=MAX(COALESCE(sbest,0),?1) WHERE id=?2").bind(Math.min(sb, 999), me.id).run(); }catch(e){} }
+  if(me && Number.isFinite(tb) && tb > 0){ try{ await env.DB.prepare("UPDATE users SET tbest=MAX(COALESCE(tbest,0),?1) WHERE id=?2").bind(Math.min(tb, RUN_LEN), me.id).run(); }catch(e){} }
 
   if(action === "claim"){
     const handle = String(b.handle || "").replace(/\s+/g, " ").trim();
@@ -677,6 +690,8 @@ export default {
     // lazy self-migration — harmless duplicate-column errors after the first run
     try{ await env.DB.prepare("ALTER TABLE push_subs ADD COLUMN tz INTEGER").run(); }catch(e){}
     try{ await env.DB.prepare("ALTER TABLE push_subs ADD COLUMN nudged INTEGER").run(); }catch(e){}
+    try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN sbest INTEGER").run(); }catch(e){}
+    try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN tbest INTEGER").run(); }catch(e){}
     if(!env.VAPID_PRIVATE || !env.VAPID_PUBLIC) return;
     const today = dayNow();
     const utcHour = new Date().getUTCHours();
