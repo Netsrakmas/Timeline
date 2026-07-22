@@ -177,11 +177,18 @@
   .badge.hot{background:rgba(246,185,59,.16); color:var(--gold);}
   /* lobby header (wordmark + spinning vinyl) */
   .lobbyhead{display:flex; align-items:center; justify-content:center; gap:12px; margin:8px 0 4px;}
-  .vinyl{width:54px; height:54px; border-radius:50%; flex:0 0 auto;
-    background:repeating-radial-gradient(circle, #0C1122 0 2px, #1A2340 2px 4px);
-    box-shadow:0 0 0 3px #05070F, 0 0 0 5px var(--gold);
+  /* the header disc is the in-game gvinyl in miniature — one record, one brand */
+  .vinyl{width:54px; height:54px; border-radius:50%; flex:0 0 auto; position:relative;
+    background:repeating-radial-gradient(circle at 50% 50%, #05070F 0 1.5px, #12182B 1.5px 3px);
+    box-shadow:0 0 0 2px #05070F, 0 4px 14px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.55);
     display:flex; align-items:center; justify-content:center; animation:yw-spin 6s linear infinite;}
-  .vinyl i{width:16px; height:16px; border-radius:50%; background:var(--gold); display:block;}
+  .vinyl::before{content:""; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    background:linear-gradient(118deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.14) 49%, rgba(255,255,255,.03) 53%, rgba(255,255,255,0) 62%);}
+  .vinyl i{position:relative; width:19px; height:19px; border-radius:50%; display:block;
+    background:linear-gradient(135deg, var(--gold), var(--cyan));
+    box-shadow:0 1px 3px rgba(0,0,0,.5), inset 0 0 4px rgba(255,255,255,.18);}
+  .vinyl i::after{content:""; position:absolute; left:50%; top:50%; width:3px; height:3px; border-radius:50%;
+    transform:translate(-50%,-50%); background:#05070F;}
   @keyframes yw-spin{to{transform:rotate(360deg);}}
   @media (prefers-reduced-motion: reduce){ .vinyl,.gvinyl{animation:none !important;} }
   /* the in-game mystery record — the signature moment of the play screen. A proper
@@ -481,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.23.2";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.24.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -7143,7 +7150,7 @@ async function dailyShareCanvas(d){
   x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,R,0,7); x.fill();
   x.strokeStyle = "rgba(255,255,255,.05)"; x.lineWidth = 3;
   for(let r = 84; r < R-8; r += 13){ x.beginPath(); x.arc(cx,cy,r,0,7); x.stroke(); }
-  g = x.createLinearGradient(cx-66,cy-66,cx+66,cy+66); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#E09B18");
+  g = x.createLinearGradient(cx-66,cy-66,cx+66,cy+66); g.addColorStop(0,"#F6B93B"); g.addColorStop(1,"#5EE0D6");   // gold→cyan label, same as the in-game record
   x.fillStyle = g; x.beginPath(); x.arc(cx,cy,66,0,7); x.fill();
   x.fillStyle = "#0A0E18"; x.beginPath(); x.arc(cx,cy,10,0,7); x.fill();
   x.strokeStyle = "rgba(255,255,255,.10)"; x.lineWidth = 24;
