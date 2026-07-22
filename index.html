@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.24.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.24.5";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -7137,11 +7137,11 @@ async function dailyShareCanvas(d){
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const x = cv.getContext("2d"); if(!x) return null;
   try{ await Promise.all([document.fonts.load('900 72px Rubik'), document.fonts.load('700 27px Rubik'),
-    document.fonts.load('600 36px Rubik'), document.fonts.load('400 27px "DM Mono"'), document.fonts.load('400 224px Anton')]); }catch(e){}
+    document.fonts.load('600 36px Rubik'), document.fonts.load('400 27px "DM Mono"'), document.fonts.load('400 172px Anton')]); }catch(e){}
   // Composed from the APP'S OWN components — header lockup, a real .card
   // surface, eyebrow type, tiles, the cyan action button — so the share reads
   // as "a piece of the game", not a separate poster. FOUR type sizes only
-  // (27 / 36 / 72 / 224): small-caps meta, body, wordmark, and one hero score.
+  // (27 / 36 / 72 / 172): small-caps meta, body, wordmark, and one hero score.
   // The header runs at ~1.8× the 440px layout while the card keeps the app's
   // ~2.45×, so the RESULT — not the brand — is the undisputed hero.
   const bg = x.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#0D1526"); bg.addColorStop(1,"#0B1120");
@@ -7182,8 +7182,8 @@ async function dailyShareCanvas(d){
   x.fillText("DAILY CHALLENGE #" + (d.num||dailyNumber()) + (wTh ? " · " + wTh.emoji + " " + wTh.name.toUpperCase() : ""), W/2 + 2, cardY + 96);
   try{ x.letterSpacing = "0px"; }catch(e){}
   // the score — the single hero of the card, Anton like the duel scoreline
-  x.fillStyle = "#EEF2FF"; x.font = "400 224px Anton, Rubik, sans-serif";
-  x.fillText((d.score||0) + "/" + RUN_LEN, W/2, cardY + 312);
+  x.fillStyle = "#EEF2FF"; x.font = "400 172px Anton, Rubik, sans-serif";
+  x.fillText((d.score||0) + "/" + RUN_LEN, W/2, cardY + 288);
   // result tiles
   const res = (d.results||[]).slice(0, RUN_LEN), n = Math.max(res.length, RUN_LEN);
   const sq = 72, gap = 24, x0 = W/2 - (n*sq + (n-1)*gap)/2, ty = cardY + 352;
