@@ -44,17 +44,18 @@ let tid=1;
   await pg.goto('http://localhost:8088/',{waitUntil:'load'});
   await pg.waitForTimeout(700);
 
-  // pin the clock to daily #30 → week 4 → first themed week (Golden Oldies)
+  // pin the clock to daily #30 → week 4 → Golden Oldies (themes run from week 0)
   const info = await pg.evaluate(()=>{
     dailyNumber = () => 30;
     goTab('play');
-    const th = weekTheme(30), pre = weekTheme(21), next = weekTheme(37);
+    const th = weekTheme(30), next = weekTheme(37);
+    const rot = [weekTheme(3), weekTheme(8), weekTheme(21)].map(t=>t && t.key);
     const songs = dailySongs(6), songs2 = dailySongs(6);
-    return { th, pre, next,
+    return { th, next, rot,
       det: JSON.stringify(songs) === JSON.stringify(songs2),
       years: songs.map(s=>s.year) };
   });
-  if(info.pre !== null) throw new Error('themes must not start before week '+4+': '+JSON.stringify(info.pre));
+  if(info.rot.join(',') !== 'wild,80s,90s') throw new Error('weeks 0/1/2 should be wild/80s/90s: '+info.rot);
   if(!info.th || info.th.key !== 'gold') throw new Error('week 4 should be Golden Oldies: '+JSON.stringify(info.th));
   if(!info.next || info.next.key !== 'now') throw new Error('week 5 should be Modern Era: '+JSON.stringify(info.next));
   if(!info.det) throw new Error('themed daily is not deterministic');
@@ -92,12 +93,16 @@ let tid=1;
   if(!/Daily #30 · 📻 Golden Oldies/.test(shared||'')) throw new Error('share text missing theme: '+shared);
   console.log('in-game + results + tease + share text carry the theme OK');
 
-  // an untheme'd week (before the start boundary) stays completely clean
-  await pg.evaluate(()=>{ localStorage.clear(); dailyNumber = () => 22; goTab('play'); });
+  // a Wildcard week announces itself but places NO era bound on the songs
+  const wild = await pg.evaluate(()=>{
+    localStorage.clear(); dailyNumber = () => 3; goTab('play');
+    const years = dailySongs(6).map(s=>s.year);
+    return { years, spread: Math.max(...years) - Math.min(...years) };
+  });
   await pg.waitForTimeout(300);
   const card2 = await pg.$eval('#app', e=>e.innerText.replace(/\s+/g,' '));
-  if(/Week|Golden Oldies|Modern Era|Wildcard/.test(card2)) throw new Error('pre-theme week leaked theme copy: '+card2.slice(0,300));
-  console.log('pre-theme weeks stay clean OK');
+  if(!/Wildcard Week/.test(card2)) throw new Error('wildcard week not announced: '+card2.slice(0,300));
+  console.log('wildcard week: announced, unbounded pool OK · years', wild.years.join(','));
 
   await browser.close(); server.close();
   console.log('THEMED WEEK TEST PASS ✓');

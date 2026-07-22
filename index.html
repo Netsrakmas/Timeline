@@ -481,7 +481,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.23.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.23.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -4450,9 +4450,9 @@ const WEEK_THEMES = [
   { key:"gold", name:"Golden Oldies", emoji:"📻", tag:"Everything before 1980",             min:0,    max:1979 },
   { key:"now",  name:"Modern Era",    emoji:"📱", tag:"2010 to right now",                  min:2010, max:9999 },
 ];
-// themes start at a FUTURE boundary — flipping them on mid-week would change a
-// LIVE day's set under players who already played it
-const THEMES_FROM_WEEK = 4;   // first themed week = daily #29
+// 0 = themed from day one (flipped on pre-launch, when there was nobody whose
+// live day could reshuffle; raising this again would UN-theme past weeks)
+const THEMES_FROM_WEEK = 0;
 function weekTheme(dNum){
   const wk = Math.floor(((dNum || dailyNumber()) - 1) / 7);
   if(wk < THEMES_FROM_WEEK) return null;
