@@ -927,6 +927,20 @@ songs the 600-capped era decks drop) — not obsolete.
       side-by-side); **keeping gold + cyan** (best hierarchy, no good/bad-color
       collision, no Spotify-green association, branding already built on it).
 
+## PLANNED — "Yesterday's recap" card (Sam: good idea, TOO EARLY — build when
+~5+ friends play the daily most days, i.e. once the insiders group is alive)
+Closes the "daily never settles" loop; opens the app before playing.
+- Play-tab card, first open of the day: "Yesterday · Daily #n" → your FINAL
+  rank ("#4 of 31"), then ≤3 friend duel lines ("😤 Jesse beat you — 5/5 in
+  1:02" / "🛡 you held off Kim — 4/5 vs 3/5", ties 🤝). Dismissible; gone once
+  today's daily is played. Didn't play yesterday → FOMO-light ("You sat
+  yesterday out — Jesse took the top spot"); NOTHING to say → no card at all.
+- Framing guardrails: lead with own result; rivalry lines after.
+- Server: /daily already serves arbitrary days; NEEDS a friends-scores-for-day
+  lookup (scores JOIN devices JOIN users vs friends list — the device→account
+  join exists from the avatar work). Later: 09:00 push "yesterday is settled:
+  Jesse edged you out 🥊" (cron exists for streak-saver).
+
 ## PLANNED — hosting move to Cloudflare Pages + private repo (Sam approved, "in a few days")
 Goal: hide the readable source (repo private) while the site stays up; browser-
 served client stays copyable by nature — this hides the recipe, not the cake.
