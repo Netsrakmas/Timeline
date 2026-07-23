@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.25.3";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.25.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5544,6 +5544,14 @@ function coreNorm(s){
     .replace(/\(.*?\)|\[.*?\]/g, " ")                 // "(feat. X)" / "[Club Mix]"
     .replace(/\b(feat\.?|ft\.?|featuring)\b.*$/i, " ")); // unbracketed "feat. X" tails
 }
+// versions that defeat the GAME, not just taste: an instrumental has no voice
+// to recognize, sped-up/slowed uploads distort the era. HARD-reject these —
+// unless the curated title itself asks for one.
+const NOVOCAL = /\b(instrumental|sped[- ]?up|slowed(?:\s*(?:\+|and|&)\s*reverb)?|8d audio|nightcore)\b/i;
+// versions that are merely OFF (live, acoustic, covers, remixes): penalized so
+// any clean take wins, but still allowed as a last resort — a live cut of the
+// right song beats no song. "unless wanted" guard: "Live Is Life" stays fine.
+const OFFVER = /\b(live|acoustic|unplugged|demo|remix|cover|re-?recorded|orchestral|reprise|version)\b/i;
 function pickBest(results, song){
   const wantT = norm(song.title), wantA = norm(song.artist);
   const wantTC = coreNorm(song.title) || wantT;
@@ -5551,6 +5559,7 @@ function pickBest(results, song){
   for(const r of results){
     if(!r.previewUrl) continue;
     if(BADVER.test(r.artistName||"") || BADVER.test(r.collectionName||"")) continue;
+    if(NOVOCAL.test(r.trackName||"") && !NOVOCAL.test(song.title||"")) continue;
     const t = norm(r.trackName), tc = coreNorm(r.trackName) || t, a = norm(r.artistName);
     let tScore = 0, aScore = 0;
     if(t===wantT || tc===wantTC) tScore = 3;
@@ -5566,7 +5575,8 @@ function pickBest(results, song){
     // "(2010 Mixes)" reissue or sped-up upload when the text scores tie
     const ry = yearOf(r.releaseDate);
     const yBonus = (ry && song.year && Math.abs(ry - song.year) <= 3) ? 1 : 0;
-    const score = tScore + aScore + yBonus;
+    const offPenalty = (OFFVER.test(r.trackName||"") && !OFFVER.test(song.title||"")) ? 2 : 0;
+    const score = tScore + aScore + yBonus - offPenalty;
     if(score>bestScore){ bestScore=score; best=r; }
   }
   return best;

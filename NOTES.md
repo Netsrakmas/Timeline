@@ -73,6 +73,14 @@ preview clips** instead of Spotify.
   CF-Connecting-IP), uichrome §5b (record on standard, custom-deck immune, POST
   carries sbest, ranked render, detail line). Future hook: push when a friend
   beats your best.
+- **Version filter** (4.25.4 — LIVE, Sam heard an INSTRUMENTAL in a run —
+  coreNorm strips "(Instrumental)" so it scored as an exact title match):
+  pickBest gains two tiers. NOVOCAL (instrumental/sped up/slowed(+reverb)/8d/
+  nightcore) = HARD reject — defeats the game itself; OFFVER (live/acoustic/
+  unplugged/demo/remix/cover/re-recorded/orchestral/reprise/version) = −2
+  score penalty — any clean take wins, but last-resort allowed (live cut of
+  the right song beats no song). Both guarded with "unless the curated title
+  wants it" ("Live Is Life" safe). uichrome §5e unit-tests the matrix.
 - **Pool near-twin dedupe** (4.25.1 — LIVE, Sam: "next run i had 2 the same
   songs" — the REAL repeat bug at last): the buildBigDecks dedupe keyed on
   EXACT title|artist, so "Umbrella" + "Umbrella (feat. Jay-Z)" and "Mark

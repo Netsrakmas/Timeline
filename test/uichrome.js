@@ -174,6 +174,27 @@ const server = http.createServer((req,res)=>{
   if(rep.lru.length !== 2 || rep.lru[1] !== 'song b|x') throw new Error('LRU dedupe wrong: '+JSON.stringify(rep.lru));
   console.log('anti-repeat memory: fresh-first partition + LRU dedupe OK');
 
+  // 5e) version filter: instrumentals rejected, live/remix penalized not banned
+  const pk = await pg.evaluate(()=>{
+    const mk=(n,y)=>({trackName:n, artistName:'Rihanna', collectionName:'A', releaseDate:(y||2007)+'-01-01', previewUrl:'u'});
+    const want={title:'Umbrella', artist:'Rihanna', year:2007};
+    return {
+      instOnly: pickBest([mk('Umbrella (Instrumental)')], want),
+      instVsClean: pickBest([mk('Umbrella (Instrumental)'), mk('Umbrella')], want),
+      spedUp: pickBest([mk('Umbrella (Sped Up)')], want),
+      liveVsClean: pickBest([mk('Umbrella (Live)'), mk('Umbrella')], want).trackName,
+      liveAlone: pickBest([mk('Umbrella (Live)')], want),
+      wantedLive: pickBest([{trackName:'Live Is Life', artistName:'Opus', collectionName:'A', releaseDate:'1985-01-01', previewUrl:'u'}], {title:'Live Is Life', artist:'Opus', year:1985}),
+    };
+  });
+  if(pk.instOnly !== null) throw new Error('instrumental-only should resolve to nothing');
+  if(!pk.instVsClean || /Instrumental/.test(pk.instVsClean.trackName)) throw new Error('instrumental beat the clean take');
+  if(pk.spedUp !== null) throw new Error('sped-up should be rejected');
+  if(pk.liveVsClean !== 'Umbrella') throw new Error('live version beat the clean take');
+  if(!pk.liveAlone) throw new Error('live-as-last-resort should still resolve');
+  if(!pk.wantedLive) throw new Error('a wanted title containing "Live" got falsely filtered');
+  console.log('version filter: instrumentals out, off-versions penalized, wanted-live safe OK');
+
   // 6) ducking: a cue dips the playing music, then volume fully recovers
   const wav = (()=>{ // 200ms of silence
     const sr=8000,n=1600,d=Buffer.alloc(n*2),h=Buffer.alloc(44);
