@@ -926,6 +926,24 @@ songs the 600-capped era decks drop) — not obsolete.
       side-by-side); **keeping gold + cyan** (best hierarchy, no good/bad-color
       collision, no Spotify-green association, branding already built on it).
 
+## PLANNED — hosting move to Cloudflare Pages + private repo (Sam approved, "in a few days")
+Goal: hide the readable source (repo private) while the site stays up; browser-
+served client stays copyable by nature — this hides the recipe, not the cake.
+- Phase A (zero-downtime order matters): 1) Sam: CF dash → Pages → Connect Git
+  → repo Timeline, project `yearworm`, prod branch `main`, NO build cmd, output
+  `/` → verify yearworm.pages.dev (app boots, daily, .well-known/assetlinks.json
+  served, worker reachable). 2) Sam: Pages → Custom domains → playyearworm.com
+  + www (DNS already on CF, auto-wired; GitHub Pages still live → no downtime).
+  3) Sam: GitHub repo → Settings → visibility → PRIVATE (kills GitHub Pages,
+  which by then serves nothing). 4) Me: remove CNAME file, update NOTES ship
+  procedure (deploys = Pages auto-build on push to main; previews-rewrite gets
+  free preview URLs). Worker CI unaffected (Actions works on private repos,
+  ~1min/deploy ≪ free quota). GitHub MCP + git push flow unchanged.
+- Phase B (a week later, optional): minified deploys — GitHub Action: minify
+  index.html (terser/html-minifier on 8k-line inline JS = the risky bit) → run
+  FULL E2E suite against the MINIFIED build → only then publish. Deterrence
+  only, not security.
+
 ## Quick start for a new session
 > Continue on the Yearworm music game (`/home/user/Timeline`, branch
 > `previews-rewrite`). Read `NOTES.md` first. Single-file iTunes-preview timeline
