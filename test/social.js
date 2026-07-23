@@ -313,6 +313,34 @@ const server = http.createServer((req,res)=>{
   if(/Jesse reacted/.test(card)) throw new Error('dismissed reaction still shown');
   console.log('incoming reaction row + dismiss OK');
 
+  // 5b2) react-BACK: a result row offers 💬 which opens the reaction sheet
+  state.inbox = [{id:14, from:'f1', handle:'Jesse', kind:'result', payload:{score:4, w:'them'}, created:5}];
+  await pg.evaluate(()=>socialGet().then(b=>renderFriendsCard(b)));
+  await pg.waitForTimeout(400);
+  const rb = await pg.$('#friendsCard button[aria-label="React to Jesse"]');
+  if(!rb) throw new Error('react-back button missing on result row');
+  const nRB = actions.length;
+  await rb.click();
+  await pg.waitForTimeout(200);
+  await pg.click('#sheet button:has-text("🔥")');
+  await pg.waitForTimeout(300);
+  const react = actions.slice(nRB).find(a=>a.action==='react');
+  if(!react || react.to!=='f1' || react.emoji!=='🔥') throw new Error('react-back POST wrong: '+JSON.stringify(react));
+  console.log('react-back from result row: 💬 → sheet → POST OK');
+
+  // 5b3) share links carry the sender; the parser reads it back
+  const linkBits = await pg.evaluate(()=>{
+    localStorage.setItem('tl_user', JSON.stringify({id:'ab12'.repeat(8), handle:'Sam', code:'YW-XXXXXX'}));
+    const tag = senderTag();
+    location.hash = '#c=1.2.3.4.5.6&s=3&t=44' + tag;
+    const parsed = parseChallengeHash();
+    history.replaceState(null,'',location.pathname);
+    return { tag, from: parsed && parsed.fromUser, beat: parsed && parsed.beat };
+  });
+  if(linkBits.tag !== '&f='+'ab12'.repeat(8)) throw new Error('senderTag wrong: '+linkBits.tag);
+  if(linkBits.from !== 'ab12'.repeat(8) || linkBits.beat !== 3) throw new Error('parse of f= wrong: '+JSON.stringify(linkBits));
+  console.log('share links carry sender id + parser reads it OK');
+
   // 5e) friends card renders the duel leaderboard + a challenger result row
   await pg.evaluate(()=>renderFriendsCard({
     me:{handle:'Sam', code:'YW-XXXXXX'},

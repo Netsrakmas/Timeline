@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.25.4";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.26.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5388,11 +5388,17 @@ function friendsCardHTML(st){
                       : `<b>dead even 🤝</b>`;
         return `<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px">⚔️ <b>${esc(m.handle)}</b> played your challenge${sc != null ? ` — ${sc}/${RUN_LEN}` : ``} · ${verdict}${m.payload && m.payload.emoji ? ` <span style="font-size:15px">${esc(m.payload.emoji)}</span>` : ``}</span>
-        <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
+        <span style="flex:0 0 auto; display:inline-flex; gap:6px">
+          <button class="btn ghost sm" onclick="openReactSheet('${m.from}','${esc(m.handle)}')" aria-label="React to ${esc(m.handle)}">💬</button>
+          <button class="btn ghost sm" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
+        </span>
       </div>`;}).join("")}
       ${reacts.map(m=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px"><b>${esc(m.handle)}</b> reacted ${esc(m.payload && m.payload.emoji || "👏")}${m.payload && m.payload.score != null ? ` to your challenge` : ``}</span>
-        <button class="btn ghost sm" style="flex:0 0 auto" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
+        <span style="flex:0 0 auto; display:inline-flex; gap:6px">
+          <button class="btn ghost sm" onclick="openReactSheet('${m.from}','${esc(m.handle)}')" aria-label="React to ${esc(m.handle)}">💬</button>
+          <button class="btn ghost sm" onclick="dismissMsg(${m.id})" aria-label="Dismiss">✓</button>
+        </span>
       </div>`).join("")}
       ${reqs.map(q=>`<div class="row" style="justify-content:space-between; align-items:center; margin-top:9px">
         <span style="font-size:13.5px"><b>${esc(q.handle)}</b> wants to be friends</span>
@@ -6998,6 +7004,18 @@ function overlayGameOver(deckEmpty, winner){
   checkAchievements();
 }
 
+// who can this run's emotion go to? Inbox runs know exactly (reactTo); a
+// link-played run knows the sender only if the link carried f= AND they're a
+// friend (react is friends-only server-side — matching here avoids a dead row)
+function reactTarget(){
+  if(S.reactTo && S.reactTo.user) return S.reactTo;
+  // link-sender branch only applies to the challenge run ITSELF — a pending
+  // link parked on the home screen must not leak a react row under a daily
+  if(S.mode !== "challenge") return null;
+  const f = S.challenge && S.challenge.fromUser
+    && _social && _social.friends && _social.friends.find(x => x.id === S.challenge.fromUser);
+  return f ? { user: f.id, handle: f.handle } : null;
+}
 /* ---------- run results (turbo / daily / challenge) ---------- */
 function overlayRunOver(){
   if(S.mode==="tut"){ overlayTutOver(); return; }   // safety: a dry deck mid-tutorial still ends on the tutorial sheet
@@ -7148,15 +7166,15 @@ function overlayRunOver(){
     ${(!chal && !daily && canChallenge) && LB.url ? `<div id="chalBoard"></div>` : ``}
     ${daily && LB.url ? `<div id="lbline" style="font-size:14px; margin:6px 0">🌍 …</div>` : ``}
     ${last ? flagBlockHTML(last.id, last.year) : ``}
-    ${S.reactTo ? `
-      <div class="muted" style="font-size:12px; margin-top:12px">react to <b>${esc(S.reactTo.handle)}</b>:</div>
+    ${(rt => rt ? `
+      <div class="muted" style="font-size:12px; margin-top:12px">react to <b>${esc(rt.handle)}</b>:</div>
       <div class="row" style="gap:6px; justify-content:center; margin-top:6px" id="reactRow">
-        ${REACT_EMOJI.slice(0,6).map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
+        ${REACT_EMOJI.slice(0,6).map(e=>`<button class="btn sm" onclick="sendReact('${rt.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
         <button class="btn sm" aria-label="More reactions" onclick="document.getElementById('reactMore').style.display='flex'; this.style.display='none'">…</button>
       </div>
       <div class="row" id="reactMore" style="display:none; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:6px">
-        ${REACT_EMOJI.slice(6).map(e=>`<button class="btn sm" onclick="sendReact('${S.reactTo.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
-      </div>` : ``}
+        ${REACT_EMOJI.slice(6).map(e=>`<button class="btn sm" onclick="sendReact('${rt.user}','${e}',${score}); document.querySelectorAll('#reactRow button, #reactMore button').forEach(b=>b.disabled=true); this.style.borderColor='var(--gold)'">${e}</button>`).join("")}
+      </div>` : ``)(reactTarget())}
     ${isInboxDuel ? `<div style="color:var(--good); font-weight:700; font-size:14px; margin:12px 0 2px">✓ Result sent back to ${esc(S.challenge.fromHandle || 'your friend')}</div>` : ``}
     ${daily ? `<button class="btn pink" style="margin-top:14px" onclick="shareDaily()">${ico('swords',1)} Challenge friends</button>` : ``}
     ${isInboxDuel ? `<div class="row" style="gap:8px; margin-top:12px">
@@ -7275,7 +7293,7 @@ async function shareDaily(){
   const squares = (d.results||[]).map(r=>r?'🟩':'🟥').join('') || '⬛'.repeat(RUN_LEN);
   const t = d.timeMs ? ` in ${fmtTime(d.timeMs)}` : "";
   const url = (d.idx && d.idx.length>=2)
-    ? "https://playyearworm.com/#c=" + d.idx.join(".") + "&s=" + (d.score||0) + (d.timeMs?("&t="+Math.round(d.timeMs/1000)):"")
+    ? "https://playyearworm.com/#c=" + d.idx.join(".") + "&s=" + (d.score||0) + (d.timeMs?("&t="+Math.round(d.timeMs/1000)):"") + senderTag()
     : "https://playyearworm.com";
   const th = weekTheme(d.num || dailyNumber());
   const text = `Yearworm Daily #${d.num||dailyNumber()}${th ? ` · ${th.emoji} ${th.name}` : ``} 🎧 ${d.score||0}/${RUN_LEN}${t}\n${squares} 🔥${d.streak||1}\nBeat me on the same songs:\n${url}`;
@@ -7293,15 +7311,16 @@ function shareChallenge(score){
     shareResultBack(S.runCards, score, tSec, S.challenge.beat);
   else shareChallengeIdx(S.runCards, score, tSec);
 }
+function senderTag(){ const p = loadProfile(); return p && p.id ? "&f=" + p.id : ""; }
 function shareChallengeIdx(idx, score, tSec){
   const url = "https://playyearworm.com/#c=" + idx.join(".")
-            + (score!=null ? "&s="+score : "") + (tSec ? "&t="+tSec : "");
+            + (score!=null ? "&s="+score : "") + (tSec ? "&t="+tSec : "") + senderTag();
   shareText(`I scored ${score}/${RUN_LEN}${tSec?` in ${fmtTime(tSec*1000)}`:""} on Yearworm 🎧 — beat me on the SAME ${RUN_LEN} songs:\n${url}`);
 }
 // reply flavor: same link (still playable/forwardable), but the message reads
 // as a result, not as a new challenge — the sender already lost/won/tied
 function shareResultBack(idx, score, tSec, beat){
-  const url = "https://playyearworm.com/#c=" + idx.join(".") + "&s=" + score + (tSec ? "&t="+tSec : "");
+  const url = "https://playyearworm.com/#c=" + idx.join(".") + "&s=" + score + (tSec ? "&t="+tSec : "") + senderTag();
   const verdict = score > beat ? `I beat your ${beat}/${RUN_LEN} 🏆`
                 : score < beat ? `your ${beat}/${RUN_LEN} holds 👑`
                 : `tied at ${beat}/${RUN_LEN} 🤝`;
@@ -7319,12 +7338,13 @@ function shareText(text){
 }
 // a #c=<i0.i1...>&s=<score> link carries the exact run: indices into the stable pool
 function parseChallengeHash(){
-  const m = (location.hash||"").match(/c=([\d.]+)(?:&s=(\d+))?(?:&t=(\d+))?/);
+  const m = (location.hash||"").match(/c=([\d.]+)(?:&s=(\d+))?(?:&t=(\d+))?(?:&f=([a-f0-9]{16,64}))?/);
   if(!m) return null;
   const idx = m[1].split(".").map(Number).filter(n => Number.isFinite(n) && n>=0);
   if(idx.length < 2) return null;
   return { idx: idx.slice(0, RUN_LEN+1), beat: m[2]!=null ? Math.min(RUN_LEN, parseInt(m[2],10)) : null,
-           beatTime: m[3]!=null ? parseInt(m[3],10)*1000 : null };
+           beatTime: m[3]!=null ? parseInt(m[3],10)*1000 : null,
+           fromUser: m[4] || null };   // sender id: enables react-back when they're a friend
 }
 // create-your-own challenge: random songs, play, then send the gauntlet
 /* ---------- guided first round (onboarding) ----------

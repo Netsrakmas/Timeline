@@ -310,7 +310,9 @@ async function socialState(env, me, cors){
     if(!h){ const u = await env.DB.prepare("SELECT handle FROM users WHERE id=?1").bind(r.to_user).first(); h = u && u.handle; }
     if(h) sent.push({ to: r.to_user, handle: h, at: r.created });
   }
-  return json({ me: { handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox, sent }, 200, cors);
+  // id rides along so share links can carry WHO sent them (receiver matches it
+  // against their friends list to enable react-back on link-played duels)
+  return json({ me: { id: me.id, handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox, sent }, 200, cors);
 }
 async function handleSocialPost(env, b, cors, ctx){
   // schedule a push without delaying the response (falls back to inline await)

@@ -73,6 +73,17 @@ preview clips** instead of Spotify.
   CF-Connecting-IP), uichrome §5b (record on standard, custom-deck immune, POST
   carries sbest, ranked render, detail line). Future hook: push when a friend
   beats your best.
+- **React everywhere** (4.26.0 — LIVE, Sam: "je kan alleen bij de acceptatie
+  reageren"): the emotion loop now closes on all three sides. (1) result rows
+  AND react rows in the friends card get a 💬 react-back button →
+  openReactSheet (ping-pong intended, WhatsApp-style). (2) share links carry
+  the sender: `senderTag()` appends &f=<me.id> to chal/result-back/daily links
+  (socialState.me now includes id — server change), parseChallengeHash reads
+  fromUser. (3) results sheet reaction row targets `reactTarget()` = S.reactTo
+  (inbox) OR the link's fromUser IF they're a friend AND S.mode==="challenge"
+  (mode guard: a pending link parked on home must not leak a react row under a
+  daily's results). React stays friends-only server-side — unknown senders get
+  no row. Tests: social.js §5b2/5b3; worker test green with me.id.
 - **Version filter** (4.25.4 — LIVE, Sam heard an INSTRUMENTAL in a run —
   coreNorm strips "(Instrumental)" so it scored as an exact title match):
   pickBest gains two tiers. NOVOCAL (instrumental/sped up/slowed(+reverb)/8d/
