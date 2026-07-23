@@ -927,6 +927,17 @@ songs the 600-capped era decks drop) — not obsolete.
       side-by-side); **keeping gold + cyan** (best hierarchy, no good/bad-color
       collision, no Spotify-green association, branding already built on it).
 
+## TWA build checklist (every AAB rebuild — PWABuilder)
+- package id `com.playyearworm.twa` (permanent, must match Play Console)
+- **Enable notifications** (= notification delegation → pushes read "Yearworm",
+  not "Chrome · playyearworm.com"; without it web push stays browser-branded)
+- **Play Billing capability ON** (build-time flag; paid decks later need no rebuild)
+- SIGNING: reuse the ORIGINAL key (zip from the first PWABuilder build). A new
+  key changes the SHA256 → hosted .well-known/assetlinks.json must be updated
+  (else installed apps open with a browser bar). If rebuilt with a new key:
+  update assetlinks.json fingerprint in the repo same-day.
+- Upload: Play Console → closed track → new release → roll out.
+
 ## PLANNED — "Yesterday's recap" card (Sam: good idea, TOO EARLY — build when
 ~5+ friends play the daily most days, i.e. once the insiders group is alive)
 Closes the "daily never settles" loop; opens the app before playing.
