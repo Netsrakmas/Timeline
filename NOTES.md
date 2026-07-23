@@ -153,8 +153,9 @@ preview clips** instead of Spotify.
   on #03050D; replaced the old equalizer-bars icon), and the share-card canvas
   label went gold→cyan to match. Header centered since 4.23.2 (looks right-
   hugging because the subtag is wide — it's mathematically centered).
-  STILL OLD BRANDING: og-image.png (pink-gradient YEARWORM design) — a
-  candidate for regeneration when doing the Play listing kit.
+  og-image.png REGENERATED app-native in 4.25.3 (scratchpad/og-gen.js:
+  lockup + subtag + result tiles + tagline, real fonts injected); og:image
+  meta versioned ?v=2 to bust WhatsApp/Telegram preview caches.
 - **Themed weeks** (4.23.0 — LIVE, marketing cadence): every 7 dailies the
   DAILY takes a theme — `WEEK_THEMES` (APPEND-ONLY: weekNum%len; reorder =
   reshuffled future) rotation: Wildcard(all)/80s/90s/00s/Golden Oldies(≤1979)/
