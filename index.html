@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.26.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.26.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -5879,6 +5879,15 @@ function freshFirst(list){
   for(const sg of list) (rec.has(key(sg)) ? heard : fresh).push(sg);
   return fresh.concat(heard);   // stable: preserves the shuffle inside each half
 }
+// prefer cards not heard in recent games — belt-and-braces so ANY deck reuse
+// (e.g. a replay that kept resolved cards) still avoids repeats while fresh
+// ones exist; falls back to the full set so a small deck never runs dry
+function freshPref(avail){
+  if(avail.length < 2) return avail;
+  const rec = new Set(loadPlayed());
+  const fresh = avail.filter(c => !rec.has(((c.name||"")+"|"+(c.artist||"")).toLowerCase()));
+  return fresh.length ? fresh : avail;
+}
 function drawCard(){
   // a pre-picked (and pre-buffered) card wins, if it's still playable
   if(S.nextPick && !S.used.has(S.nextPick.id) && !inAnyTimeline(S.nextPick.id)){
@@ -5887,16 +5896,18 @@ function drawCard(){
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id));
   if(avail.length===0) return null;
   if(S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") return avail[0];   // deck order IS the seeded order
-  return avail[Math.floor(Math.random()*avail.length)];
+  const pool = freshPref(avail);
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 // pick next turn's card NOW and warm its clip in the hidden preloader, so the
 // turn handoff doesn't start with a cold download (noticeable in pass & play)
 function primeNext(){
   const cur = S.current && S.current.id;
   const avail = S.deck.filter(c => !S.used.has(c.id) && !inAnyTimeline(c.id) && c.id !== cur);
-  S.nextPick = !avail.length ? null
-    : (S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") ? avail[0]
-    : avail[Math.floor(Math.random()*avail.length)];
+  const pool = (S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") ? avail : freshPref(avail);
+  S.nextPick = !pool.length ? null
+    : (S.mode==="daily" || S.mode==="challenge" || S.mode==="tut") ? pool[0]
+    : pool[Math.floor(Math.random()*pool.length)];
   const p = document.getElementById("pre");
   if(p && S.nextPick && p.src !== S.nextPick.previewUrl){
     try{ p.src = S.nextPick.previewUrl; p.load(); }catch(e){}
@@ -7666,20 +7677,17 @@ function renderVerify(){
 function confirmQuit(){ if(confirm("Quit this game and return to setup?")) backToSetup(); }
 function playAgain(){
   closeOverlay();
-  S.players.forEach(p=>p.timeline=[]);
-  S.used=new Set(); S.current=null;
-  S.loadingMore = false;   // startGame kills the old loader; without this reset the
-                           // starvation wait would spin on "Loading more songs…" forever
-  startGame();
-  // survival is "endless" but startGame just killed the background loader (bgRun++)
-  // and never restarts it — a quick death + replay would hard-stop at whatever
-  // happened to resolve during the first run ("deck ran dry"). Stream the rest.
-  if(S.mode === "survival"){
-    const have = new Set([...S.deck, ...S.players.flatMap(p=>p.timeline)]
-      .map(c=>((c.name||"")+"|"+(c.artist||"")).toLowerCase()));
-    const rest = selectedSongs().filter(sg => !have.has(((sg.title||"")+"|"+(sg.artist||"")).toLowerCase()));
-    if(rest.length){ shuffle(rest); loadRest(rest, bgRun); }
+  // Pooled modes: run the FULL fresh-start flow, not a deck reuse. The old path
+  // kept S.deck from the last game and only reset S.used, so a short survival
+  // run (which resolves ~12 cards) redealt those same ~12 songs on replay —
+  // freshFirst/anti-repeat were bypassed entirely (Sam's "same songs" bug).
+  // onStart re-shuffles, moves recently-heard songs to the back, and resolves a
+  // fresh set. Seeded one-shots never reach playAgain, but guard them anyway.
+  if(S.mode === "daily" || S.mode === "challenge" || S.mode === "tut"){
+    S.players.forEach(p=>p.timeline=[]); S.used=new Set(); S.current=null;
+    S.loadingMore = false; startGame(); return;
   }
+  onStart();
 }
 function backToSetup(){ bgRun++; S.loadingMore=false;
   // runs are never saved — finishing one must not delete an unrelated saved classic game

@@ -73,6 +73,19 @@ preview clips** instead of Spotify.
   CF-Connecting-IP), uichrome §5b (record on standard, custom-deck immune, POST
   carries sbest, ranked render, detail line). Future hook: push when a friend
   beats your best.
+- **Play-again repeats — THE actual repeat bug** (4.26.1 — LIVE, Sam flagged
+  repeats 3×; first two "fixes" (4.25.0 memory, 4.25.1 dedupe) were real but
+  MISSED this): `playAgain()` reset S.used but REUSED S.deck — a short survival
+  run resolves only ~12 cards (demand-paced cushion), so "Play again" redealt
+  those same ~12; freshFirst/notePlayed were bypassed entirely (they only run in
+  onStart). REPRODUCED: 4-6/8 repeats between consecutive Play-again games (an
+  onStart-per-game test showed 0, which is why it hid so long — measure the REAL
+  path). Fix: playAgain now calls onStart() for pooled modes (fresh shuffle +
+  anti-repeat + fresh resolve; seeded modes keep the old reuse but never reach
+  it). Belt-and-braces: drawCard/primeNext gained freshPref() — prefer cards not
+  in loadPlayed(), fall back to all so small decks don't starve. New permanent
+  test/repeats.js (drives the Play-again button, asserts ≤2/8 overlap). Lesson
+  (again): reproduce via the REAL user action, not a convenient proxy.
 - **React everywhere** (4.26.0 — LIVE, Sam: "je kan alleen bij de acceptatie
   reageren"): the emotion loop now closes on all three sides. (1) result rows
   AND react rows in the friends card get a 💬 react-back button →
