@@ -73,6 +73,22 @@ preview clips** instead of Spotify.
   CF-Connecting-IP), uichrome §5b (record on standard, custom-deck immune, POST
   carries sbest, ranked render, detail line). Future hook: push when a friend
   beats your best.
+- **Survival leaderboards + Play-page reorder** (4.27.0 — LIVE, Sam: survival
+  deserves 2nd place + windowed boards + share-your-run): (1) Play page order
+  now Daily, SURVIVAL, Challenges, Pass&Play, Turbo. (2) NEW server `sscores`
+  table (day,user_id,score) via lazy CREATE in scheduled() (+40-day prune) &
+  schema.sql; `action:"srun"` inserts today's score (cap 999) + MAXes
+  users.sbest; socialState adds per-friend AND me `sday` (today MAX) + `s7`
+  (rolling 7-day MAX) via grouped queries over friend-ids+me.id. Client: survival
+  game-over posts srun (standard decks only, score>0). (3) Ranks reordered:
+  daily world board → survival·this week (s7) → survival·today (sday) → friends
+  duel standings. `ranksSurvivalRows(key,emptyMsg)` parametrized; zero-scores
+  hidden; me row highlighted. (4) Tapping YOUR OWN survival row → `shareSurvival()`
+  WhatsApp taunt ("I survived N songs… beat N?") — score dare, no seeded link
+  (survival isn't seeded). Tests: uichrome §5b rewritten (srun sync, 7d/today
+  windows, taunt), worker-push-test survival section (srun→sscores, windows,
+  all-time bump; needs its own CF-IP for rate limit). all-time sbest kept for
+  friendDetail/profile/achievements.
 - **Play-again repeats — THE actual repeat bug** (4.26.1 — LIVE, Sam flagged
   repeats 3×; first two "fixes" (4.25.0 memory, 4.25.1 dedupe) were real but
   MISSED this): `playAgain()` reset S.used but REUSED S.deck — a short survival

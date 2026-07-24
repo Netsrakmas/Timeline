@@ -111,6 +111,16 @@ CREATE TABLE IF NOT EXISTS push_subs (
 -- handler's lazy ALTERs (worker.js) — this file only shapes fresh installs.
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subs(user_id);
 
+-- per-day survival scores → daily & rolling-7-day friend leaderboards.
+-- (On an existing DB this table is created lazily in the scheduled() handler.)
+CREATE TABLE IF NOT EXISTS sscores (
+  day     INTEGER,
+  user_id TEXT,
+  score   INTEGER,
+  created INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_sscores ON sscores (user_id, day);
+
 -- who created a shared challenge set (first submitter), so we can notify them
 -- when someone else plays it.
 CREATE TABLE IF NOT EXISTS chal_owner (

@@ -111,23 +111,33 @@ const server = http.createServer((req,res)=>{
   await pg.waitForTimeout(400);
   const bsync = await pg.evaluate(()=>JSON.parse(localStorage.getItem('tl_bsync')||'{}'));
   if((bsync.s|0) !== 17) throw new Error('standard survival best not recorded (or custom run leaked in): '+JSON.stringify(bsync));
-  const withBest = posts.filter(p=>p.sbest===17);
-  if(!withBest.length) throw new Error('sbest never sent to the server: '+JSON.stringify(posts.slice(-3)));
+  const srun = posts.filter(p=>p.action==='srun' && p.score===17);
+  if(!srun.length) throw new Error('srun (score 17) never sent to the server: '+JSON.stringify(posts.slice(-3)));
+  if(posts.some(p=>p.action==='srun' && p.score===20)) throw new Error('custom-deck run leaked an srun');
   await pg.evaluate(()=>goTab('ranks'));
   await pg.waitForTimeout(600);   // let afterLobby's socialGet land before stubbing state
   await pg.evaluate(()=>{
-    _social = { me:{handle:'Sam', code:'YW-XXXXXX'},
-      friends:[{id:'f1', handle:'Jesse', sbest:23, tbest:4, w:0,l:0,t:0}, {id:'f2', handle:'Kim', sbest:9, w:0,l:0,t:0}, {id:'f3', handle:'Noah', sbest:0, w:0,l:0,t:0}],
+    _social = { me:{handle:'Sam', code:'YW-XXXXXX', s7:17, sday:12},
+      friends:[{id:'f1', handle:'Jesse', s7:23, sday:8, sbest:23, tbest:4, w:0,l:0,t:0},
+               {id:'f2', handle:'Kim', s7:9, sday:0, w:0,l:0,t:0},
+               {id:'f3', handle:'Noah', s7:0, sday:0, w:0,l:0,t:0}],
       requests:[], outgoing:0, inbox:[] };
-    document.getElementById('ranksSurvival').innerHTML = ranksSurvivalRows();
+    document.getElementById('ranksSurv7').innerHTML = ranksSurvivalRows('s7','x');
+    document.getElementById('ranksSurvDay').innerHTML = ranksSurvivalRows('sday','none today');
   });
-  const surv = await pg.$eval('#ranksSurvival', e=>e.innerText.replace(/\s+/g,' '));
-  if(!/Jesse.*23 placed.*\(you\).*17 placed.*Kim.*9 placed/.test(surv)) throw new Error('survival board wrong order/content: '+surv);
-  if(/Noah/.test(surv)) throw new Error('zero-best friend should not be listed: '+surv);
-  const dtlOpen = await pg.evaluate(()=>{ friendDetail('f1'); return document.getElementById('sheet').innerText.replace(/\s+/g,' '); });
-  if(!/survival best 23/.test(dtlOpen) || !/turbo best 4\/5/.test(dtlOpen)) throw new Error('friend detail missing bests: '+dtlOpen.slice(0,240));
-  await pg.evaluate(()=>closeOverlay());
-  console.log('survival friends board: record + sync + ranked render + detail line OK');
+  const s7 = await pg.$eval('#ranksSurv7', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/Jesse.*23.*\(you\).*17.*Kim.*9/.test(s7)) throw new Error('7-day board wrong order: '+s7);
+  if(/Noah/.test(s7)) throw new Error('zero-best friend should not be listed (7d): '+s7);
+  const sday = await pg.$eval('#ranksSurvDay', e=>e.innerText.replace(/\s+/g,' '));
+  if(!/\(you\).*12.*Jesse.*8/.test(sday)) throw new Error('today board wrong (me 12 should lead Jesse 8): '+sday);
+  if(/Kim/.test(sday)) throw new Error('Kim (0 today) should not be listed: '+sday);
+  // tapping my own row shares a taunt
+  let shared=null; await pg.exposeFunction('__cap', s=>{shared=s;}).catch(()=>{});
+  await pg.evaluate(()=>{ navigator.share = d => { window.__cap(d.text); return Promise.resolve(); }; });
+  await pg.click('#ranksSurvDay [aria-label="Share your survival run"]');
+  await pg.waitForTimeout(150);
+  if(!/survived 12 songs/.test(shared||'')) throw new Error('survival taunt share wrong: '+shared);
+  console.log('survival boards: srun sync + 7-day/today windows + taunt share OK');
 
   // 5c) achievement popup: silent baseline, pops on a fresh unlock, no re-pop
   await pg.evaluate(()=>{

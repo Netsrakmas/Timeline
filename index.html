@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.26.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.27.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -6411,10 +6411,10 @@ function homeHTML(){
     ${chal}${resume}${hero}
     <div class="modelist">
       ${modeCardHTML(ico('cal'),'rgba(198,242,78,.16); color:#C6F24E','Daily Challenge','#'+dNum,'hot',dailyDesc, dailyDone?'shareDaily()':'startDaily()')}
+      ${modeCardHTML(ico('target'),'rgba(255,93,177,.16); color:#FF5DB1','Survival','Solo','','Endless run, 3 lives. One more song… chase your best.',"openMode('survival')")}
       ${modeCardHTML(ico('swords'),'rgba(167,139,250,.16); color:#A78BFA','Challenges','Duel','','Challenge a friend to your 5-song gauntlet.','openChallengePicker()')}
       ${modeCardHTML(ico('users'),'rgba(246,185,59,.16); color:#F6B93B','Pass &amp; Play','Classic','','Party mode. Pass one phone, first to the target wins.',"openMode('passplay')")}
       ${modeCardHTML(ico('bolt'),'rgba(94,224,214,.16); color:#5EE0D6','Turbo','3 min','live','Same '+RUN_LEN+' songs, one shared line. Most correct wins.',"openMode('turbo')")}
-      ${modeCardHTML(ico('target'),'rgba(255,93,177,.16); color:#FF5DB1','Survival','Solo','','Endless run, 3 lives. Chase your personal best.',"openMode('survival')")}
     </div>
     <div class="footnote">No account needed · 30-second previews courtesy of Apple Music, all rights with their owners<br>
       <a href="mailto:contact@playyearworm.com?subject=Yearworm%20%E2%80%94%20contact%2Ftakedown">contact / takedown</a> · <a href="./privacy.html">privacy</a>${KOFI_URL ? ` · <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ support</a>` : ``} · ${BUILD}</div>`;
@@ -6483,27 +6483,36 @@ function ranksFriendsRows(){
 }
 // survival bests among friends: unlimited-attempt scores are only meaningful
 // among people who know each other — the world gets no all-time grind board
-function ranksSurvivalRows(){
-  const mine = loadBSync().s|0;
-  const rows = ((_social && _social.friends) || []).map(f => ({ f, handle: f.handle, best: f.sbest|0 }));
-  if(mine > 0 || loadProfile()) rows.push({ me: true, handle: lbNick(), best: mine });
+// survival board for a time window: key = 's7' (rolling 7 days) or 'sday' (today).
+// "me" row is tappable → WhatsApp taunt to beat the run.
+function ranksSurvivalRows(key, emptyMsg){
+  const meVal = (_social && _social.me && (_social.me[key]|0)) || 0;
+  const rows = ((_social && _social.friends) || []).map(f => ({ f, handle: f.handle, best: f[key]|0 }));
+  if(meVal > 0 || loadProfile()) rows.push({ me: true, handle: lbNick(), best: meVal });
   const ranked = rows.filter(r => r.best > 0).sort((a,b) => b.best - a.best);
-  if(!ranked.length) return `<div class="muted" style="font-size:13.5px">Play Survival on the standard decks and your best lands here for friends to chase.</div>`;
-  return ranked.map((r,i)=>`<div class="row" style="align-items:center; gap:8px; padding:7px 2px; ${i?'border-top:1px solid var(--line)':''}">
+  if(!ranked.length) return `<div class="muted" style="font-size:13.5px">${esc(emptyMsg)}</div>`;
+  return ranked.map((r,i)=>`<div class="row" style="align-items:center; gap:8px; padding:7px 2px; ${i?'border-top:1px solid var(--line)':''}" ${r.me?`role="button" tabindex="0" onclick="shareSurvival(${r.best})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" style="cursor:pointer" aria-label="Share your survival run"`:''}>
       <span style="flex:0 0 24px; text-align:center; font-family:var(--mono); font-weight:700; color:${i<3?'var(--gold)':'var(--faint)'}">${i<3?['🥇','🥈','🥉'][i]:i+1}</span>
       <span class="avatar sm ${r.me?'me':''}" aria-hidden="true">${r.me ? myAvatar() : friendAvatar(r.f)}</span>
       <b style="flex:1; min-width:0; font-size:14px; ${r.me?'color:var(--gold)':''}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(r.handle)}${r.me?' (you)':''}</b>
-      <span style="flex:0 0 auto; font-family:var(--mono); font-size:13px">${r.best} placed</span></div>`).join("");
+      <span style="flex:0 0 auto; font-family:var(--mono); font-size:13px">${r.best}${r.me?` ${ico('share',1)}`:''}</span></div>`).join("");
+}
+// share a "beat my survival run" taunt — survival isn't a seeded set, so it's a
+// score dare, not a same-songs link
+function shareSurvival(score){
+  shareText(`I survived ${score} songs in Yearworm 🎧 — place them by year, one wrong guess and it's over. Think you can beat ${score}?\nhttps://playyearworm.com`);
 }
 function ranksTabHTML(){
   return `${lobbyHeadHTML()}
     <div class="screenhd" style="margin-top:14px"><h2>Ranks</h2></div>
     <div class="card"><div class="eyebrow" style="color:var(--gold); margin-top:0">🌍 today's daily · worldwide</div>
       <div id="ranksDaily" style="margin-top:10px"><div class="muted" style="font-size:13.5px">${LB.url ? 'Loading…' : 'Play the daily to join the worldwide board.'}</div></div></div>
+    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:#FF5DB1; margin-top:0">${ico('target',1)} survival · this week</div>
+      <div style="height:8px"></div><div id="ranksSurv7">${ranksSurvivalRows('s7', 'Play Survival this week and your best lands here for friends to chase.')}</div></div>
+    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:#FF5DB1; margin-top:0">${ico('target',1)} survival · today</div>
+      <div style="height:8px"></div><div id="ranksSurvDay">${ranksSurvivalRows('sday', 'No survival runs yet today — be the first.')}</div></div>
     <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:var(--cyan); margin-top:0">${ico('swords',1)} friends standings</div>
-      <div style="height:8px"></div><div id="ranksFriends">${ranksFriendsRows()}</div></div>
-    <div class="card" style="margin-top:12px"><div class="eyebrow" style="color:#FF5DB1; margin-top:0">${ico('target',1)} survival · friends best</div>
-      <div style="height:8px"></div><div id="ranksSurvival">${ranksSurvivalRows()}</div></div>`;
+      <div style="height:8px"></div><div id="ranksFriends">${ranksFriendsRows()}</div></div>`;
 }
 // world daily board rows from the real /daily top[]
 function ranksBoardHTML(b){
@@ -6663,7 +6672,8 @@ function afterLobby(tab){
       const fc=document.getElementById("feedCard"); if(fc) fc.innerHTML = feedCardHTML(); }
     // fresh social state landed: refresh the ranks standings in place too
     if(_tab==="ranks"){ const rf=document.getElementById("ranksFriends"); if(rf) rf.innerHTML = ranksFriendsRows();
-      const rs=document.getElementById("ranksSurvival"); if(rs) rs.innerHTML = ranksSurvivalRows(); }
+      const r7=document.getElementById("ranksSurv7"); if(r7) r7.innerHTML = ranksSurvivalRows('s7', 'Play Survival this week and your best lands here for friends to chase.');
+      const rd=document.getElementById("ranksSurvDay"); if(rd) rd.innerHTML = ranksSurvivalRows('sday', 'No survival runs yet today — be the first.'); }
     // refresh the nav badge without a full re-render
     const bar=document.querySelector(".tabbar"); if(bar && _playScreen==null) bar.outerHTML = navHTML(_tab);
     checkAchievements();   // friend/duel achievements depend on fresh social state
@@ -6977,7 +6987,7 @@ function overlayGameOver(deckEmpty, winner){
     const newBest = S.score > (best.cards||0) || S.bestStreak > (best.streak||0);
     const nb = { cards: Math.max(S.score, best.cards||0), streak: Math.max(S.bestStreak, best.streak||0) };
     saveBest(nb);
-    if(standardDecksOnly()){ bumpBSync("s", S.score); if(LB.url && loadProfile()) socialGet(); }   // sync rides along; server MAXes
+    if(standardDecksOnly()){ bumpBSync("s", S.score); if(LB.url && loadProfile() && S.score>0) socialPost({ action:"srun", score: S.score }); }   // records today's run for the daily/7-day boards; server MAXes all-time
     logFeed({ k:"survival", c: S.score, nb: newBest ? 1 : 0 });
     buzz(newBest ? [0,30,40,30,40,90] : [0,25,40,25]);
     sfx(newBest ? "win" : "lose");   // out of lives IS a defeat — sound like one (new best still celebrates)

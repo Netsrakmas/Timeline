@@ -252,6 +252,14 @@ async function socialState(env, me, cors){
     const q = "SELECT id, sbest, tbest FROM users WHERE id IN (" + capIds.map((_, i) => "?" + (i + 1)).join(",") + ")";
     for(const r of ((await env.DB.prepare(q).bind(...capIds).all()).results || [])) bests[r.id] = { s: r.sbest || 0, t: r.tbest || 0 };
   }catch(e){} }
+  // survival daily (today) + rolling-7-day best, per friend AND me
+  const sToday = {}, s7 = {}, today = dayNow(), wkFrom = today - 6;
+  const winIds = capIds.concat([me.id]);
+  if(winIds.length){ try{
+    const ph = winIds.map((_, i) => "?" + (i + 2)).join(",");
+    for(const r of ((await env.DB.prepare("SELECT user_id, MAX(score) sc FROM sscores WHERE day=?1 AND user_id IN (" + ph + ") GROUP BY user_id").bind(today, ...winIds).all()).results || [])) sToday[r.user_id] = r.sc || 0;
+    for(const r of ((await env.DB.prepare("SELECT user_id, MAX(score) sc FROM sscores WHERE day>=?1 AND user_id IN (" + ph + ") GROUP BY user_id").bind(wkFrom, ...winIds).all()).results || [])) s7[r.user_id] = r.sc || 0;
+  }catch(e){} }
   // head-to-head duel tallies per friend, from my perspective (w = my wins),
   // plus a rolling last-7-days window and the most recent duels for the
   // friend-detail sheet
@@ -281,7 +289,8 @@ async function socialState(env, me, cors){
       const t = tally[other] || { w:0, l:0, t:0, w7:0, l7:0, t7:0, recent:[] };
       const pb = bests[other] || {};
       friends.push({ id: other, handle: named[other], avatar: avatars[other] || null, w: t.w, l: t.l, t: t.t,
-                     w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent, sbest: pb.s || 0, tbest: pb.t || 0 });
+                     w7: t.w7, l7: t.l7, t7: t.t7, recent: t.recent, sbest: pb.s || 0, tbest: pb.t || 0,
+                     sday: sToday[other] || 0, s7: s7[other] || 0 });
     }
     else if(r.requester === me.id) outgoing++;
     else requests.push({ id: other, handle: named[other], avatar: avatars[other] || null });
@@ -312,7 +321,8 @@ async function socialState(env, me, cors){
   }
   // id rides along so share links can carry WHO sent them (receiver matches it
   // against their friends list to enable react-back on link-played duels)
-  return json({ me: { id: me.id, handle: me.handle, code: me.code, linked: !!linked, avatar: myAv }, friends, requests, outgoing, inbox, sent }, 200, cors);
+  return json({ me: { id: me.id, handle: me.handle, code: me.code, linked: !!linked, avatar: myAv,
+    sday: sToday[me.id] || 0, s7: s7[me.id] || 0 }, friends, requests, outgoing, inbox, sent }, 200, cors);
 }
 async function handleSocialPost(env, b, cors, ctx){
   // schedule a push without delaying the response (falls back to inline await)
@@ -383,6 +393,17 @@ async function handleSocialPost(env, b, cors, ctx){
       await env.DB.prepare("INSERT INTO inbox (to_user, from_user, kind, payload, created) VALUES (?1,?2,'friend',?3,?4)")
         .bind(other.id, me.id, "{}", Date.now()).run();
       push(other.id, { title: "New friend 🎧", body: me.handle + " added you as a friend", tab: "friends" });
+    }
+    return socialState(env, me, cors);
+  }
+
+  if(action === "srun"){
+    // a survival run finished — record today's score for the daily/7-day boards
+    const sc = Math.min(999, Math.max(0, parseInt(b.score, 10) || 0));
+    if(sc > 0){
+      try{ await env.DB.prepare("INSERT INTO sscores (day, user_id, score, created) VALUES (?1,?2,?3,?4)")
+        .bind(dayNow(), me.id, sc, Date.now()).run(); }catch(e){}
+      try{ await env.DB.prepare("UPDATE users SET sbest=MAX(COALESCE(sbest,0),?1) WHERE id=?2").bind(sc, me.id).run(); }catch(e){}
     }
     return socialState(env, me, cors);
   }
@@ -694,6 +715,11 @@ export default {
     try{ await env.DB.prepare("ALTER TABLE push_subs ADD COLUMN nudged INTEGER").run(); }catch(e){}
     try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN sbest INTEGER").run(); }catch(e){}
     try{ await env.DB.prepare("ALTER TABLE users ADD COLUMN tbest INTEGER").run(); }catch(e){}
+    // per-day survival scores → daily & rolling-7-day friend boards
+    try{ await env.DB.prepare("CREATE TABLE IF NOT EXISTS sscores (day INTEGER, user_id TEXT, score INTEGER, created INTEGER)").run(); }catch(e){}
+    try{ await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_sscores ON sscores (user_id, day)").run(); }catch(e){}
+    // prune sscores older than ~40 days so the table can't grow forever
+    try{ await env.DB.prepare("DELETE FROM sscores WHERE day < ?1").bind(dayNow() - 40).run(); }catch(e){}
     if(!env.VAPID_PRIVATE || !env.VAPID_PUBLIC) return;
     const today = dayNow();
     const utcHour = new Date().getUTCHours();
