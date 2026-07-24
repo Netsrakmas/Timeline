@@ -73,6 +73,17 @@ preview clips** instead of Spotify.
   CF-Connecting-IP), uichrome §5b (record on standard, custom-deck immune, POST
   carries sbest, ranked render, detail line). Future hook: push when a friend
   beats your best.
+- **Better clip selection** (4.27.1 — LIVE, Sam: Tamperer "Feel It" played the
+  wrong version, radio edit is a better clip): pickBest gains (1) LONGVER
+  penalty (extended/club mix/12"/dub/megamix — their 30s preview is usually an
+  instrumental build-up) and (2) a track-length preference via trackTimeMillis
+  (+1 for ~2:20–5:30 radio-single length, −1 for >6:30 album/12" cuts), both
+  "unless the curated title wants it". NEW per-song `sg.q` search override
+  (resolveBatch uses it instead of artist+title) to steer Apple toward a
+  specific cut — set `q:"The Tamperer Feel It radio edit"` on both Tamperer
+  entries. CAVEAT: can't verify the actual Apple clip from the sandbox (proxy
+  blocks iTunes) — logic is sounder, Sam verifies on device. uichrome §5e
+  extended (ext-vs-radio, long-alone last resort, length pref).
 - **Survival leaderboards + Play-page reorder** (4.27.0 — LIVE, Sam: survival
   deserves 2nd place + windowed boards + share-your-run): (1) Play page order
   now Daily, SURVIVAL, Challenges, Pass&Play, Turbo. (2) NEW server `sscores`

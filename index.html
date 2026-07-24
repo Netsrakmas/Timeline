@@ -488,7 +488,7 @@
 
 <script>
 "use strict";
-const BUILD = "4.27.0";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
+const BUILD = "4.27.1";   // semver; keep in sync with CACHE_NAME in sw.js; shown in the footer
 // geometric ✕ — a font glyph sits off-center in its em box on some devices
 const XICON = '<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" style="display:block"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 
@@ -3350,7 +3350,7 @@ const EXTRA_SONGS = [
   {year:1998, artist:"Will Smith", title:"Miami"},
   {year:1998, artist:"Aqua", title:"Turn Back Time"},
   {year:1999, artist:"DJ Jean", title:"The Launch"},
-  {year:1998, artist:"Tamperer", title:"Feel It"},
+  {year:1998, artist:"Tamperer", title:"Feel It", q:"The Tamperer Feel It radio edit"},
   {year:1998, artist:"Spice Girls", title:"Stop"},
   {year:1998, artist:"Five", title:"Everybody Get Up"},
   {year:1998, artist:"Vengaboys", title:"Up & Down"},
@@ -3859,7 +3859,7 @@ const PARTY_SONGS = [
   {year:1998, artist:"Big Pun", title:"Still Not a Player"},
   {year:1998, artist:"Pras", title:"Ghetto Supastar (That Is What You Are)"},
   {year:1999, artist:"DJ Jean", title:"The Launch"},
-  {year:1998, artist:"Tamperer", title:"Feel It"},
+  {year:1998, artist:"Tamperer", title:"Feel It", q:"The Tamperer Feel It radio edit"},
   {year:1998, artist:"Cher", title:"Believe"},
   {year:1998, artist:"Spice Girls", title:"Stop"},
   {year:1998, artist:"Five", title:"Everybody Get Up"},
@@ -5558,6 +5558,10 @@ const NOVOCAL = /\b(instrumental|sped[- ]?up|slowed(?:\s*(?:\+|and|&)\s*reverb)?
 // any clean take wins, but still allowed as a last resort — a live cut of the
 // right song beats no song. "unless wanted" guard: "Live Is Life" stays fine.
 const OFFVER = /\b(live|acoustic|unplugged|demo|remix|cover|re-?recorded|orchestral|reprise|version)\b/i;
+// extended / club / 12" mixes: technically the right song, but their 30s preview
+// is usually an instrumental build-up — the radio edit's clip lands on the hook.
+// Penalized (any shorter cut wins) and reinforced by a track-length preference.
+const LONGVER = /\b(extended|club mix|12["”]|dance mix|dub|megamix|long version)\b/i;
 function pickBest(results, song){
   const wantT = norm(song.title), wantA = norm(song.artist);
   const wantTC = coreNorm(song.title) || wantT;
@@ -5582,7 +5586,12 @@ function pickBest(results, song){
     const ry = yearOf(r.releaseDate);
     const yBonus = (ry && song.year && Math.abs(ry - song.year) <= 3) ? 1 : 0;
     const offPenalty = (OFFVER.test(r.trackName||"") && !OFFVER.test(song.title||"")) ? 2 : 0;
-    const score = tScore + aScore + yBonus - offPenalty;
+    const longPenalty = (LONGVER.test(r.trackName||"") && !LONGVER.test(song.title||"")) ? 2 : 0;
+    // radio-single length (~2:20–5:30) gives the best clip; long 12"/album cuts
+    // (>6 min) usually preview an instrumental section. Nudge, don't dictate.
+    const ms = r.trackTimeMillis || 0;
+    const lenScore = ms ? (ms >= 140000 && ms <= 330000 ? 1 : ms > 390000 ? -1 : 0) : 0;
+    const score = tScore + aScore + yBonus + lenScore - offPenalty - longPenalty;
     if(score>bestScore){ bestScore=score; best=r; }
   }
   return best;
@@ -5639,10 +5648,13 @@ if(typeof window !== "undefined"){
 async function resolveBatch(slice){
   const hits = await Promise.all(slice.map(async sg => {
     let res = [];
-    try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){}
+    // sg.q: optional per-song search override to steer Apple toward a specific
+    // cut (e.g. "radio edit") when the default artist+title returns a bad clip
+    const term = sg.q || (sg.artist+" "+sg.title);
+    try{ res = await itunesSearch(term, 10); }catch(e){}
     // empty usually means a network hiccup (timeout) on a flaky connection —
     // one retry recovers it; costs nothing when the first call already worked
-    if(!res.length){ try{ res = await itunesSearch(sg.artist+" "+sg.title, 10); }catch(e){} }
+    if(!res.length){ try{ res = await itunesSearch(term, 10); }catch(e){} }
     noteLookup(res.length > 0);   // feed the connection watchdog
     return { sg, hit: pickBest(res, sg) };
   }));

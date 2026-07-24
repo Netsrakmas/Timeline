@@ -186,7 +186,7 @@ const server = http.createServer((req,res)=>{
 
   // 5e) version filter: instrumentals rejected, live/remix penalized not banned
   const pk = await pg.evaluate(()=>{
-    const mk=(n,y)=>({trackName:n, artistName:'Rihanna', collectionName:'A', releaseDate:(y||2007)+'-01-01', previewUrl:'u'});
+    const mk=(n,y,ms)=>({trackName:n, artistName:'Rihanna', collectionName:'A', releaseDate:(y||2007)+'-01-01', previewUrl:'u', trackTimeMillis:ms||210000});
     const want={title:'Umbrella', artist:'Rihanna', year:2007};
     return {
       instOnly: pickBest([mk('Umbrella (Instrumental)')], want),
@@ -195,6 +195,12 @@ const server = http.createServer((req,res)=>{
       liveVsClean: pickBest([mk('Umbrella (Live)'), mk('Umbrella')], want).trackName,
       liveAlone: pickBest([mk('Umbrella (Live)')], want),
       wantedLive: pickBest([{trackName:'Live Is Life', artistName:'Opus', collectionName:'A', releaseDate:'1985-01-01', previewUrl:'u'}], {title:'Live Is Life', artist:'Opus', year:1985}),
+      // extended/club mix loses to the radio-length edit
+      extVsRadio: pickBest([mk('Umbrella (Extended Club Mix)',2007,480000), mk('Umbrella',2007,220000)], want).trackName,
+      // when only the long cut exists it still resolves (penalty, not ban)
+      longAlone: pickBest([mk('Umbrella (12" Extended)',2007,500000)], want),
+      // a very long album cut loses to a single-length one on length alone
+      lenPref: pickBest([mk('Umbrella',2007,470000), mk('Umbrella',2007,230000)], want).trackTimeMillis,
     };
   });
   if(pk.instOnly !== null) throw new Error('instrumental-only should resolve to nothing');
@@ -203,7 +209,10 @@ const server = http.createServer((req,res)=>{
   if(pk.liveVsClean !== 'Umbrella') throw new Error('live version beat the clean take');
   if(!pk.liveAlone) throw new Error('live-as-last-resort should still resolve');
   if(!pk.wantedLive) throw new Error('a wanted title containing "Live" got falsely filtered');
-  console.log('version filter: instrumentals out, off-versions penalized, wanted-live safe OK');
+  if(pk.extVsRadio !== 'Umbrella') throw new Error('extended club mix beat the radio edit: '+pk.extVsRadio);
+  if(!pk.longAlone) throw new Error('long-only cut should still resolve as a last resort');
+  if(pk.lenPref !== 230000) throw new Error('very long album cut beat the single-length take: '+pk.lenPref);
+  console.log('version filter: instrumentals out, off/extended penalized, radio-length preferred OK');
 
   // 6) ducking: a cue dips the playing music, then volume fully recovers
   const wav = (()=>{ // 200ms of silence
